@@ -52,15 +52,20 @@ export async function POST(request: Request) {
 
   // Solo procesar mensajes entrantes
   const tipoEvento = payload.type ?? ''
+  console.log('[Webhook] Tipo de evento:', tipoEvento)
+  console.log('[Webhook] Payload completo:', JSON.stringify(payload).slice(0, 500))
+
   if (!tipoEvento.includes('inbound_message') && !tipoEvento.includes('message.received')) {
-    // Evento de estado/entrega — responder 200 y no hacer nada
+    console.log('[Webhook] Evento ignorado (no es mensaje entrante):', tipoEvento)
     return NextResponse.json({ ok: true })
   }
 
   // ── 3. Extraer mensaje ─────────────────────────────────────────────────────
   const mensaje = extraerMensaje(payload)
+  console.log('[Webhook] Mensaje extraído:', JSON.stringify(mensaje).slice(0, 300))
   if (!mensaje) {
-    return NextResponse.json({ ok: true }) // payload sin mensaje — ignorar
+    console.log('[Webhook] No se pudo extraer mensaje del payload')
+    return NextResponse.json({ ok: true })
   }
 
   // Solo procesar mensajes de texto por ahora
