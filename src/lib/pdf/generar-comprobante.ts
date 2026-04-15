@@ -229,6 +229,29 @@ export async function generarYEnviarComprobante({
   }
 }
 
+// ── Eliminar comprobante de un pedido (para regenerarlo tras modificación) ────
+export async function eliminarComprobantePedido(
+  pedidoId: string,
+  ferreteriaId: string,
+): Promise<void> {
+  const supabase = createAdminClient()
+
+  const { data: comp } = await supabase
+    .from('comprobantes')
+    .select('id, numero_comprobante')
+    .eq('pedido_id', pedidoId)
+    .single()
+
+  if (!comp) return
+
+  // Borrar PDF del storage
+  const storagePath = `${ferreteriaId}/${comp.numero_comprobante}.pdf`
+  await supabase.storage.from('comprobantes').remove([storagePath])
+
+  // Borrar registro en DB
+  await supabase.from('comprobantes').delete().eq('id', comp.id)
+}
+
 // ── Reenvío de comprobante existente ─────────────────────────────────────────
 export async function reenviarComprobante({
   pedidoId,

@@ -96,10 +96,19 @@ NO inventes ni menciones costo de delivery — di "el costo lo coordina el encar
 Intent: estado_pedido | Extrae: numero_pedido si lo menciona
 Si no menciona número: pídelo de forma natural.
 
+[MODIFICAR PEDIDO]
+El cliente quiere cambiar su pedido pendiente: agregar productos, quitar productos o cambiar cantidades.
+Frases típicas: "agrega X de Y", "quita el/los Z", "ya no quiero X", "ponme más", "cambia la cantidad", "en vez de X quiero Y".
+Intent: modificar_pedido | Extrae: items_solicitados con los cambios
+  - Quitar un producto: { "nombre_buscado": "cemento", "cantidad": 0 }
+  - Agregar / cambiar cantidad (usa la cantidad FINAL deseada): { "nombre_buscado": "fierro 3/8", "cantidad": 10 }
+Tu respuesta debe ser corta y natural. Ejemplo: "Ya actualizo tu pedido:"
+IMPORTANTE: Solo aplica si el cliente ya tiene un pedido pendiente. Si no tiene pedido, sugiérele hacer uno nuevo.
+
 [BOLETA / COMPROBANTE]
 Frases que lo activan: "boleta", "comprobante", "recibo", "factura", "comprobante de pago", "voucher".
 Intent: solicitar_comprobante | Extrae: numero_pedido si lo menciona.
-Si el cliente insiste en la boleta pero el pedido sigue pendiente, tranquilízalo: el encargado lo confirmará pronto y recibirá el comprobante automáticamente. NO inventes ni improvises el comprobante.
+Si el pedido sigue pendiente, el sistema genera automáticamente una proforma — no digas que no se puede enviar.
 
 [PREGUNTAS FRECUENTES]
 Intent: faq_horario / faq_direccion / faq_delivery / faq_pagos
@@ -124,7 +133,9 @@ REGLAS IMPORTANTES:
 5. Omite campos JSON que no aplican (no pongas arrays vacíos ni null).
 
 JSON de respuesta:
-{"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"..."}}`
+{"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"..."}}
+
+Intents válidos: saludo | cotizacion | confirmar_pedido | recopilar_datos_pedido | orden_completa | modificar_pedido | solicitar_comprobante | estado_pedido | rechazar_cotizacion | pedir_humano | faq_horario | faq_direccion | faq_delivery | faq_pagos | desconocido`
 }
 
 function buildCatalogoTexto(productos: Producto[]): string {

@@ -15,7 +15,7 @@ import {
   mensajeYaProcesado,
 } from '@/lib/bot/session'
 import { formatHora } from '@/lib/utils'
-import { generarYEnviarComprobante } from '@/lib/pdf/generar-comprobante'
+import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 interface HandleMessageParams {
@@ -364,6 +364,123 @@ export async function handleIncomingMessage({
         `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
         `${modalidadTexto}\n\n` +
         `El encargado lo confirmará en breve. ¡Gracias, ${dp.nombre_cliente}! 🙏`
+      break
+    }
+
+    // ─── Modificar pedido pendiente ───────────────────────────────────────
+    case 'modificar_pedido': {
+      if (!respuestaAI.items_solicitados?.length) {
+        mensajeFinal = respuestaAI.respuesta
+        break
+      }
+
+      const admin = createAdminClient()
+
+      // Buscar el pedido pendiente más reciente del cliente
+      const { data: pedidoMod } = await admin
+        .from('pedidos')
+        .select('id, numero_pedido, total, items_pedido(*)')
+        .eq('ferreteria_id', ferreteria.id)
+        .eq('cliente_id', conversacion.cliente_id)
+        .eq('estado', 'pendiente')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (!pedidoMod) {
+        mensajeFinal = `No tengo un pedido pendiente tuyo para modificar. ¿Quieres hacer uno nuevo?`
+        break
+      }
+
+      const itemsActuales: any[] = (pedidoMod as any).items_pedido ?? []
+      const productoCostoMap = new Map((productos ?? []).map((p) => [p.id, p.precio_compra ?? 0]))
+
+      // ── Quitar items (cantidad = 0) ──────────────────────────────────────
+      const itemsQuitar = respuestaAI.items_solicitados.filter((i) => i.cantidad === 0)
+      for (const req of itemsQuitar) {
+        const nombre = req.nombre_buscado.toLowerCase()
+        const match = itemsActuales.find((ia) =>
+          ia.nombre_producto.toLowerCase().includes(nombre) ||
+          nombre.includes(ia.nombre_producto.toLowerCase().split(' ')[0])
+        )
+        if (match) {
+          await admin.from('items_pedido').delete().eq('id', match.id)
+        }
+      }
+
+      // ── Agregar / actualizar items (cantidad > 0) ────────────────────────
+      const itemsModificar = respuestaAI.items_solicitados.filter((i) => i.cantidad > 0)
+      if (itemsModificar.length > 0) {
+        const resultados = procesarItemsSolicitados(
+          itemsModificar,
+          productos ?? [],
+          config?.umbral_monto_negociacion
+        )
+
+        for (const r of resultados) {
+          if (!r.disponible || !r.producto) continue
+
+          const existente = itemsActuales.find((ia) => ia.producto_id === r.producto!.id)
+          if (existente) {
+            await admin.from('items_pedido').update({
+              cantidad: r.cantidad,
+              precio_unitario: r.precio_unitario,
+              subtotal: r.subtotal,
+              costo_unitario: productoCostoMap.get(r.producto.id) ?? 0,
+            }).eq('id', existente.id)
+          } else {
+            await admin.from('items_pedido').insert({
+              pedido_id: pedidoMod.id,
+              producto_id: r.producto.id,
+              nombre_producto: r.producto.nombre,
+              unidad: r.producto.unidad,
+              cantidad: r.cantidad,
+              precio_unitario: r.precio_unitario,
+              subtotal: r.subtotal,
+              costo_unitario: productoCostoMap.get(r.producto.id) ?? 0,
+            })
+          }
+        }
+      }
+
+      // ── Recalcular total del pedido ──────────────────────────────────────
+      const { data: itemsFinal } = await admin
+        .from('items_pedido')
+        .select('subtotal, cantidad, costo_unitario')
+        .eq('pedido_id', pedidoMod.id)
+
+      if (!itemsFinal || itemsFinal.length === 0) {
+        mensajeFinal =
+          `Tu pedido *${pedidoMod.numero_pedido}* quedó sin productos. ` +
+          `¿Lo cancelo o quieres agregar algo?`
+        break
+      }
+
+      const nuevoTotal = itemsFinal.reduce((s, i) => s + i.subtotal, 0)
+      const nuevoCosto = itemsFinal.reduce((s, i) => s + (i.costo_unitario ?? 0) * i.cantidad, 0)
+      await admin.from('pedidos')
+        .update({ total: nuevoTotal, costo_total: nuevoCosto })
+        .eq('id', pedidoMod.id)
+
+      // ── Borrar comprobante anterior si existe ────────────────────────────
+      await eliminarComprobantePedido(pedidoMod.id, ferreteria.id)
+
+      // ── Mensaje de confirmación al cliente ───────────────────────────────
+      const { data: itemsMostrar } = await admin
+        .from('items_pedido')
+        .select('nombre_producto, cantidad, precio_unitario')
+        .eq('pedido_id', pedidoMod.id)
+        .order('nombre_producto')
+
+      const lineas = (itemsMostrar ?? [])
+        .map((i) => `• ${i.nombre_producto}: ${i.cantidad} × S/${i.precio_unitario.toFixed(2)}`)
+        .join('\n')
+
+      mensajeFinal =
+        `✅ *Pedido ${pedidoMod.numero_pedido} actualizado*\n\n` +
+        `${lineas}\n\n` +
+        `*Total: S/${nuevoTotal.toFixed(2)}*\n\n` +
+        `Si necesitas la proforma actualizada, pídemela y te la envío 🙏`
       break
     }
 

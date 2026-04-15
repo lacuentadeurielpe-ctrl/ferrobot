@@ -65,8 +65,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const estadoAnterior = pedidoActual?.estado
   const estadosConfirmados = ['confirmado', 'en_preparacion', 'enviado', 'entregado']
 
-  if (body.estado === 'confirmado' && estadoAnterior === 'pendiente') {
-    // Descontar stock al confirmar por primera vez
+  if (estadoAnterior === 'pendiente' && estadosConfirmados.includes(body.estado)) {
+    // Descontar stock al salir de pendiente hacia cualquier estado confirmado
+    // (cubre el caso de saltar directo a en_preparacion, enviado o entregado)
     await supabase.rpc('reducir_stock_pedido', { p_pedido_id: id })
       .then(({ error: e }) => {
         if (e) console.error('[Stock] Error descontando stock:', e.message)
