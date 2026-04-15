@@ -17,23 +17,32 @@ interface YCloudMensaje {
   status: string
 }
 
+// Normaliza número a formato E.164 con + (requerido por YCloud)
+function e164(num: string): string {
+  const limpio = num.replace(/[^\d]/g, '')
+  return `+${limpio}`
+}
+
 // Envía un mensaje de texto por WhatsApp vía YCloud
 export async function enviarMensaje({ from, to, texto }: EnviarMensajeParams): Promise<YCloudMensaje> {
   const apiKey = process.env.YCLOUD_API_KEY
   if (!apiKey) throw new Error('YCLOUD_API_KEY no configurado')
 
-  const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages`, {
+  const body = {
+    from: e164(from),
+    to: e164(to),
+    type: 'text',
+    text: { body: texto },
+  }
+  console.log('[YCloud] Enviando mensaje:', JSON.stringify(body))
+
+  const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages/sendDirectly`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-API-Key': apiKey,
     },
-    body: JSON.stringify({
-      from,
-      to,
-      type: 'text',
-      text: { body: texto },
-    }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
@@ -59,15 +68,15 @@ export async function enviarDocumento({
   const apiKey = process.env.YCLOUD_API_KEY
   if (!apiKey) throw new Error('YCLOUD_API_KEY no configurado')
 
-  const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages`, {
+  const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages/sendDirectly`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-API-Key': apiKey,
     },
     body: JSON.stringify({
-      from,
-      to,
+      from: e164(from),
+      to: e164(to),
       type: 'document',
       document: {
         link: pdfUrl,
