@@ -100,9 +100,13 @@ export async function verificarFirmaWebhook(
   if (!firma) return false
 
   const encoder = new TextEncoder()
+
+  // Quitar prefijo "whsec_" si existe (formato YCloud)
+  const secretLimpio = secret.replace(/^whsec_/, '')
+
   const key = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(secret),
+    encoder.encode(secretLimpio),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
@@ -114,6 +118,9 @@ export async function verificarFirmaWebhook(
 
   // YCloud puede enviar la firma con o sin el prefijo "sha256="
   const firmaLimpia = firma.replace(/^sha256=/, '')
+
+  console.log(`[YCloud] Firma esperada: ${expectedHex.slice(0, 16)}... recibida: ${firmaLimpia.slice(0, 16)}...`)
+
   return expectedHex === firmaLimpia
 }
 
