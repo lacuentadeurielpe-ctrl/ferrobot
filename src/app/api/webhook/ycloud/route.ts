@@ -1,0 +1,136 @@
+// Webhook principal de YCloud
+// Recibe mensajes entrantes de WhatsApp y los procesa con el bot
+
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { verificarFirmaWebhook, extraerMensaje, type YCloudWebhookPayload } from '@/lib/whatsapp/ycloud'
+import { enviarMensaje } from '@/lib/whatsapp/ycloud'
+import { handleIncomingMessage } from '@/lib/bot/message-handler'
+
+// Vercel: máximo 30s de ejecución para esta ruta
+export const maxDuration = 30
+
+// YCloud hace un GET para verificar el webhook al configurarlo
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const challenge = searchParams.get('challenge')
+  if (challenge) return new Response(challenge, { status: 200 })
+  return new Response('Webhook activo', { status: 200 })
+}
+
+export async function POST(request: Request) {
+  let bodyText: string
+
+  try {
+    bodyText = await request.text()
+  } catch {
+    return NextResponse.json({ error: 'Error leyendo body' }, { status: 400 })
+  }
+
+  // ── 1. Verificar firma HMAC ────────────────────────────────────────────────
+  const firma = request.headers.get('x-ycloud-signature') ??
+                request.headers.get('x-ycloud-signature-256')
+
+  const firmaValida = await verificarFirmaWebhook(bodyText, firma)
+  if (!firmaValida) {
+    console.warn('[Webhook] Firma inválida rechazada')
+    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+  }
+
+  // ── 2. Parsear payload ─────────────────────────────────────────────────────
+  let payload: YCloudWebhookPayload
+  try {
+    payload = JSON.parse(bodyText)
+  } catch {
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+  }
+
+  // Solo procesar mensajes entrantes
+  const tipoEvento = payload.type ?? ''
+  if (!tipoEvento.includes('inbound_message') && !tipoEvento.includes('message.received')) {
+    // Evento de estado/entrega — responder 200 y no hacer nada
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── 3. Extraer mensaje ─────────────────────────────────────────────────────
+  const mensaje = extraerMensaje(payload)
+  if (!mensaje) {
+    return NextResponse.json({ ok: true }) // payload sin mensaje — ignorar
+  }
+
+  // Solo procesar mensajes de texto por ahora
+  if (mensaje.type !== 'text' || !mensaje.text?.body?.trim()) {
+    console.log(`[Webhook] Tipo de mensaje ignorado: ${mensaje.type}`)
+    return NextResponse.json({ ok: true })
+  }
+
+  const telefonoCliente = mensaje.from
+  const telefonoFerreteria = mensaje.to
+  const textoMensaje = mensaje.text.body.trim()
+  const ycloudMessageId = mensaje.id
+
+  console.log(`[Webhook] Mensaje de ${telefonoCliente} → ${telefonoFerreteria}: "${textoMensaje.slice(0, 50)}..."`)
+
+  // ── 4. Identificar la ferretería por su número de WhatsApp ────────────────
+  // Usamos el cliente admin (service role) porque el webhook es externo
+  const supabase = createAdminClient()
+
+  // Normalizar número: remover el "+" si viene con él
+  const telefonoNorm = telefonoFerreteria.replace(/^\+/, '')
+
+  const { data: ferreteria } = await supabase
+    .from('ferreterias')
+    .select('*')
+    .or(`telefono_whatsapp.eq.${telefonoNorm},telefono_whatsapp.eq.+${telefonoNorm}`)
+    .eq('activo', true)
+    .single()
+
+  if (!ferreteria) {
+    console.warn(`[Webhook] Ferretería no encontrada para número: ${telefonoFerreteria}`)
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── 5. Procesar el mensaje con el bot ─────────────────────────────────────
+  try {
+    const { respuesta } = await handleIncomingMessage({
+      supabase,
+      ferreteria,
+      telefonoCliente,
+      textoMensaje,
+      ycloudMessageId,
+    })
+
+    // Si el bot no debe responder (está pausado), terminar aquí
+    if (!respuesta) {
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── 6. Enviar respuesta por YCloud ──────────────────────────────────────
+    await enviarMensaje({
+      from: telefonoNorm,
+      to: telefonoCliente,
+      texto: respuesta,
+    })
+
+    console.log(`[Webhook] Respuesta enviada a ${telefonoCliente} (${respuesta.length} chars)`)
+    return NextResponse.json({ ok: true })
+
+  } catch (error) {
+    const mensaje_error = error instanceof Error ? error.message : String(error)
+    console.error('[Webhook] Error procesando mensaje:', mensaje_error)
+
+    // Intentar enviar un mensaje de error amable al cliente
+    try {
+      await enviarMensaje({
+        from: telefonoNorm,
+        to: telefonoCliente,
+        texto: 'Disculpe, tuvimos un inconveniente. Por favor intente nuevamente en un momento. 🙏',
+      })
+    } catch {
+      // Si tampoco podemos enviar el error, ya no hay más que hacer
+    }
+
+    // Retornar 200 para que YCloud no reintente el webhook
+    return NextResponse.json({ ok: true })
+  }
+}

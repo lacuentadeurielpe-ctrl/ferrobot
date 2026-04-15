@@ -1,7 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)"
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "Bash(npm install:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__list_projects",
+      "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__get_project_url",
+      "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__get_publishable_keys",
+      "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__list_tables",
+      "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__apply_migration",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx next:*)",
+      "Bash(grep -v \"^$\")",
+      "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__execute_sql",
+      "Bash(node -e \"const r = require\\('@react-pdf/renderer'\\); console.log\\('version ok:', Object.keys\\(r\\).slice\\(0,5\\).join\\(', '\\)\\)\")",
+      "Bash(grep -r \"SUPABASE_URL\\\\|supabase.*project\" D:\\\\cotizador\\\\.env*)",
+      "Bash(ls D:\\\\cotizador\\\\.env*)"
     ]
   }
 }
