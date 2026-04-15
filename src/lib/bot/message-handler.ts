@@ -95,10 +95,11 @@ export async function handleIncomingMessage({
   console.log(`[Bot] Verificando horario — apertura=${ferreteria.horario_apertura} cierre=${ferreteria.horario_cierre} dias=${JSON.stringify(ferreteria.dias_atencion)}`)
   if (!estaEnHorario(ferreteria)) {
     const msg = ferreteria.mensaje_fuera_horario ??
-      `Gracias por escribirnos a *${ferreteria.nombre}*. En este momento estamos fuera de horario.\n` +
-      `Atendemos ${ferreteria.dias_atencion?.join(', ') ?? 'de lunes a viernes'} ` +
-      `de ${formatHora(ferreteria.horario_apertura)} a ${formatHora(ferreteria.horario_cierre)}. ` +
-      `Le responderemos en cuanto abramos. 🙏`
+      `Hola, gracias por escribir a *${ferreteria.nombre}*. ` +
+      `Por el momento estamos cerrados 🙏\n\n` +
+      `Atendemos de ${formatHora(ferreteria.horario_apertura)} a ${formatHora(ferreteria.horario_cierre)}, ` +
+      `${ferreteria.dias_atencion?.join(', ') ?? 'lunes a viernes'}.\n\n` +
+      `En cuanto abramos te respondemos. ¡Hasta luego!`
     await guardarMensaje(supabase, conversacion.id, 'bot', msg)
     return { respuesta: msg, conversacionId: conversacion.id }
   }
@@ -221,7 +222,7 @@ export async function handleIncomingMessage({
         })
         .eq('id', conversacion.id)
 
-      mensajeFinal = `¡Perfecto! Con gusto le tomamos el pedido 😊\n\n¿Me puede dar su *nombre completo*, por favor?`
+      mensajeFinal = `¡Perfecto! ¿Y tu nombre para el pedido?`
       break
     }
 
@@ -353,18 +354,16 @@ export async function handleIncomingMessage({
         .map((i: any) => `• ${i.nombre_producto}: ${i.cantidad} × S/${i.precio_unitario.toFixed(2)}`)
         .join('\n')
 
+      const modalidadTexto = dp.modalidad === 'delivery'
+        ? `Delivery → ${dp.direccion_entrega ?? 'dirección a confirmar'} (~${tiempoEntrega} min)`
+        : `Recojo en tienda — ${ferreteria.direccion ?? 'consultar dirección'}`
+
       mensajeFinal =
-        `✅ *¡Pedido registrado!*\n\n` +
-        `*N° de pedido: ${numeroPedido}*\n` +
-        `─────────────────\n` +
-        `${lineasProductos}\n` +
-        `─────────────────\n` +
-        `*Total: S/${cotizacion.total.toFixed(2)}*\n\n` +
-        `👤 Cliente: ${dp.nombre_cliente}\n` +
-        (dp.modalidad === 'delivery'
-          ? `🚚 Delivery\n📍 Dirección: ${dp.direccion_entrega ?? 'a confirmar'}\n⏱️ Tiempo estimado: ${tiempoEntrega} min\n`
-          : `🏪 Recojo en tienda\n📍 ${ferreteria.direccion ?? 'Consultar dirección'}\n`) +
-        `\nEn breve el encargado confirmará su pedido. ¡Gracias por preferirnos! 🙏`
+        `✅ *Pedido registrado — ${numeroPedido}*\n\n` +
+        `${lineasProductos}\n\n` +
+        `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
+        `${modalidadTexto}\n\n` +
+        `El encargado lo confirmará en breve. ¡Gracias, ${dp.nombre_cliente}! 🙏`
       break
     }
 
