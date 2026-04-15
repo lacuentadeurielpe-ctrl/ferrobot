@@ -141,10 +141,14 @@ export interface YCloudWebhookPayload {
   createTime?: string
   data?: {
     object?: string
-    whatsappMessage?: YCloudInboundMessage
+    whatsappMessage?: YCloudInboundMessage          // mensajes de estado (outbound)
+    whatsappInboundMessage?: YCloudInboundMessage   // mensajes entrantes
+    [key: string]: unknown
   }
-  // Formato alternativo (algunos eventos lo envían flat)
+  // Formatos alternativos (algunos eventos los envían flat)
   whatsappMessage?: YCloudInboundMessage
+  whatsappInboundMessage?: YCloudInboundMessage
+  [key: string]: unknown
 }
 
 export interface YCloudInboundMessage {
@@ -160,11 +164,22 @@ export interface YCloudInboundMessage {
   timestamp?: number
 }
 
-// Extrae el mensaje entrante del payload (maneja ambos formatos de YCloud)
+// Extrae el mensaje entrante del payload (prueba todos los campos posibles de YCloud)
 export function extraerMensaje(payload: YCloudWebhookPayload): YCloudInboundMessage | null {
-  // Formato anidado
-  if (payload.data?.whatsappMessage) return payload.data.whatsappMessage
-  // Formato flat
-  if (payload.whatsappMessage) return payload.whatsappMessage
-  return null
+  // Intentar todos los campos conocidos de YCloud (anidado y flat)
+  const msg =
+    payload.data?.whatsappInboundMessage ??
+    payload.data?.whatsappMessage ??
+    payload.whatsappInboundMessage ??
+    payload.whatsappMessage ??
+    null
+
+  if (!msg) {
+    // Log diagnóstico: mostrar claves reales del payload para entender la estructura
+    const keysTop = Object.keys(payload)
+    const keysData = payload.data ? Object.keys(payload.data) : []
+    console.warn('[YCloud] extraerMensaje: no encontrado. Keys top:', keysTop, 'Keys data:', keysData)
+  }
+
+  return msg as YCloudInboundMessage | null
 }
