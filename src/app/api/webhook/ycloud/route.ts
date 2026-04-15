@@ -96,11 +96,14 @@ export async function POST(request: Request) {
     .single()
 
   if (!ferreteria) {
-    console.warn(`[Webhook] Ferretería no encontrada para número: ${telefonoFerreteria}`)
+    console.warn(`[Webhook] FERRETERIA_NO_ENCONTRADA numero=${telefonoFerreteria} norm=${telefonoNorm}`)
     return NextResponse.json({ ok: true })
   }
+  console.log(`[Webhook] FERRETERIA_OK id=${ferreteria.id} nombre="${ferreteria.nombre}"`)
+
 
   // ── 5. Procesar el mensaje con el bot ─────────────────────────────────────
+  console.log(`[Webhook] INICIANDO_BOT ferreteria=${ferreteria.id} cliente=${telefonoCliente} texto="${textoMensaje.slice(0, 40)}"`)
   try {
     const { respuesta } = await handleIncomingMessage({
       supabase,
@@ -110,24 +113,26 @@ export async function POST(request: Request) {
       ycloudMessageId,
     })
 
-    // Si el bot no debe responder (está pausado), terminar aquí
+    // Si el bot no debe responder (está pausado o mensaje duplicado), terminar aquí
     if (!respuesta) {
+      console.log(`[Webhook] RESPUESTA_NULA — bot pausado o mensaje duplicado para ${telefonoCliente}`)
       return NextResponse.json({ ok: true })
     }
 
     // ── 6. Enviar respuesta por YCloud ──────────────────────────────────────
+    console.log(`[Webhook] ENVIANDO respuesta a ${telefonoCliente}: "${respuesta.slice(0, 60)}..."`)
     await enviarMensaje({
       from: telefonoNorm,
       to: telefonoCliente,
       texto: respuesta,
     })
 
-    console.log(`[Webhook] Respuesta enviada a ${telefonoCliente} (${respuesta.length} chars)`)
+    console.log(`[Webhook] ENVIADO OK a ${telefonoCliente} (${respuesta.length} chars)`)
     return NextResponse.json({ ok: true })
 
   } catch (error) {
     const mensaje_error = error instanceof Error ? error.message : String(error)
-    console.error('[Webhook] Error procesando mensaje:', mensaje_error)
+    console.error('[Webhook] ERROR_PROCESANDO:', mensaje_error)
 
     // Intentar enviar un mensaje de error amable al cliente
     try {

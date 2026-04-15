@@ -59,8 +59,11 @@ export async function handleIncomingMessage({
   ycloudMessageId,
 }: HandleMessageParams): Promise<HandleMessageResult> {
 
+  console.log(`[Bot] handleIncomingMessage INICIO — cliente=${telefonoCliente} texto="${textoMensaje.slice(0, 40)}"`)
+
   // ── 1. Deduplicación ──────────────────────────────────────────────────────
   if (ycloudMessageId && await mensajeYaProcesado(supabase, ycloudMessageId)) {
+    console.log(`[Bot] DUPLICADO — ycloudMessageId=${ycloudMessageId} ya procesado`)
     return { respuesta: null, conversacionId: '' }
   }
 
@@ -82,10 +85,14 @@ export async function handleIncomingMessage({
   // ── 4. ¿Bot pausado? ──────────────────────────────────────────────────────
   if (conversacion.bot_pausado) {
     const retomado = await verificarRetomarBot(supabase, conversacion, timeoutIntervacion)
-    if (!retomado) return { respuesta: null, conversacionId: conversacion.id }
+    if (!retomado) {
+      console.log(`[Bot] PAUSADO — no retomado para conversacion=${conversacion.id}`)
+      return { respuesta: null, conversacionId: conversacion.id }
+    }
   }
 
   // ── 5. Horario de atención ────────────────────────────────────────────────
+  console.log(`[Bot] Verificando horario — apertura=${ferreteria.horario_apertura} cierre=${ferreteria.horario_cierre} dias=${JSON.stringify(ferreteria.dias_atencion)}`)
   if (!estaEnHorario(ferreteria)) {
     const msg = ferreteria.mensaje_fuera_horario ??
       `Gracias por escribirnos a *${ferreteria.nombre}*. En este momento estamos fuera de horario.\n` +
