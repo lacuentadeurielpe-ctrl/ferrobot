@@ -133,28 +133,31 @@ export function procesarItemsSolicitados(
       }
     }
 
-    const stockOk = producto.stock >= item.cantidad
     const stockDisponible = producto.stock
+    const stockOk = stockDisponible >= item.cantidad
+    const stockParcial = !stockOk && stockDisponible > 0
+    const sinStock = stockDisponible === 0
 
-    const { precio_unitario, requiere_aprobacion, modo, nota } = calcularPrecio(producto, item.cantidad)
+    // Usamos la cantidad real que se puede entregar
+    const cantidadFinal = stockOk ? item.cantidad : stockDisponible
 
-    const subtotal = precio_unitario * item.cantidad
+    const { precio_unitario, requiere_aprobacion, modo, nota } = calcularPrecio(producto, cantidadFinal)
 
     let notaFinal = nota
-    if (!stockOk && producto.stock > 0) {
-      notaFinal = `Solo hay ${producto.stock} ${producto.unidad}${producto.stock !== 1 ? 's' : ''} disponibles`
-    } else if (!stockOk && producto.stock === 0) {
+    if (stockParcial) {
+      notaFinal = `Solo hay ${stockDisponible} ${producto.unidad}${stockDisponible !== 1 ? 's' : ''} disponibles (cantidad ajustada)`
+    } else if (sinStock) {
       notaFinal = 'Sin stock disponible'
     }
 
     return {
       nombre_buscado: item.nombre_buscado,
-      cantidad: item.cantidad,
+      cantidad: cantidadFinal,           // cantidad real a entregar
       producto,
       precio_unitario,
       precio_original: producto.precio_base,
-      subtotal: stockOk ? subtotal : precio_unitario * stockDisponible,
-      disponible: stockOk,
+      subtotal: precio_unitario * cantidadFinal,
+      disponible: !sinStock,             // disponible si hay ALGO de stock
       stock_disponible: stockDisponible,
       nota: notaFinal,
       requiere_aprobacion,
@@ -197,7 +200,9 @@ export function formatearCotizacion(
     texto += `\n✅ *${r.producto!.nombre}*\n`
     texto += `   ${r.cantidad} ${r.producto!.unidad}${r.cantidad !== 1 ? 's' : ''} × ${formatPEN(r.precio_unitario)}\n`
 
-    if (r.modo_aplicado === 'descuento') {
+    if (r.nota) {
+      texto += `   _${r.nota}_\n`
+    } else if (r.modo_aplicado === 'descuento') {
       texto += `   _(precio por volumen)_\n`
     }
 
@@ -209,11 +214,8 @@ export function formatearCotizacion(
   for (const r of noDisponibles) {
     if (!r.producto) {
       texto += `\n❌ "${r.nombre_buscado}" — no disponible en catálogo\n`
-    } else if (r.stock_disponible === 0) {
-      texto += `\n⚠️ *${r.producto.nombre}* — sin stock\n`
     } else {
-      texto += `\n⚠️ *${r.producto.nombre}* — solo hay ${r.stock_disponible} disponibles\n`
-      texto += `   ${r.stock_disponible} × ${formatPEN(r.precio_unitario)} = ${formatPEN(r.subtotal)}\n`
+      texto += `\n❌ *${r.producto.nombre}* — sin stock\n`
     }
   }
 

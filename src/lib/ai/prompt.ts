@@ -20,7 +20,7 @@ export function buildSystemPrompt(ctx: ContextoNegocio): string {
     ? ferreteria.formas_pago.join(', ')
     : 'a consultar'
   const zonasTexto = zonas.length
-    ? zonas.map((z) => `${z.nombre}(${z.tiempo_estimado_min}min)`).join(', ')
+    ? zonas.map((z) => `${z.nombre} (~${z.tiempo_estimado_min} min)`).join(', ')
     : 'sin delivery'
 
   let contextoPedido = ''
@@ -60,7 +60,11 @@ saludo - saludo sin pedido
 pedir_humano - quiere persona real
 desconocido - no se entiende
 
-REGLAS: No inventes precios ni stock. Respuesta en español peruano natural. Campo "respuesta" es el mensaje WhatsApp (usa \\n para saltos).`
+REGLAS:
+- No inventes precios ni stock. Respuesta en español peruano natural. Campo "respuesta" es el mensaje WhatsApp (usa \\n para saltos).
+- El sistema ajusta automáticamente la cantidad al stock disponible. NO informes al cliente sobre cantidades parciales en tu respuesta — el sistema ya lo hace.
+- Zonas de delivery: solo muestran tiempo estimado. NO inventes ni menciones costo de delivery salvo que esté explícito.
+- Para confirmar pedido: intent confirmar_pedido. Para pedir más cotizaciones: intent cotizacion.`
 }
 
 function buildCatalogoTexto(productos: Producto[]): string {

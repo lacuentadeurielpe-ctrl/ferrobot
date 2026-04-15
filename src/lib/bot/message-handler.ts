@@ -383,8 +383,24 @@ export async function handleIncomingMessage({
         .limit(5)
 
       if (!pedidosCliente || pedidosCliente.length === 0) {
-        mensajeFinal =
-          'No encontré pedidos confirmados para su número. Si tiene un pedido pendiente, espere a que sea confirmado para recibir su comprobante. 😊'
+        // Buscar si tiene pedidos pendientes (aún no confirmados)
+        const { data: pedidosPendientes } = await admin
+          .from('pedidos')
+          .select('numero_pedido, created_at')
+          .eq('ferreteria_id', ferreteria.id)
+          .eq('cliente_id', conversacion.cliente_id)
+          .eq('estado', 'pendiente')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (pedidosPendientes && pedidosPendientes.length > 0) {
+          mensajeFinal =
+            `Su pedido *${pedidosPendientes[0].numero_pedido}* está pendiente de confirmación por el encargado. ` +
+            `Una vez que sea confirmado, podremos enviarle el comprobante. ¡Gracias por su paciencia! 🙏`
+        } else {
+          mensajeFinal =
+            'No encontré pedidos a su nombre. Si acaba de hacer un pedido, espere unos minutos e intente nuevamente. 😊'
+        }
         break
       }
 
