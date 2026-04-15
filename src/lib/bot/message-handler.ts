@@ -394,11 +394,12 @@ export async function handleIncomingMessage({
 
         if (pedidosPendientes && pedidosPendientes.length > 0) {
           mensajeFinal =
-            `Su pedido *${pedidosPendientes[0].numero_pedido}* está pendiente de confirmación por el encargado. ` +
-            `Una vez que sea confirmado, podremos enviarle el comprobante. ¡Gracias por su paciencia! 🙏`
+            `Tu pedido *${pedidosPendientes[0].numero_pedido}* todavía está pendiente de confirmación por el encargado.\n\n` +
+            `En cuanto lo confirmen, te enviamos el comprobante automáticamente. ` +
+            `Si tienes urgencia, puedes escribirnos nuevamente y te ayudamos 🙏`
         } else {
           mensajeFinal =
-            'No encontré pedidos a su nombre. Si acaba de hacer un pedido, espere unos minutos e intente nuevamente. 😊'
+            `No encontré pedidos a tu nombre por aquí. ¿Quizás el pedido fue registrado con otro número? Si necesitas ayuda, dime y te conecto con el encargado 😊`
         }
         break
       }
@@ -419,7 +420,7 @@ export async function handleIncomingMessage({
           .map((p) => `• *${p.numero_pedido}*`)
           .join('\n')
         mensajeFinal =
-          `Tiene más de un pedido. ¿De cuál necesita el comprobante?\n\n${lista}\n\nResponda con el número de pedido.`
+          `Tienes más de un pedido confirmado. ¿De cuál necesitas el comprobante?\n\n${lista}\n\nResponde con el número de pedido.`
         break
       }
 
@@ -431,11 +432,11 @@ export async function handleIncomingMessage({
 
       if (resultado.ok) {
         mensajeFinal =
-          `📄 Le envío su comprobante de pago *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. ` +
-          `Si no lo recibe, por favor escríbanos nuevamente. 🙏`
+          `📄 Aquí va tu comprobante *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. ` +
+          `Si no llega o necesitas algo más, avísame 🙏`
       } else {
         mensajeFinal =
-          `Disculpe, tuve un inconveniente al generar su comprobante. Por favor contáctese con un encargado para recibirlo. 🙏`
+          `Tuve un problema al generar el comprobante. Escríbenos de nuevo en un momento o pide al encargado que te lo envíe directamente. 🙏`
         console.error('[Bot] Error generando comprobante:', resultado.error)
       }
       break

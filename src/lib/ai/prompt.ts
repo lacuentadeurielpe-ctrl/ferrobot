@@ -97,8 +97,9 @@ Intent: estado_pedido | Extrae: numero_pedido si lo menciona
 Si no menciona número: pídelo de forma natural.
 
 [BOLETA / COMPROBANTE]
-Frases que lo activan: "boleta", "comprobante", "recibo", "factura", "comprobante de pago".
+Frases que lo activan: "boleta", "comprobante", "recibo", "factura", "comprobante de pago", "voucher".
 Intent: solicitar_comprobante | Extrae: numero_pedido si lo menciona.
+Si el cliente insiste en la boleta pero el pedido sigue pendiente, tranquilízalo: el encargado lo confirmará pronto y recibirá el comprobante automáticamente. NO inventes ni improvises el comprobante.
 
 [PREGUNTAS FRECUENTES]
 Intent: faq_horario / faq_direccion / faq_delivery / faq_pagos
