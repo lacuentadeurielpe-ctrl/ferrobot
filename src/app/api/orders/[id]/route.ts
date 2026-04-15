@@ -43,6 +43,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .single()
   if (!ferreteria) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  // Obtener estado actual del pedido antes de actualizar (para gestión de stock)
+  const { data: pedidoActual } = await supabase
+    .from('pedidos')
+    .select('estado')
+    .eq('id', id)
+    .eq('ferreteria_id', ferreteria.id)
+    .single()
+
   const { data, error } = await supabase
     .from('pedidos')
     .update({ estado: body.estado, notas: body.notas })
@@ -52,6 +60,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Gestión de stock ───────────────────────────────────────────────────────
+  const estadoAnterior = pedidoActual?.estado
+  const estadosConfirmados = ['confirmado', 'en_preparacion', 'enviado', 'entregado']
+
+  if (body.estado === 'confirmado' && estadoAnterior === 'pendiente') {
+    // Descontar stock al confirmar por primera vez
+    await supabase.rpc('reducir_stock_pedido', { p_pedido_id: id })
+      .then(({ error: e }) => {
+        if (e) console.error('[Stock] Error descontando stock:', e.message)
+        else console.log(`[Stock] Stock descontado para pedido ${id}`)
+      })
+  } else if (body.estado === 'cancelado' && estadoAnterior && estadosConfirmados.includes(estadoAnterior)) {
+    // Restaurar stock si se cancela un pedido que ya tenía stock descontado
+    await supabase.rpc('restaurar_stock_pedido', { p_pedido_id: id })
+      .then(({ error: e }) => {
+        if (e) console.error('[Stock] Error restaurando stock:', e.message)
+        else console.log(`[Stock] Stock restaurado para pedido ${id}`)
+      })
+  }
 
   // Enviar notificación WhatsApp al cliente si hay API key y el estado lo amerita
   if (body.estado && process.env.YCLOUD_API_KEY && process.env.YCLOUD_API_KEY !== 'your_ycloud_api_key') {
