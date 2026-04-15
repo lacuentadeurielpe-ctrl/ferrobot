@@ -34,6 +34,7 @@ export interface DatosComprobante {
   // Comprobante
   numero_comprobante: string    // CP-000001
   fecha_emision: string         // ISO string
+  esProforma?: boolean          // true = documento pendiente de confirmación
 
   // Pedido
   numero_pedido: string
@@ -333,9 +334,11 @@ export function ComprobantePDF({ datos }: { datos: DatosComprobante }) {
           </View>
         </View>
 
-        {/* ── BANDA: COMPROBANTE DE PAGO ── */}
+        {/* ── BANDA: TÍTULO ── */}
         <View style={S.bandaTitulo}>
-          <Text style={S.bandaTituloTexto}>COMPROBANTE DE PAGO</Text>
+          <Text style={S.bandaTituloTexto}>
+            {datos.esProforma ? 'PROFORMA / COTIZACION' : 'COMPROBANTE DE PAGO'}
+          </Text>
           <View>
             <Text style={S.bandaNumero}>N° {datos.numero_comprobante}</Text>
             <Text style={S.bandaFecha}>{formatFechaHora(datos.fecha_emision)}</Text>

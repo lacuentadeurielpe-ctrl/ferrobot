@@ -371,36 +371,19 @@ export async function handleIncomingMessage({
     case 'solicitar_comprobante': {
       const admin = createAdminClient()
 
-      // Buscar pedidos confirmados del cliente en esta ferretería
+      // Buscar pedidos del cliente en cualquier estado activo (incluye pendiente)
       const { data: pedidosCliente } = await admin
         .from('pedidos')
         .select('id, numero_pedido, estado, created_at')
         .eq('ferreteria_id', ferreteria.id)
         .eq('cliente_id', conversacion.cliente_id)
-        .in('estado', ['confirmado', 'en_preparacion', 'enviado', 'entregado'])
+        .in('estado', ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado'])
         .order('created_at', { ascending: false })
         .limit(5)
 
       if (!pedidosCliente || pedidosCliente.length === 0) {
-        // Buscar si tiene pedidos pendientes (aún no confirmados)
-        const { data: pedidosPendientes } = await admin
-          .from('pedidos')
-          .select('numero_pedido, created_at')
-          .eq('ferreteria_id', ferreteria.id)
-          .eq('cliente_id', conversacion.cliente_id)
-          .eq('estado', 'pendiente')
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (pedidosPendientes && pedidosPendientes.length > 0) {
-          mensajeFinal =
-            `Tu pedido *${pedidosPendientes[0].numero_pedido}* todavía está pendiente de confirmación por el encargado.\n\n` +
-            `En cuanto lo confirmen, te enviamos el comprobante automáticamente. ` +
-            `Si tienes urgencia, puedes escribirnos nuevamente y te ayudamos 🙏`
-        } else {
-          mensajeFinal =
-            `No encontré pedidos a tu nombre por aquí. ¿Quizás el pedido fue registrado con otro número? Si necesitas ayuda, dime y te conecto con el encargado 😊`
-        }
+        mensajeFinal =
+          `No encontré pedidos a tu nombre por aquí. ¿Quizás el pedido fue registrado con otro número? Si necesitas ayuda, dime y te conecto con el encargado 😊`
         break
       }
 
@@ -417,26 +400,30 @@ export async function handleIncomingMessage({
       if (pedidosCliente.length > 1 && !respuestaAI.numero_pedido) {
         const lista = pedidosCliente
           .slice(0, 3)
-          .map((p) => `• *${p.numero_pedido}*`)
+          .map((p) => `• *${p.numero_pedido}* (${p.estado})`)
           .join('\n')
         mensajeFinal =
-          `Tienes más de un pedido confirmado. ¿De cuál necesitas el comprobante?\n\n${lista}\n\nResponde con el número de pedido.`
+          `Tienes más de un pedido. ¿De cuál necesitas el comprobante?\n\n${lista}\n\nResponde con el número de pedido.`
         break
       }
 
-      // Generar (o recuperar existente) y enviar el comprobante
+      // Determinar si el pedido aún está pendiente (proforma) o ya confirmado
+      const esProforma = pedidoTarget.estado === 'pendiente'
+
+      // Generar (o recuperar existente) y enviar
       const resultado = await generarYEnviarComprobante({
         pedidoId: pedidoTarget.id,
         ferreteriaId: ferreteria.id,
+        esProforma,
       })
 
       if (resultado.ok) {
-        mensajeFinal =
-          `📄 Aquí va tu comprobante *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. ` +
-          `Si no llega o necesitas algo más, avísame 🙏`
+        mensajeFinal = esProforma
+          ? `📋 Te envío la proforma *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\nRecuerda que es un documento provisional — cuando el encargado confirme el pedido recibirás el comprobante oficial. 🙏`
+          : `📄 Aquí va tu comprobante *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. Si no llega o necesitas algo más, avísame 🙏`
       } else {
         mensajeFinal =
-          `Tuve un problema al generar el comprobante. Escríbenos de nuevo en un momento o pide al encargado que te lo envíe directamente. 🙏`
+          `Tuve un problema al generar el documento. Escríbenos en un momento o pide al encargado que te lo envíe directamente. 🙏`
         console.error('[Bot] Error generando comprobante:', resultado.error)
       }
       break

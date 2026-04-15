@@ -18,9 +18,11 @@ export interface ResultadoComprobante {
 export async function generarYEnviarComprobante({
   pedidoId,
   ferreteriaId,
+  esProforma = false,
 }: {
   pedidoId: string
   ferreteriaId: string
+  esProforma?: boolean
 }): Promise<ResultadoComprobante> {
   const supabase = createAdminClient()
 
@@ -48,6 +50,8 @@ export async function generarYEnviarComprobante({
   }
 
   // ── 3. Verificar si ya existe un comprobante para este pedido ────────────
+  //    Si ya existe (proforma o definitivo) y fue enviado → deduplicación: no reenviar
+  //    Si existe pero no fue enviado → reenviar usando el PDF ya generado
   const { data: existente } = await supabase
     .from('comprobantes')
     .select('id, numero_comprobante, pdf_url, enviado_whatsapp')
@@ -55,6 +59,31 @@ export async function generarYEnviarComprobante({
     .single()
 
   if (existente) {
+    if (existente.enviado_whatsapp) {
+      // Ya enviado → no volver a enviar (deduplicación)
+      return {
+        ok: true,
+        numero_comprobante: existente.numero_comprobante,
+        pdf_url: existente.pdf_url,
+        comprobante_id: existente.id,
+      }
+    }
+
+    // Existe pero no fue enviado (fallo anterior) → reintentar envío con el PDF existente
+    const telefonoClienteR = (pedido as any).clientes?.telefono ?? pedido.telefono_cliente
+    const fromR = ferreteria.telefono_whatsapp.replace(/^\+/, '')
+    const filenameR = `${existente.numero_comprobante}.pdf`
+    const captionR = esProforma
+      ? `📋 *${ferreteria.nombre}*\nAquí está tu proforma N° ${existente.numero_comprobante} del pedido *${pedido.numero_pedido}*.\nCuando esté confirmado recibirás el comprobante oficial. 🙏`
+      : `📄 *${ferreteria.nombre}*\nAquí está tu comprobante N° ${existente.numero_comprobante} del pedido *${pedido.numero_pedido}*. 🙏`
+
+    try {
+      if (process.env.YCLOUD_API_KEY) {
+        await enviarDocumento({ from: fromR, to: telefonoClienteR, pdfUrl: existente.pdf_url, filename: filenameR, caption: captionR })
+        await supabase.from('comprobantes').update({ enviado_whatsapp: true, enviado_at: new Date().toISOString() }).eq('id', existente.id)
+      }
+    } catch (_) { /* no fallar */ }
+
     return {
       ok: true,
       numero_comprobante: existente.numero_comprobante,
@@ -91,6 +120,7 @@ export async function generarYEnviarComprobante({
     mensaje_pie:        ferreteria.mensaje_comprobante ?? null,
     numero_comprobante: numeroComprobante,
     fecha_emision:      new Date().toISOString(),
+    esProforma,
     numero_pedido:      pedido.numero_pedido,
     nombre_cliente:     pedido.nombre_cliente,
     modalidad:          pedido.modalidad,
@@ -151,7 +181,9 @@ export async function generarYEnviarComprobante({
   const telefonoCliente = (pedido as any).clientes?.telefono ?? pedido.telefono_cliente
   const from = ferreteria.telefono_whatsapp.replace(/^\+/, '')
   const filename = `${numeroComprobante}.pdf`
-  const caption = `📄 *${ferreteria.nombre}*\nAdjunto su comprobante de pago N° ${numeroComprobante} por el pedido *${pedido.numero_pedido}*.\n\n¡Gracias por su preferencia! 🙏`
+  const caption = esProforma
+    ? `📋 *${ferreteria.nombre}*\nAquí está tu proforma N° ${numeroComprobante} del pedido *${pedido.numero_pedido}*.\nCuando el encargado confirme el pedido recibirás el comprobante oficial. 🙏`
+    : `📄 *${ferreteria.nombre}*\nAquí está tu comprobante N° ${numeroComprobante} del pedido *${pedido.numero_pedido}*. ¡Gracias por tu preferencia! 🙏`
 
   let enviado = false
   let errorEnvio: string | null = null
