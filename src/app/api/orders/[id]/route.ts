@@ -53,7 +53,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { data, error } = await supabase
     .from('pedidos')
-    .update({ estado: body.estado, notas: body.notas })
+    .update({
+      estado: body.estado,
+      notas: body.notas,
+      ...(body.estado === 'cancelado' && body.motivo_cancelacion
+        ? { motivo_cancelacion: body.motivo_cancelacion }
+        : {}),
+    })
     .eq('id', id)
     .eq('ferreteria_id', ferreteria.id)
     .select('*, clientes(nombre, telefono), items_pedido(*)')

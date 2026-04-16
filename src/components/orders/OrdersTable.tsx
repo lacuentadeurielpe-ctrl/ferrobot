@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
-import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell } from 'lucide-react'
+import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import { createClient } from '@/lib/supabase/client'
 
@@ -23,6 +23,7 @@ interface Pedido {
   total: number
   costo_total: number | null
   notas: string | null
+  motivo_cancelacion: string | null
   created_at: string
   nombre_cliente: string
   telefono_cliente: string
@@ -86,6 +87,8 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   const [actualizando, setActualizando] = useState<string | null>(null)
   const [modalNuevo, setModalNuevo] = useState(false)
   const [nuevoPedidoAlert, setNuevoPedidoAlert] = useState(false)
+  // Dialog de motivo de cancelación
+  const [cancelDialog, setCancelDialog] = useState<{ pedidoId: string; motivo: string } | null>(null)
 
   // Realtime: notificar cuando llega un pedido nuevo
   useEffect(() => {
@@ -197,25 +200,69 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
   const hayFiltros = busqueda || filtroEstado || filtroFecha
 
-  async function cambiarEstado(pedidoId: string, nuevoEstado: string) {
+  async function cambiarEstado(pedidoId: string, nuevoEstado: string, motivoCancelacion?: string) {
+    // Si va a cancelar, mostrar dialog primero (a menos que ya venga con motivo)
+    if (nuevoEstado === 'cancelado' && motivoCancelacion === undefined) {
+      setCancelDialog({ pedidoId, motivo: '' })
+      return
+    }
+
     setActualizando(pedidoId)
     try {
       const res = await fetch(`/api/orders/${pedidoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estado: nuevoEstado }),
+        body: JSON.stringify({
+          estado: nuevoEstado,
+          ...(motivoCancelacion ? { motivo_cancelacion: motivoCancelacion } : {}),
+        }),
       })
       if (!res.ok) throw new Error('Error')
       const actualizado = await res.json()
       setPedidos((prev) =>
-        prev.map((p) => (p.id === pedidoId ? { ...p, estado: actualizado.estado } : p))
+        prev.map((p) => (p.id === pedidoId
+          ? { ...p, estado: actualizado.estado, motivo_cancelacion: motivoCancelacion ?? p.motivo_cancelacion }
+          : p))
       )
       router.refresh()
     } catch {
       alert('Error al actualizar el estado')
     } finally {
       setActualizando(null)
+      setCancelDialog(null)
     }
+  }
+
+  // Exportar pedidos filtrados como CSV
+  function exportarCSV() {
+    const filas = [
+      ['N° Pedido', 'Cliente', 'Teléfono', 'Modalidad', 'Estado', 'Total', 'Costo', 'Ganancia', 'Motivo cancelación', 'Fecha'],
+      ...filtrados.map((p) => {
+        const nombre = p.clientes?.nombre ?? p.nombre_cliente
+        const tel = p.clientes?.telefono ?? p.telefono_cliente
+        const ganancia = p.costo_total != null ? (p.total - p.costo_total).toFixed(2) : ''
+        return [
+          p.numero_pedido,
+          nombre,
+          tel,
+          p.modalidad,
+          p.estado,
+          p.total.toFixed(2),
+          p.costo_total?.toFixed(2) ?? '',
+          ganancia,
+          p.motivo_cancelacion ?? '',
+          new Date(p.created_at).toLocaleDateString('es-PE'),
+        ]
+      }),
+    ]
+    const csv = filas.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pedidos_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -236,8 +283,56 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
         </div>
       )}
 
-      {/* Botón nuevo pedido */}
-      <div className="flex justify-end mb-4">
+      {/* Dialog de motivo de cancelación */}
+      {cancelDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="font-semibold text-gray-900 mb-1">Cancelar pedido</h3>
+            <p className="text-sm text-gray-500 mb-4">¿Por qué se cancela este pedido? (opcional)</p>
+            <div className="flex gap-2 mb-4">
+              {['Cliente desistió', 'Sin stock', 'Error en el pedido', 'Otro'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setCancelDialog((d) => d ? { ...d, motivo: m } : d)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium border transition',
+                    cancelDialog.motivo === m
+                      ? 'bg-red-100 border-red-300 text-red-700'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  )}
+                >{m}</button>
+              ))}
+            </div>
+            <textarea
+              value={cancelDialog.motivo}
+              onChange={(e) => setCancelDialog((d) => d ? { ...d, motivo: e.target.value } : d)}
+              placeholder="O escribe el motivo aquí…"
+              rows={2}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-red-300"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setCancelDialog(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
+              >Volver</button>
+              <button
+                onClick={() => cambiarEstado(cancelDialog.pedidoId, 'cancelado', cancelDialog.motivo || undefined)}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition"
+              >Confirmar cancelación</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Acciones superiores */}
+      <div className="flex justify-end gap-2 mb-4">
+        <button
+          onClick={exportarCSV}
+          className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition"
+        >
+          <Download className="w-4 h-4" />
+          Exportar CSV
+        </button>
         <button
           onClick={() => setModalNuevo(true)}
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition"
@@ -411,8 +506,13 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       </tfoot>
                     </table>
                     {pedido.notas && (
-                      <p className="text-xs text-gray-500 mb-3">
+                      <p className="text-xs text-gray-500 mb-2">
                         <span className="font-medium">Notas:</span> {pedido.notas}
+                      </p>
+                    )}
+                    {pedido.motivo_cancelacion && (
+                      <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5 mb-2">
+                        <span className="font-medium">Motivo cancelación:</span> {pedido.motivo_cancelacion}
                       </p>
                     )}
 
