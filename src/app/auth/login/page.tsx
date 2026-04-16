@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') ?? '/dashboard'
@@ -22,7 +22,6 @@ export default function LoginPage() {
     setError(null)
     setLoading(true)
 
-    // Cliente creado dentro del handler para evitar instanciación durante prerender
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -104,5 +103,23 @@ export default function LoginPage() {
         </Link>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-gray-100 rounded w-40" />
+          <div className="h-4 bg-gray-100 rounded w-56" />
+          <div className="h-10 bg-gray-100 rounded" />
+          <div className="h-10 bg-gray-100 rounded" />
+          <div className="h-10 bg-gray-100 rounded" />
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

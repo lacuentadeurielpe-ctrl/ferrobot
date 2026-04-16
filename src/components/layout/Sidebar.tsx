@@ -13,6 +13,7 @@ import {
   LogOut,
   Wrench,
   FileText,
+  Users,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -31,6 +32,7 @@ const navItems: NavItem[] = [
   { label: 'Cotizaciones', href: '/dashboard/cotizaciones', icon: FileText, badge: 'cotizaciones' },
   { label: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart, badge: 'pedidos' },
   { label: 'Conversaciones', href: '/dashboard/conversations', icon: MessageSquare, badge: 'conversaciones' },
+  { label: 'Clientes', href: '/dashboard/clientes', icon: Users },
   { label: 'Configuración', href: '/dashboard/settings', icon: Settings, solodueno: true },
 ]
 
