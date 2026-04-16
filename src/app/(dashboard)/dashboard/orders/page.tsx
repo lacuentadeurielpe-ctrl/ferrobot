@@ -49,6 +49,7 @@ export default async function OrdersPage() {
         pedidos={pedidos ?? []}
         productos={productos ?? []}
         zonas={zonas ?? []}
+        ferreteriaId={ferreteria.id}
       />
     </div>
   )

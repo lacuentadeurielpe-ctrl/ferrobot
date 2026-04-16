@@ -76,9 +76,12 @@ export async function handleIncomingMessage({
   const timeoutIntervacion = (ferreteria as any).timeout_intervencion_dueno ?? config?.timeout_intervencion_dueno ?? 30
 
   // ── 3. Sesión ─────────────────────────────────────────────────────────────
-  const { conversacion } = await getOrCreateSession(
+  const { conversacion, cliente } = await getOrCreateSession(
     supabase, ferreteria.id, telefonoCliente, timeoutSesion
   )
+
+  // Nombre guardado del cliente (para no volver a pedírselo)
+  const nombreClienteGuardado = cliente.nombre ?? null
 
   await guardarMensaje(supabase, conversacion.id, 'cliente', textoMensaje, ycloudMessageId)
 
@@ -123,6 +126,7 @@ export async function handleIncomingMessage({
 
   const systemPrompt = buildSystemPrompt({
     ferreteria, productos: productos ?? [], zonas: zonas ?? [], config, datosFlujo,
+    nombreCliente: nombreClienteGuardado,
   })
 
   let respuestaAI
@@ -213,16 +217,21 @@ export async function handleIncomingMessage({
 
     // ─── Cliente confirma que quiere hacer el pedido ──────────────────────
     case 'confirmar_pedido': {
+      // Si ya tenemos el nombre guardado, saltar directamente a pedir modalidad
+      const pasoSiguiente = nombreClienteGuardado ? 'esperando_modalidad' : 'esperando_nombre'
       await supabase.from('conversaciones')
         .update({
           datos_flujo: {
             ...(datosFlujo ?? {}),
-            paso: 'esperando_nombre',
+            paso: pasoSiguiente,
+            ...(nombreClienteGuardado ? { nombre_cliente: nombreClienteGuardado } : {}),
           }
         })
         .eq('id', conversacion.id)
 
-      mensajeFinal = `¡Perfecto! ¿Y tu nombre para el pedido?`
+      mensajeFinal = nombreClienteGuardado
+        ? `¡Perfecto, ${nombreClienteGuardado}! ¿Lo vienes a recoger o te lo llevamos?`
+        : `¡Perfecto! ¿Y tu nombre para el pedido?`
       break
     }
 
@@ -247,10 +256,13 @@ export async function handleIncomingMessage({
       const dp = respuestaAI.datos_pedido
       const flujo = datosFlujo
 
-      if (!dp?.nombre_cliente || !dp?.modalidad) {
-        mensajeFinal = '¿Me puede confirmar su nombre y si prefiere delivery o recojo en tienda? 😊'
+      // Usar nombre guardado como fallback si la IA no lo capturó
+      const nombreFinal = dp?.nombre_cliente ?? nombreClienteGuardado
+      if (!nombreFinal || !dp?.modalidad) {
+        mensajeFinal = '¿Me confirmas tu nombre y si prefieres delivery o recojo en tienda? 😊'
         break
       }
+      if (dp) dp.nombre_cliente = nombreFinal
 
       // Buscar la cotización activa de esta conversación
       const { data: cotizacion } = await supabase

@@ -7,10 +7,11 @@ interface ContextoNegocio {
   zonas: ZonaDelivery[]
   config: ConfiguracionBot | null
   datosFlujo?: DatosFlujoPedido | null
+  nombreCliente?: string | null
 }
 
 export function buildSystemPrompt(ctx: ContextoNegocio): string {
-  const { ferreteria, productos, zonas, datosFlujo } = ctx
+  const { ferreteria, productos, zonas, datosFlujo, nombreCliente } = ctx
 
   const diasAtencion = ferreteria.dias_atencion?.join(', ') || 'lunes a viernes'
   const horario = ferreteria.horario_apertura && ferreteria.horario_cierre
@@ -44,6 +45,8 @@ Pregunta SOLO el dato que falta. No repitas lo que ya tienes. Sé breve y natura
   }
 
   return `Eres el vendedor virtual por WhatsApp de "${ferreteria.nombre}", ferretería en Perú.
+
+${nombreCliente ? `CLIENTE ACTUAL: ${nombreCliente} (ya tienes su nombre guardado — úsalo cuando sea natural, y NO vuelvas a pedírselo al hacer un pedido)` : ''}
 
 QUIÉN ERES:
 Eres como un ferretero con 15 años de experiencia: conoces los materiales, sus usos, las marcas, cuánto rinde cada cosa, qué sirve para qué trabajo. Atiendes por WhatsApp como lo haría un buen vendedor de ferretería peruano: amable, directo, sin vueltas, con tips prácticos cuando los piden.

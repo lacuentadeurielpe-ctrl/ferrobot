@@ -14,6 +14,8 @@ export type IntentBot =
   | 'recopilar_datos_pedido'
   | 'orden_completa'
   | 'rechazar_cotizacion'
+  | 'modificar_pedido'
+  | 'atencion_cliente'
   | 'faq_horario'
   | 'faq_direccion'
   | 'faq_delivery'

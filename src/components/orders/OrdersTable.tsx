@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
-import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus } from 'lucide-react'
+import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
+import { createClient } from '@/lib/supabase/client'
 
 interface ItemPedido {
   id: string
@@ -20,6 +21,7 @@ interface Pedido {
   estado: string
   modalidad: string
   total: number
+  costo_total: number | null
   notas: string | null
   created_at: string
   nombre_cliente: string
@@ -72,16 +74,33 @@ function estaEnRango(fecha: string, rango: string): boolean {
   return true
 }
 
-export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [] }: {
+export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId }: {
   pedidos: Pedido[]
   productos?: Producto[]
   zonas?: Zona[]
+  ferreteriaId?: string
 }) {
   const router = useRouter()
   const [pedidos, setPedidos] = useState(inicial)
   const [expandido, setExpandido] = useState<string | null>(null)
   const [actualizando, setActualizando] = useState<string | null>(null)
   const [modalNuevo, setModalNuevo] = useState(false)
+  const [nuevoPedidoAlert, setNuevoPedidoAlert] = useState(false)
+
+  // Realtime: notificar cuando llega un pedido nuevo
+  useEffect(() => {
+    if (!ferreteriaId) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`pedidos-${ferreteriaId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'pedidos', filter: `ferreteria_id=eq.${ferreteriaId}` },
+        () => setNuevoPedidoAlert(true)
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [ferreteriaId])
 
   // Estado de comprobantes por pedido: { pedidoId: { url, cargando, reenviando, error } }
   const [comprobantes, setComprobantes] = useState<Record<string, {
@@ -201,6 +220,22 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
   return (
     <div>
+      {/* Alerta de nuevo pedido (Realtime) */}
+      {nuevoPedidoAlert && (
+        <div className="mb-4 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 animate-pulse-once">
+          <span className="flex items-center gap-2 text-sm font-medium text-orange-800">
+            <Bell className="w-4 h-4" />
+            ¡Llegó un nuevo pedido!
+          </span>
+          <button
+            onClick={() => { router.refresh(); setNuevoPedidoAlert(false) }}
+            className="text-xs font-semibold text-orange-600 hover:text-orange-800 bg-orange-100 hover:bg-orange-200 px-3 py-1.5 rounded-lg transition"
+          >
+            Ver ahora
+          </button>
+        </div>
+      )}
+
       {/* Botón nuevo pedido */}
       <div className="flex justify-end mb-4">
         <button
@@ -359,6 +394,20 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                           <td colSpan={3} className="pt-2 text-right font-semibold text-gray-700">Total</td>
                           <td className="pt-2 text-right font-bold text-gray-900">{formatPEN(pedido.total)}</td>
                         </tr>
+                        {pedido.costo_total != null && pedido.costo_total > 0 && (() => {
+                          const ganancia = pedido.total - pedido.costo_total
+                          const margen = pedido.total > 0 ? (ganancia / pedido.total) * 100 : 0
+                          const positivo = ganancia >= 0
+                          return (
+                            <tr>
+                              <td colSpan={3} className="pt-1 text-right text-xs text-gray-400">Ganancia</td>
+                              <td className={cn('pt-1 text-right text-xs font-semibold', positivo ? 'text-green-600' : 'text-red-500')}>
+                                {positivo ? '+' : ''}{formatPEN(ganancia)}
+                                <span className="ml-1 font-normal opacity-70">({margen.toFixed(0)}%)</span>
+                              </td>
+                            </tr>
+                          )
+                        })()}
                       </tfoot>
                     </table>
                     {pedido.notas && (

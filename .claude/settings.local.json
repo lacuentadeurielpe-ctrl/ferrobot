@@ -18,7 +18,15 @@
       "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__execute_sql",
       "Bash(node -e \"const r = require\\('@react-pdf/renderer'\\); console.log\\('version ok:', Object.keys\\(r\\).slice\\(0,5\\).join\\(', '\\)\\)\")",
       "Bash(grep -r \"SUPABASE_URL\\\\|supabase.*project\" D:\\\\cotizador\\\\.env*)",
-      "Bash(ls D:\\\\cotizador\\\\.env*)"
+      "Bash(ls D:\\\\cotizador\\\\.env*)",
+      "mcp__b8d22b11-8493-4a7b-83a2-22077bf04ef9__list_teams",
+      "mcp__b8d22b11-8493-4a7b-83a2-22077bf04ef9__list_projects",
+      "mcp__b8d22b11-8493-4a7b-83a2-22077bf04ef9__get_runtime_logs",
+      "mcp__b8d22b11-8493-4a7b-83a2-22077bf04ef9__list_deployments",
+      "WebFetch(domain:docs.ycloud.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

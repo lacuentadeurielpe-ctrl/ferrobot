@@ -31,16 +31,11 @@ export async function POST(request: Request) {
   const firma = request.headers.get('x-ycloud-signature') ??
                 request.headers.get('x-ycloud-signature-256')
 
-  // LOG: ver qué firma envía YCloud exactamente
-  console.log('[Webhook] Firma header recibida:', firma)
-
-  // BYPASS TEMPORAL: deshabilitado para testing
-  // TODO: reactivar cuando confirmemos el formato exacto de firma de YCloud
-  // const firmaValida = await verificarFirmaWebhook(bodyText, firma)
-  // if (!firmaValida) {
-  //   console.warn('[Webhook] Firma inválida rechazada')
-  //   return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
-  // }
+  const firmaValida = await verificarFirmaWebhook(bodyText, firma)
+  if (!firmaValida) {
+    console.warn('[Webhook] Firma inválida rechazada')
+    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+  }
 
   // ── 2. Parsear payload ─────────────────────────────────────────────────────
   let payload: YCloudWebhookPayload
@@ -52,41 +47,47 @@ export async function POST(request: Request) {
 
   // Solo procesar mensajes entrantes
   const tipoEvento = payload.type ?? ''
-  console.log('[Webhook] Tipo de evento:', tipoEvento)
-  console.log('[Webhook] Payload completo:', JSON.stringify(payload).slice(0, 500))
 
   if (!tipoEvento.includes('inbound_message') && !tipoEvento.includes('message.received')) {
-    console.log('[Webhook] Evento ignorado (no es mensaje entrante):', tipoEvento)
     return NextResponse.json({ ok: true })
   }
 
   // ── 3. Extraer mensaje ─────────────────────────────────────────────────────
   const mensaje = extraerMensaje(payload)
-  console.log('[Webhook] Mensaje extraído:', JSON.stringify(mensaje).slice(0, 300))
   if (!mensaje) {
     console.log('[Webhook] No se pudo extraer mensaje del payload')
     return NextResponse.json({ ok: true })
   }
 
-  // Solo procesar mensajes de texto por ahora
+  const telefonoCliente = mensaje.from
+  const telefonoFerreteria = mensaje.to
+  const ycloudMessageId = mensaje.id
+
+  // ── 4. Identificar la ferretería por su número de WhatsApp ────────────────
+  const supabase = createAdminClient()
+  const telefonoNorm = telefonoFerreteria.replace(/^\+/, '')
+
+  // ── 4b. Mensajes no-texto: responder con mensaje útil y salir ─────────────
   if (mensaje.type !== 'text' || !mensaje.text?.body?.trim()) {
-    console.log(`[Webhook] Tipo de mensaje ignorado: ${mensaje.type}`)
+    const respuestasMedia: Partial<Record<string, string>> = {
+      audio:    '🎧 Escuché tu audio, pero por ahora solo proceso texto. Escríbeme qué necesitas y te atiendo al toque 🙌',
+      image:    '📷 Vi tu imagen, pero por ahora solo proceso mensajes de texto. Escríbeme qué necesitas y te cotizo de inmediato 🙌',
+      video:    '🎥 Recibí tu video, pero por ahora solo proceso texto. Escríbeme qué necesitas 🙌',
+      document: '📄 Recibí tu documento, pero por ahora solo proceso texto. Escríbeme qué necesitas y con gusto te ayudo 🙌',
+    }
+    const respuesta = respuestasMedia[mensaje.type]
+    if (respuesta) {
+      try {
+        await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta })
+      } catch (e) {
+        console.error('[Webhook] Error enviando respuesta a media:', e)
+      }
+    }
     return NextResponse.json({ ok: true })
   }
 
-  const telefonoCliente = mensaje.from
-  const telefonoFerreteria = mensaje.to
   const textoMensaje = mensaje.text.body.trim()
-  const ycloudMessageId = mensaje.id
-
-  console.log(`[Webhook] Mensaje de ${telefonoCliente} → ${telefonoFerreteria}: "${textoMensaje.slice(0, 50)}..."`)
-
-  // ── 4. Identificar la ferretería por su número de WhatsApp ────────────────
-  // Usamos el cliente admin (service role) porque el webhook es externo
-  const supabase = createAdminClient()
-
-  // Normalizar número: remover el "+" si viene con él
-  const telefonoNorm = telefonoFerreteria.replace(/^\+/, '')
+  console.log(`[Webhook] Mensaje de ${telefonoCliente}: "${textoMensaje.slice(0, 50)}"`)
 
   const { data: ferreteria } = await supabase
     .from('ferreterias')
