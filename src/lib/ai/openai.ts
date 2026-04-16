@@ -31,7 +31,7 @@ export async function transcribirAudio(
     : 'ogg'  // WhatsApp por defecto envía ogg/opus
 
   const form = new FormData()
-  form.append('file', new Blob([buffer], { type: mimeType }), `audio.${ext}`)
+  form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), `audio.${ext}`)
   form.append('model', 'whisper-1')
   form.append('language', idioma)
   form.append('response_format', 'text')
