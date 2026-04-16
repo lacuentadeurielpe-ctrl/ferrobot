@@ -29,7 +29,19 @@ export type EstadoPedido =
   | 'entregado'
   | 'cancelado'
 
+export type EstadoPago =
+  | 'pendiente'
+  | 'verificando'
+  | 'pagado'
+  | 'credito_activo'
+  | 'credito_vencido'
+  | 'reembolso_pendiente'
+
+export type MetodoPago = 'efectivo' | 'yape' | 'transferencia' | 'tarjeta' | 'credito'
+
 export type ModalidadPedido = 'delivery' | 'recojo'
+
+export type EstadoCredito = 'activo' | 'pagado' | 'vencido'
 
 export type EstadoConversacion = 'activa' | 'intervenida_dueno' | 'cerrada'
 
@@ -38,6 +50,18 @@ export type RolMensaje = 'cliente' | 'bot' | 'dueno'
 export type TipoMensaje = 'texto' | 'imagen' | 'documento' | 'audio' | 'otro'
 
 // ──────────────────────────────────────────────────────────────────
+export interface DatosYape {
+  numero: string
+  qr_url: string | null
+}
+
+export interface DatosTransferencia {
+  banco: string
+  cuenta: string
+  cci: string | null
+  titular: string
+}
+
 export interface Ferreteria {
   id: string
   owner_id: string
@@ -57,6 +81,15 @@ export interface Ferreteria {
   color_comprobante: string          // hex, default '#1e40af'
   mensaje_comprobante: string | null // pie personalizable
   ultimo_numero_comprobante: number
+  // Resumen diario
+  telefono_dueno: string | null
+  resumen_diario_activo: boolean
+  // Delivery
+  modo_asignacion_delivery: 'manual' | 'libre'
+  timeout_aceptacion_min: number
+  // Métodos de pago digitales
+  datos_yape: DatosYape | null
+  datos_transferencia: DatosTransferencia | null
   created_at: string
   updated_at: string
 }
@@ -216,12 +249,67 @@ export interface Pedido {
   total: number
   costo_total: number              // suma de costos de items
   notas: string | null
+  // pago
+  metodo_pago: MetodoPago | null
+  estado_pago: EstadoPago
+  pago_confirmado_por: string | null
+  pago_confirmado_at: string | null
+  // delivery
+  repartidor_id: string | null
+  cobrado_monto: number | null
+  cobrado_metodo: string | null
+  incidencia_tipo: string | null
+  incidencia_desc: string | null
+  motivo_cancelacion: string | null
   created_at: string
   updated_at: string
   // joins
   items_pedido?: ItemPedido[]
   zonas_delivery?: ZonaDelivery
   clientes?: Cliente
+}
+
+export interface Credito {
+  id: string
+  ferreteria_id: string
+  cliente_id: string | null
+  pedido_id: string | null
+  monto_total: number
+  monto_pagado: number
+  fecha_limite: string             // DATE
+  estado: EstadoCredito
+  aprobado_por: string | null
+  notas: string | null
+  created_at: string
+  updated_at: string
+  // joins
+  clientes?: Cliente
+  pedidos?: Pedido
+  abonos_credito?: AbonoCredito[]
+}
+
+export interface AbonoCredito {
+  id: string
+  credito_id: string
+  monto: number
+  metodo_pago: MetodoPago | null
+  notas: string | null
+  registrado_por: string | null
+  created_at: string
+}
+
+export interface Rendicion {
+  id: string
+  ferreteria_id: string
+  repartidor_id: string
+  fecha: string                    // DATE
+  monto_esperado: number
+  monto_recibido: number | null
+  diferencia: number | null        // columna generada
+  notas: string | null
+  confirmado_por: string | null
+  confirmado_at: string | null
+  created_at: string
 }
 
 export interface ItemPedido {

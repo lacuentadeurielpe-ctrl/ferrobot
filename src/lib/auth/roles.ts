@@ -1,5 +1,6 @@
-// Utilidad server-side para obtener el rol del usuario actual
+// Utilidad server-side para obtener el rol y permisos del usuario actual
 import { createClient } from '@/lib/supabase/server'
+import { type PermisoMap, PERMISOS_DUENO, normalizarPermisos } from '@/lib/auth/permisos'
 
 export type Rol = 'dueno' | 'vendedor'
 
@@ -9,11 +10,13 @@ export interface SessionInfo {
   rol: Rol
   nombreFerreteria: string
   onboardingCompleto: boolean
+  permisos: PermisoMap
 }
 
 /**
- * Obtiene la ferretería y el rol del usuario autenticado.
- * Funciona tanto para dueños como para vendedores invitados.
+ * Obtiene la ferretería, el rol y los permisos del usuario autenticado.
+ * - Dueño: todos los permisos en true automáticamente.
+ * - Empleado: permisos del campo `permisos JSONB` en miembros_ferreteria.
  * React/Next.js deduplica esta llamada dentro del mismo request.
  */
 export async function getSessionInfo(): Promise<SessionInfo | null> {
@@ -35,13 +38,14 @@ export async function getSessionInfo(): Promise<SessionInfo | null> {
       rol: 'dueno',
       nombreFerreteria: ferreteria.nombre,
       onboardingCompleto: ferreteria.onboarding_completo ?? false,
+      permisos: PERMISOS_DUENO,
     }
   }
 
-  // 2. ¿Es vendedor invitado?
+  // 2. ¿Es empleado invitado?
   const { data: miembro } = await supabase
     .from('miembros_ferreteria')
-    .select('ferreteria_id, rol, nombre, ferreterias(id, nombre, onboarding_completo)')
+    .select('ferreteria_id, rol, nombre, permisos, ferreterias(id, nombre, onboarding_completo)')
     .eq('user_id', user.id)
     .eq('activo', true)
     .single()
@@ -54,6 +58,7 @@ export async function getSessionInfo(): Promise<SessionInfo | null> {
       rol: miembro.rol as Rol,
       nombreFerreteria: ferr?.nombre ?? 'Ferretería',
       onboardingCompleto: ferr?.onboarding_completo ?? true,
+      permisos: normalizarPermisos((miembro.permisos as Record<string, unknown>) ?? {}),
     }
   }
 
