@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 // PATCH /api/cotizaciones/[id] — actualizar precios de items (antes de aprobar)
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const supabase = await createClient()
   const { id } = await params
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await request.json()
   // body.items = [{ id, precio_unitario }]
@@ -20,7 +18,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .from('cotizaciones')
       .update({ notas_dueno: body.notas_dueno })
       .eq('id', id)
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
   }
 
   if (Array.isArray(body.items)) {
@@ -48,7 +46,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .from('cotizaciones')
     .select('*, items_cotizacion(*)')
     .eq('id', id)
-    .eq('ferreteria_id', ferreteria.id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .single()
 
   return NextResponse.json(data)
@@ -56,10 +54,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 // GET /api/cotizaciones/[id]
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const supabase = await createClient()
   const { id } = await params
   const { data, error } = await supabase
     .from('cotizaciones')

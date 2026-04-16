@@ -3,19 +3,17 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import ProductForm from '@/components/catalog/ProductForm'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export default async function NewProductPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) redirect('/onboarding')
+  const supabase = await createClient()
 
   const [{ data: categorias }, { data: config }] = await Promise.all([
-    supabase.from('categorias').select('*').eq('ferreteria_id', ferreteria.id).order('nombre'),
-    supabase.from('configuracion_bot').select('margen_minimo_porcentaje').eq('ferreteria_id', ferreteria.id).single(),
+    supabase.from('categorias').select('*').eq('ferreteria_id', session.ferreteriaId).order('nombre'),
+    supabase.from('configuracion_bot').select('margen_minimo_porcentaje').eq('ferreteria_id', session.ferreteriaId).single(),
   ])
 
   return (

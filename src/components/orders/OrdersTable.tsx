@@ -6,6 +6,14 @@ import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from
 import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import { createClient } from '@/lib/supabase/client'
+import type { Rol } from '@/lib/auth/roles'
+
+interface Repartidor {
+  id: string
+  nombre: string
+  telefono: string | null
+  activo: boolean
+}
 
 interface ItemPedido {
   id: string
@@ -24,6 +32,11 @@ interface Pedido {
   costo_total: number | null
   notas: string | null
   motivo_cancelacion: string | null
+  repartidor_id: string | null
+  cobrado_monto: number | null
+  cobrado_metodo: string | null
+  incidencia_tipo: string | null
+  incidencia_desc: string | null
   created_at: string
   nombre_cliente: string
   telefono_cliente: string
@@ -75,15 +88,19 @@ function estaEnRango(fecha: string, rango: string): boolean {
   return true
 }
 
-export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId }: {
+export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId, rol = 'dueno', repartidores = [] }: {
   pedidos: Pedido[]
   productos?: Producto[]
   zonas?: Zona[]
   ferreteriaId?: string
+  rol?: Rol
+  repartidores?: Repartidor[]
 }) {
   const router = useRouter()
+  const esDueno = rol === 'dueno'
   const [pedidos, setPedidos] = useState(inicial)
   const [expandido, setExpandido] = useState<string | null>(null)
+  const [asignando, setAsignando] = useState<string | null>(null)
   const [actualizando, setActualizando] = useState<string | null>(null)
   const [modalNuevo, setModalNuevo] = useState(false)
   const [nuevoPedidoAlert, setNuevoPedidoAlert] = useState(false)
@@ -233,26 +250,49 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
     }
   }
 
+  async function asignarRepartidor(pedidoId: string, repartidorId: string) {
+    setAsignando(pedidoId)
+    try {
+      const res = await fetch(`/api/repartidores/${repartidorId}/asignar`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId }),
+      })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setPedidos((prev) => prev.map((p) => p.id === pedidoId
+        ? { ...p, repartidor_id: repartidorId === 'ninguno' ? null : repartidorId }
+        : p))
+    } catch {
+      alert('Error al asignar repartidor')
+    } finally {
+      setAsignando(null)
+    }
+  }
+
   // Exportar pedidos filtrados como CSV
   function exportarCSV() {
+    const headers = esDueno
+      ? ['N° Pedido', 'Cliente', 'Teléfono', 'Modalidad', 'Estado', 'Total', 'Costo', 'Ganancia', 'Motivo cancelación', 'Fecha']
+      : ['N° Pedido', 'Cliente', 'Teléfono', 'Modalidad', 'Estado', 'Motivo cancelación', 'Fecha']
+
     const filas = [
-      ['N° Pedido', 'Cliente', 'Teléfono', 'Modalidad', 'Estado', 'Total', 'Costo', 'Ganancia', 'Motivo cancelación', 'Fecha'],
+      headers,
       ...filtrados.map((p) => {
         const nombre = p.clientes?.nombre ?? p.nombre_cliente
         const tel = p.clientes?.telefono ?? p.telefono_cliente
-        const ganancia = p.costo_total != null ? (p.total - p.costo_total).toFixed(2) : ''
-        return [
+        const base = [
           p.numero_pedido,
           nombre,
           tel,
           p.modalidad,
           p.estado,
-          p.total.toFixed(2),
-          p.costo_total?.toFixed(2) ?? '',
-          ganancia,
-          p.motivo_cancelacion ?? '',
-          new Date(p.created_at).toLocaleDateString('es-PE'),
         ]
+        if (esDueno) {
+          const ganancia = p.costo_total != null ? (p.total - p.costo_total).toFixed(2) : ''
+          return [...base, p.total.toFixed(2), p.costo_total?.toFixed(2) ?? '', ganancia, p.motivo_cancelacion ?? '', new Date(p.created_at).toLocaleDateString('es-PE')]
+        }
+        return [...base, p.motivo_cancelacion ?? '', new Date(p.created_at).toLocaleDateString('es-PE')]
       }),
     ]
     const csv = filas.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -489,7 +529,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                           <td colSpan={3} className="pt-2 text-right font-semibold text-gray-700">Total</td>
                           <td className="pt-2 text-right font-bold text-gray-900">{formatPEN(pedido.total)}</td>
                         </tr>
-                        {pedido.costo_total != null && pedido.costo_total > 0 && (() => {
+                        {esDueno && pedido.costo_total != null && pedido.costo_total > 0 && (() => {
                           const ganancia = pedido.total - pedido.costo_total
                           const margen = pedido.total > 0 ? (ganancia / pedido.total) * 100 : 0
                           const positivo = ganancia >= 0
@@ -510,6 +550,45 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                         <span className="font-medium">Notas:</span> {pedido.notas}
                       </p>
                     )}
+
+                    {/* Asignar repartidor — solo para delivery, solo para dueño/vendedor */}
+                    {pedido.modalidad === 'delivery' && repartidores.length > 0 && (
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="text-xs text-gray-500 shrink-0">🚚 Repartidor:</span>
+                        <select
+                          value={pedido.repartidor_id ?? ''}
+                          disabled={asignando === pedido.id}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (val) asignarRepartidor(pedido.id, val)
+                          }}
+                          className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                        >
+                          <option value="">— Sin asignar —</option>
+                          {repartidores.filter(r => r.activo).map((r) => (
+                            <option key={r.id} value={r.id}>{r.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Incidencia de delivery */}
+                    {pedido.incidencia_tipo && (
+                      <div className="mb-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">
+                        <span className="font-medium">Incidencia:</span> {
+                          { pedido_incorrecto: 'Pedido incorrecto', cliente_ausente: 'Cliente no estaba', pago_rechazado: 'No pudo pagar', otro: 'Otro' }[pedido.incidencia_tipo] ?? pedido.incidencia_tipo
+                        }
+                        {pedido.incidencia_desc && ` — ${pedido.incidencia_desc}`}
+                      </div>
+                    )}
+
+                    {/* Cobro registrado */}
+                    {pedido.cobrado_monto != null && (
+                      <div className="mb-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-1.5">
+                        <span className="font-medium">Cobrado:</span> S/ {pedido.cobrado_monto.toFixed(2)} · {pedido.cobrado_metodo === 'transferencia' ? '📱 Transferencia' : '💵 Efectivo'}
+                      </div>
+                    )}
+
                     {pedido.motivo_cancelacion && (
                       <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5 mb-2">
                         <span className="font-medium">Motivo cancelación:</span> {pedido.motivo_cancelacion}

@@ -1,19 +1,17 @@
 // Página de conversaciones — layout de dos paneles: lista + chat
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import ConversationsList from '@/components/conversations/ConversationsList'
 import { MessageSquare } from 'lucide-react'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ConversationsPage() {
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-
-  if (!ferreteria) return null
 
   // Obtener conversaciones con último mensaje
   const { data: conversaciones } = await supabase
@@ -22,7 +20,7 @@ export default async function ConversationsPage() {
       id, estado, bot_pausado, ultima_actividad,
       clientes(nombre, telefono)
     `)
-    .eq('ferreteria_id', ferreteria.id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .order('ultima_actividad', { ascending: false })
     .limit(50)
 
@@ -51,7 +49,7 @@ export default async function ConversationsPage() {
     <div className="absolute inset-0 flex overflow-hidden">
       {/* Panel izquierdo — lista de conversaciones */}
       <div className="w-72 shrink-0 border-r border-gray-200 bg-white flex flex-col">
-        <ConversationsList inicial={enriquecidas} ferreteriaId={ferreteria.id} />
+        <ConversationsList inicial={enriquecidas} ferreteriaId={session.ferreteriaId} />
       </div>
 
       {/* Panel derecho — placeholder cuando no hay conversación seleccionada */}

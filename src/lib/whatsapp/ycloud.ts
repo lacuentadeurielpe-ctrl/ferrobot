@@ -158,10 +158,79 @@ export interface YCloudInboundMessage {
   to: string            // número de la ferretería
   type: 'text' | 'image' | 'document' | 'audio' | 'video' | 'sticker' | 'location' | 'contacts' | 'unknown'
   text?: { body: string }
-  image?: { caption?: string }
-  audio?: { id: string }
+  image?: { id?: string; caption?: string; mimeType?: string; sha256?: string }
+  audio?: { id: string; mimeType?: string }
+  video?: { id?: string; caption?: string; mimeType?: string }
+  document?: { id?: string; filename?: string; caption?: string; mimeType?: string }
   createTime?: string
   timestamp?: number
+}
+
+// ── Descarga de media desde YCloud ──────────────────────────────────────────
+
+interface YCloudMediaInfo {
+  url: string
+  mimeType: string
+  fileSize?: number
+}
+
+/**
+ * Obtiene la URL de descarga de un archivo de media de YCloud.
+ * YCloud expone: GET /v2/whatsapp/media/{mediaId}
+ */
+export async function obtenerUrlMedia(mediaId: string): Promise<YCloudMediaInfo | null> {
+  const apiKey = process.env.YCLOUD_API_KEY
+  if (!apiKey) return null
+
+  try {
+    const res = await fetch(`${YCLOUD_BASE_URL}/whatsapp/media/${mediaId}`, {
+      headers: { 'X-API-Key': apiKey },
+    })
+    if (!res.ok) {
+      console.error(`[YCloud] Error obteniendo media ${mediaId}: ${res.status}`)
+      return null
+    }
+    const data = await res.json()
+    // La respuesta puede tener url directa o una URL firmada
+    return {
+      url: data.url ?? data.link,
+      mimeType: data.mimeType ?? data.mime_type ?? 'application/octet-stream',
+      fileSize: data.fileSize ?? data.file_size,
+    }
+  } catch (e) {
+    console.error('[YCloud] Error en obtenerUrlMedia:', e)
+    return null
+  }
+}
+
+/**
+ * Descarga el contenido binario de un archivo de media.
+ * Primero obtiene la URL de YCloud, luego descarga el archivo.
+ */
+export async function descargarMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const apiKey = process.env.YCLOUD_API_KEY
+  if (!apiKey) return null
+
+  const info = await obtenerUrlMedia(mediaId)
+  if (!info?.url) return null
+
+  try {
+    const res = await fetch(info.url, {
+      headers: { 'X-API-Key': apiKey },
+    })
+    if (!res.ok) {
+      console.error(`[YCloud] Error descargando media: ${res.status}`)
+      return null
+    }
+    const arrayBuffer = await res.arrayBuffer()
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mimeType: info.mimeType,
+    }
+  } catch (e) {
+    console.error('[YCloud] Error descargando buffer de media:', e)
+    return null
+  }
 }
 
 // Extrae el mensaje entrante del payload (prueba todos los campos posibles de YCloud)

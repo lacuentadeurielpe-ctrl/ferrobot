@@ -9,6 +9,9 @@ const RUTAS_PUBLICAS = [
   '/auth/reset-password',
   '/auth/update-password',
   '/api/webhook', // El webhook de YCloud es público (verificado con HMAC)
+  '/api/delivery', // API del repartidor — autenticación por token en URL
+  '/invite',      // Página de aceptar invitación de equipo (token público)
+  '/delivery',    // Interfaz del repartidor en su celular (token público)
 ]
 
 export async function proxy(request: NextRequest) {

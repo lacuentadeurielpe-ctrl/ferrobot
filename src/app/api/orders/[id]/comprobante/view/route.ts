@@ -1,19 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 // GET /api/orders/[id]/comprobante/view
 // Devuelve una página HTML que embebe el PDF vía el proxy local.
 // Funciona incluso en browsers que bloquean URLs externas.
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionInfo()
+  if (!session) return new Response('No autorizado', { status: 401 })
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return new Response('No autorizado', { status: 401 })
-
   const { id: pedidoId } = await params
-
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return new Response('No autorizado', { status: 401 })
 
   const admin = createAdminClient()
   const { data: comprobante } = await admin

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 interface ItemParaGuardar {
   accion: 'crear' | 'actualizar'
@@ -15,13 +16,10 @@ interface ItemParaGuardar {
 
 // POST /api/catalog/ai-save — guarda los productos confirmados por el dueño
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return NextResponse.json({ error: 'Ferretería no encontrada' }, { status: 404 })
+  const supabase = await createClient()
 
   const { items }: { items: ItemParaGuardar[] } = await request.json()
   if (!items?.length) return NextResponse.json({ error: 'Sin items para guardar' }, { status: 400 })
@@ -33,7 +31,7 @@ export async function POST(request: Request) {
   if (nombresCategoria.length > 0) {
     const { data: existentes } = await supabase
       .from('categorias').select('id, nombre')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .in('nombre', nombresCategoria)
 
     existentes?.forEach((c) => { mapaCategoria[c.nombre] = c.id })
@@ -42,7 +40,7 @@ export async function POST(request: Request) {
     if (nuevas.length > 0) {
       const { data: creadas } = await supabase
         .from('categorias')
-        .insert(nuevas.map((nombre) => ({ ferreteria_id: ferreteria.id, nombre })))
+        .insert(nuevas.map((nombre) => ({ ferreteria_id: session.ferreteriaId, nombre })))
         .select('id, nombre')
       creadas?.forEach((c) => { mapaCategoria[c.nombre] = c.id })
     }
@@ -57,7 +55,7 @@ export async function POST(request: Request) {
   // ── Crear nuevos ──────────────────────────────────────────────────────────
   if (paraCrear.length > 0) {
     const insertData = paraCrear.map((item) => ({
-      ferreteria_id: ferreteria.id,
+      ferreteria_id: session.ferreteriaId,
       nombre: item.nombre.trim(),
       descripcion: item.descripcion?.trim() || null,
       categoria_id: item.categoria ? (mapaCategoria[item.categoria] ?? null) : null,
@@ -89,7 +87,7 @@ export async function POST(request: Request) {
           stock: item.stock ?? 0,
         })
         .eq('id', item.producto_existente_id!)
-        .eq('ferreteria_id', ferreteria.id)
+        .eq('ferreteria_id', session.ferreteriaId)
     )
 
     const resultados = await Promise.all(updates)

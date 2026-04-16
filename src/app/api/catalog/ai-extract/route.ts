@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { analizarTexto, analizarImagen, type ProductoExtraido } from '@/lib/ai/catalog-ai'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export interface ProductoParaConfirmar extends ProductoExtraido {
   // Match con producto existente en BD
@@ -49,13 +50,10 @@ function esSimilar(a: string, b: string): boolean {
 
 // POST /api/catalog/ai-extract
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return NextResponse.json({ error: 'Ferretería no encontrada' }, { status: 404 })
+  const supabase = await createClient()
 
   const body = await request.json()
   const { modo, texto, imagen_base64, mime_type } = body as {
@@ -99,7 +97,7 @@ export async function POST(request: Request) {
   const { data: productosExistentes } = await supabase
     .from('productos')
     .select('id, nombre')
-    .eq('ferreteria_id', ferreteria.id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .eq('activo', true)
 
   // Hacer match de cada producto extraído contra los existentes

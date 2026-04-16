@@ -15,12 +15,14 @@ import {
   FileText,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
+import type { Rol } from '@/lib/auth/roles'
 
 interface NavItem {
   label: string
   href: string
   icon: React.ElementType
   badge?: 'pedidos' | 'conversaciones' | 'cotizaciones'
+  solodueno?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -29,7 +31,7 @@ const navItems: NavItem[] = [
   { label: 'Cotizaciones', href: '/dashboard/cotizaciones', icon: FileText, badge: 'cotizaciones' },
   { label: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart, badge: 'pedidos' },
   { label: 'Conversaciones', href: '/dashboard/conversations', icon: MessageSquare, badge: 'conversaciones' },
-  { label: 'Configuración', href: '/dashboard/settings', icon: Settings },
+  { label: 'Configuración', href: '/dashboard/settings', icon: Settings, solodueno: true },
 ]
 
 interface SidebarProps {
@@ -38,9 +40,17 @@ interface SidebarProps {
   pedidosPendientes: number
   conversacionesActivas: number
   cotizacionesPendientes: number
+  rol: Rol
 }
 
-export default function Sidebar({ nombreFerreteria, ferreteriaId, pedidosPendientes, conversacionesActivas, cotizacionesPendientes }: SidebarProps) {
+export default function Sidebar({
+  nombreFerreteria,
+  ferreteriaId,
+  pedidosPendientes,
+  conversacionesActivas,
+  cotizacionesPendientes,
+  rol,
+}: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -50,6 +60,11 @@ export default function Sidebar({ nombreFerreteria, ferreteriaId, pedidosPendien
     router.push('/auth/login')
     router.refresh()
   }
+
+  const itemsVisibles = navItems.filter((item) => {
+    if (item.solodueno && rol !== 'dueno') return false
+    return true
+  })
 
   return (
     <aside className="w-60 shrink-0 bg-gray-900 min-h-screen flex flex-col">
@@ -63,15 +78,16 @@ export default function Sidebar({ nombreFerreteria, ferreteriaId, pedidosPendien
             <p className="text-white font-semibold text-sm truncate">
               {nombreFerreteria ?? 'FerreBot'}
             </p>
-            <p className="text-gray-400 text-xs">Panel de gestión</p>
+            <p className="text-gray-400 text-xs">
+              {rol === 'vendedor' ? 'Vendedor' : 'Panel de gestión'}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Navegación */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {navItems.map(({ label, href, icon: Icon, badge }) => {
-          // Marcamos activo si la ruta empieza con el href (excepto dashboard exacto)
+        {itemsVisibles.map(({ label, href, icon: Icon, badge }) => {
           const isActive =
             href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href)
 

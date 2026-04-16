@@ -3,32 +3,30 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Upload, Sparkles } from 'lucide-react'
 import ProductsTable from '@/components/catalog/ProductsTable'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export default async function CatalogPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth/login')
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) redirect('/onboarding')
+  const supabase = await createClient()
 
   // Cargar productos, categorías y config en paralelo
   const [{ data: productos }, { data: categorias }, { data: configBot }] = await Promise.all([
     supabase
       .from('productos')
       .select('*, categorias(id, nombre), reglas_descuento(*)')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .order('nombre'),
     supabase
       .from('categorias')
       .select('*')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .order('nombre'),
     supabase
       .from('configuracion_bot')
       .select('margen_minimo_porcentaje')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .single(),
   ])
 

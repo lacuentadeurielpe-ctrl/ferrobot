@@ -1,35 +1,39 @@
+import { getSessionInfo } from '@/lib/auth/roles'
 import { createClient } from '@/lib/supabase/server'
 import OrdersTable from '@/components/orders/OrdersTable'
 import { ShoppingCart } from 'lucide-react'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
 export default async function OrdersPage() {
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return null
-
-  const [{ data: pedidos }, { data: productos }, { data: zonas }] = await Promise.all([
+  const [{ data: pedidos }, { data: productos }, { data: zonas }, { data: repartidores }] = await Promise.all([
     supabase
       .from('pedidos')
       .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*)')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .order('created_at', { ascending: false })
       .limit(100),
     supabase
       .from('productos')
       .select('id, nombre, unidad, precio_base, precio_compra, stock')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .eq('activo', true)
       .order('nombre'),
     supabase
       .from('zonas_delivery')
       .select('id, nombre, tiempo_estimado_min')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
+      .order('nombre'),
+    supabase
+      .from('repartidores')
+      .select('id, nombre, telefono, activo')
+      .eq('ferreteria_id', session.ferreteriaId)
       .order('nombre'),
   ])
 
@@ -49,7 +53,9 @@ export default async function OrdersPage() {
         pedidos={pedidos ?? []}
         productos={productos ?? []}
         zonas={zonas ?? []}
-        ferreteriaId={ferreteria.id}
+        ferreteriaId={session.ferreteriaId}
+        rol={session.rol}
+        repartidores={repartidores ?? []}
       />
     </div>
   )

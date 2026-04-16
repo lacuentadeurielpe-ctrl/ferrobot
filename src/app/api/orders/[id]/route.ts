@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionInfo } from '@/lib/auth/roles'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { generarYEnviarComprobante } from '@/lib/pdf/generar-comprobante'
 
@@ -25,21 +26,21 @@ function mensajeEstado(numeroPedido: string, estado: string, nombreFerreteria: s
 
 // PATCH /api/orders/[id] — actualizar estado del pedido
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const supabase = await createClient()
   const { id } = await params
   const body = await request.json()
 
   if (body.estado && !ESTADOS_VALIDOS.includes(body.estado))
     return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
 
-  // Verificar que el pedido pertenece a la ferretería del dueño
+  // Obtener datos de la ferretería (para mensajes WhatsApp y validación)
   const { data: ferreteria } = await supabase
     .from('ferreterias')
     .select('id, nombre, telefono_whatsapp')
-    .eq('owner_id', user.id)
+    .eq('id', session.ferreteriaId)
     .single()
   if (!ferreteria) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
@@ -122,15 +123,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 // GET /api/orders/[id]
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const supabase = await createClient()
   const { id } = await params
   const { data, error } = await supabase
     .from('pedidos')
     .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*)')
     .eq('id', id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })

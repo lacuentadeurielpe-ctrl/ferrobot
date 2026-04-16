@@ -3,9 +3,10 @@
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { verificarFirmaWebhook, extraerMensaje, type YCloudWebhookPayload } from '@/lib/whatsapp/ycloud'
+import { verificarFirmaWebhook, extraerMensaje, descargarMedia, type YCloudWebhookPayload } from '@/lib/whatsapp/ycloud'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { handleIncomingMessage } from '@/lib/bot/message-handler'
+import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
 
 // Vercel: máximo 30s de ejecución para esta ruta
 export const maxDuration = 30
@@ -47,7 +48,6 @@ export async function POST(request: Request) {
 
   // Solo procesar mensajes entrantes
   const tipoEvento = payload.type ?? ''
-
   if (!tipoEvento.includes('inbound_message') && !tipoEvento.includes('message.received')) {
     return NextResponse.json({ ok: true })
   }
@@ -62,32 +62,146 @@ export async function POST(request: Request) {
   const telefonoCliente = mensaje.from
   const telefonoFerreteria = mensaje.to
   const ycloudMessageId = mensaje.id
-
-  // ── 4. Identificar la ferretería por su número de WhatsApp ────────────────
-  const supabase = createAdminClient()
   const telefonoNorm = telefonoFerreteria.replace(/^\+/, '')
 
-  // ── 4b. Mensajes no-texto: responder con mensaje útil y salir ─────────────
-  if (mensaje.type !== 'text' || !mensaje.text?.body?.trim()) {
-    const respuestasMedia: Partial<Record<string, string>> = {
-      audio:    '🎧 Escuché tu audio, pero por ahora solo proceso texto. Escríbeme qué necesitas y te atiendo al toque 🙌',
-      image:    '📷 Vi tu imagen, pero por ahora solo proceso mensajes de texto. Escríbeme qué necesitas y te cotizo de inmediato 🙌',
-      video:    '🎥 Recibí tu video, pero por ahora solo proceso texto. Escríbeme qué necesitas 🙌',
-      document: '📄 Recibí tu documento, pero por ahora solo proceso texto. Escríbeme qué necesitas y con gusto te ayudo 🙌',
-    }
-    const respuesta = respuestasMedia[mensaje.type]
-    if (respuesta) {
+  // ── 4. Procesar según tipo de mensaje ────────────────────────────────────
+  let textoMensaje: string | null = null
+  let notaParaBot: string | null = null  // contexto adicional para el bot
+
+  if (mensaje.type === 'text' && mensaje.text?.body?.trim()) {
+    textoMensaje = mensaje.text.body.trim()
+
+  } else if (mensaje.type === 'audio' && mensaje.audio?.id) {
+    // ── Audio: transcribir con Whisper ────────────────────────────────────
+    if (openAIDisponible()) {
+      console.log(`[Webhook] Procesando audio ${mensaje.audio.id} con Whisper`)
       try {
-        await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta })
+        const media = await descargarMedia(mensaje.audio.id)
+        if (media) {
+          const transcripcion = await transcribirAudio(media.buffer, media.mimeType)
+          if (transcripcion) {
+            console.log(`[Webhook] Transcripción: "${transcripcion.slice(0, 80)}"`)
+            textoMensaje = transcripcion
+            notaParaBot = '[El cliente envió un audio de voz — este es el texto transcrito]'
+          }
+        }
       } catch (e) {
-        console.error('[Webhook] Error enviando respuesta a media:', e)
+        console.error('[Webhook] Error procesando audio:', e)
       }
+    }
+
+    if (!textoMensaje) {
+      // Fallback si no hay OpenAI o falló
+      await enviarMensaje({
+        from: telefonoNorm, to: telefonoCliente,
+        texto: '🎧 Escuché tu audio! Por ahora no puedo procesarlo. Escríbeme qué necesitas y te atiendo de inmediato 🙌',
+      }).catch(() => {})
+      return NextResponse.json({ ok: true })
+    }
+
+  } else if (mensaje.type === 'image' && mensaje.image?.id) {
+    // ── Imagen: analizar con GPT-4o Vision ────────────────────────────────
+    if (openAIDisponible()) {
+      console.log(`[Webhook] Procesando imagen ${mensaje.image.id} con Vision`)
+      try {
+        const media = await descargarMedia(mensaje.image.id)
+        if (media) {
+          const analisis = await analizarImagen(media.buffer, media.mimeType)
+          if (analisis) {
+            console.log(`[Webhook] Imagen tipo: ${analisis.tipo}`)
+
+            if (analisis.tipo === 'lista_productos' && analisis.productosDetectados?.length) {
+              // Convertir lista detectada en texto de cotización
+              const listaTexto = analisis.productosDetectados
+                .map((p) => `${p.cantidad ? p.cantidad + 'x ' : ''}${p.nombre}`)
+                .join(', ')
+              textoMensaje = `Quiero cotizar: ${listaTexto}`
+              notaParaBot = `[El cliente envió una imagen con una lista de productos. Vision detectó: ${listaTexto}]`
+            } else {
+              // Para producto individual, consulta, etc — usar la descripción del análisis como texto
+              textoMensaje = mensaje.image.caption || analisis.descripcion
+              notaParaBot = `[El cliente envió una imagen. Análisis Vision: tipo=${analisis.tipo}, descripción="${analisis.descripcion}"]`
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Webhook] Error procesando imagen:', e)
+      }
+    }
+
+    if (!textoMensaje) {
+      // Usar caption si lo hay, o fallback
+      if (mensaje.image.caption?.trim()) {
+        textoMensaje = mensaje.image.caption.trim()
+      } else {
+        await enviarMensaje({
+          from: telefonoNorm, to: telefonoCliente,
+          texto: '📷 Vi tu foto! Cuéntame qué necesitas y te ayudo con precios o consultas 🙌',
+        }).catch(() => {})
+        return NextResponse.json({ ok: true })
+      }
+    }
+
+  } else if (mensaje.type === 'document' && mensaje.document?.id) {
+    // ── Documento: intentar analizar con Vision (si es imagen-like) ──────
+    const caption = mensaje.document.caption?.trim()
+    const nombre = mensaje.document.filename ?? ''
+    const esImagen = /\.(jpg|jpeg|png|webp)$/i.test(nombre)
+
+    if (openAIDisponible() && esImagen) {
+      try {
+        const media = await descargarMedia(mensaje.document.id)
+        if (media) {
+          const analisis = await analizarImagen(media.buffer, media.mimeType)
+          if (analisis) {
+            textoMensaje = analisis.tipo === 'lista_productos' && analisis.productosDetectados?.length
+              ? `Quiero cotizar: ${analisis.productosDetectados.map(p => `${p.cantidad ? p.cantidad + 'x ' : ''}${p.nombre}`).join(', ')}`
+              : (caption || analisis.descripcion)
+            notaParaBot = `[El cliente envió un documento imagen "${nombre}". Análisis: tipo=${analisis.tipo}]`
+          }
+        }
+      } catch (e) {
+        console.error('[Webhook] Error procesando documento:', e)
+      }
+    }
+
+    if (!textoMensaje) {
+      // Usar caption si hay, o respuesta amable
+      if (caption) {
+        textoMensaje = caption
+      } else {
+        await enviarMensaje({
+          from: telefonoNorm, to: telefonoCliente,
+          texto: `📄 Recibí tu ${nombre ? `archivo "${nombre}"` : 'documento'}. Para ayudarte mejor, cuéntame por texto qué necesitas 🙌`,
+        }).catch(() => {})
+        return NextResponse.json({ ok: true })
+      }
+    }
+
+  } else if (mensaje.type === 'sticker') {
+    // Stickers: ignorar silenciosamente
+    return NextResponse.json({ ok: true })
+
+  } else {
+    // Tipo no soportado
+    const tipos: Partial<Record<string, string>> = {
+      video: '🎥 Recibí tu video, pero por ahora solo proceso texto e imágenes. Escríbeme qué necesitas 🙌',
+      location: '📍 Vi tu ubicación. Si tienes consultas, escríbeme y te atiendo de inmediato 🙌',
+      contacts: '👤 Recibí el contacto. Si necesitas algo, escríbeme y te ayudo 🙌',
+    }
+    const respuesta = tipos[mensaje.type]
+    if (respuesta) {
+      await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta }).catch(() => {})
     }
     return NextResponse.json({ ok: true })
   }
 
-  const textoMensaje = mensaje.text.body.trim()
-  console.log(`[Webhook] Mensaje de ${telefonoCliente}: "${textoMensaje.slice(0, 50)}"`)
+  if (!textoMensaje) return NextResponse.json({ ok: true })
+
+  console.log(`[Webhook] Mensaje de ${telefonoCliente}: "${textoMensaje.slice(0, 60)}"`)
+
+  // ── 5. Identificar la ferretería ─────────────────────────────────────────
+  const supabase = createAdminClient()
 
   const { data: ferreteria } = await supabase
     .from('ferreterias')
@@ -97,56 +211,39 @@ export async function POST(request: Request) {
     .single()
 
   if (!ferreteria) {
-    console.warn(`[Webhook] FERRETERIA_NO_ENCONTRADA numero=${telefonoFerreteria} norm=${telefonoNorm}`)
+    console.warn(`[Webhook] FERRETERIA_NO_ENCONTRADA numero=${telefonoFerreteria}`)
     return NextResponse.json({ ok: true })
   }
-  console.log(`[Webhook] FERRETERIA_OK id=${ferreteria.id} nombre="${ferreteria.nombre}"`)
 
+  // ── 6. Procesar con el bot ────────────────────────────────────────────────
+  const textoCompleto = notaParaBot ? `${textoMensaje}\n\n${notaParaBot}` : textoMensaje
 
-  // ── 5. Procesar el mensaje con el bot ─────────────────────────────────────
-  console.log(`[Webhook] INICIANDO_BOT ferreteria=${ferreteria.id} cliente=${telefonoCliente} texto="${textoMensaje.slice(0, 40)}"`)
   try {
     const { respuesta } = await handleIncomingMessage({
       supabase,
       ferreteria,
       telefonoCliente,
-      textoMensaje,
+      textoMensaje: textoCompleto,
       ycloudMessageId,
     })
 
-    // Si el bot no debe responder (está pausado o mensaje duplicado), terminar aquí
     if (!respuesta) {
-      console.log(`[Webhook] RESPUESTA_NULA — bot pausado o mensaje duplicado para ${telefonoCliente}`)
+      console.log(`[Webhook] RESPUESTA_NULA — bot pausado o mensaje duplicado`)
       return NextResponse.json({ ok: true })
     }
 
-    // ── 6. Enviar respuesta por YCloud ──────────────────────────────────────
-    console.log(`[Webhook] ENVIANDO respuesta a ${telefonoCliente}: "${respuesta.slice(0, 60)}..."`)
-    await enviarMensaje({
-      from: telefonoNorm,
-      to: telefonoCliente,
-      texto: respuesta,
-    })
-
+    await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta })
     console.log(`[Webhook] ENVIADO OK a ${telefonoCliente} (${respuesta.length} chars)`)
     return NextResponse.json({ ok: true })
 
   } catch (error) {
-    const mensaje_error = error instanceof Error ? error.message : String(error)
-    console.error('[Webhook] ERROR_PROCESANDO:', mensaje_error)
-
-    // Intentar enviar un mensaje de error amable al cliente
+    console.error('[Webhook] ERROR:', error instanceof Error ? error.message : error)
     try {
       await enviarMensaje({
-        from: telefonoNorm,
-        to: telefonoCliente,
+        from: telefonoNorm, to: telefonoCliente,
         texto: 'Disculpe, tuvimos un inconveniente. Por favor intente nuevamente en un momento. 🙏',
       })
-    } catch {
-      // Si tampoco podemos enviar el error, ya no hay más que hacer
-    }
-
-    // Retornar 200 para que YCloud no reintente el webhook
+    } catch { /* nada más que hacer */ }
     return NextResponse.json({ ok: true })
   }
 }

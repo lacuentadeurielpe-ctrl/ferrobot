@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import SettingsForm from '@/components/settings/SettingsForm'
+import TeamSection from '@/components/settings/TeamSection'
+import RepartidoresSection from '@/components/settings/RepartidoresSection'
 import { Settings } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -61,6 +63,14 @@ export default async function SettingsPage() {
         zonas={zonas ?? []}
         margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
       />
+
+      <div className="mt-6">
+        <TeamSection />
+      </div>
+
+      <div className="mt-6">
+        <RepartidoresSection />
+      </div>
     </div>
   )
 }

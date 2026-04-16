@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,16 +15,10 @@ interface ItemNuevoPedido {
 
 // POST /api/orders — crear pedido manual desde el panel
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias')
-    .select('id')
-    .eq('owner_id', user.id)
-    .single()
-  if (!ferreteria) return NextResponse.json({ error: 'Ferretería no encontrada' }, { status: 404 })
+  const supabase = await createClient()
 
   const body = await request.json()
   const {
@@ -56,14 +51,14 @@ export async function POST(request: Request) {
 
   // Generar número de pedido
   const { data: numeroPedido, error: errNum } = await supabase
-    .rpc('generar_numero_pedido', { p_ferreteria_id: ferreteria.id })
+    .rpc('generar_numero_pedido', { p_ferreteria_id: session.ferreteriaId })
   if (errNum || !numeroPedido)
     return NextResponse.json({ error: `Error generando número: ${errNum?.message}` }, { status: 500 })
 
   const { data: pedido, error: errPedido } = await supabase
     .from('pedidos')
     .insert({
-      ferreteria_id: ferreteria.id,
+      ferreteria_id: session.ferreteriaId,
       numero_pedido: numeroPedido,
       nombre_cliente: nombre_cliente.trim(),
       telefono_cliente: telefono_cliente.trim(),
@@ -101,16 +96,17 @@ export async function POST(request: Request) {
 
 // GET /api/orders
 export async function GET(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   const estado = searchParams.get('estado')
 
   let query = supabase
     .from('pedidos')
     .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*)')
+    .eq('ferreteria_id', session.ferreteriaId)
     .order('created_at', { ascending: false })
 
   if (estado) query = query.eq('estado', estado)

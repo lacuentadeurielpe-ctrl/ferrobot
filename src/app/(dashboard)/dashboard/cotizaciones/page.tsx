@@ -1,29 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import CotizacionesTable from '@/components/cotizaciones/CotizacionesTable'
 import { FileText } from 'lucide-react'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CotizacionesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return null
+  const supabase = await createClient()
 
   const [{ data: cotizaciones }, { data: configBot }] = await Promise.all([
     supabase
       .from('cotizaciones')
       .select('*, clientes(nombre, telefono), items_cotizacion(*, productos(precio_compra))')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .order('created_at', { ascending: false })
       .limit(100),
     supabase
       .from('configuracion_bot')
       .select('margen_minimo_porcentaje')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .single(),
   ])
 

@@ -1,11 +1,13 @@
 // Dashboard principal — métricas con selector de periodo hoy/semana/mes
 import { createClient } from '@/lib/supabase/server'
+import { getSessionInfo } from '@/lib/auth/roles'
 import { formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
 import { ShoppingCart, MessageSquare, Package, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import ActivityChart from '@/components/dashboard/ActivityChart'
 import PeriodSelector from '@/components/dashboard/PeriodSelector'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +21,6 @@ function getInicioFin(periodo: string): { inicio: Date; fin: Date; label: string
   inicio.setHours(0, 0, 0, 0)
 
   if (periodo === 'semana') {
-    // Lunes de esta semana
     const dia = inicio.getDay()
     const diff = dia === 0 ? -6 : 1 - dia
     inicio.setDate(inicio.getDate() + diff)
@@ -37,21 +38,16 @@ interface Props {
 }
 
 export default async function DashboardPage({ searchParams }: Props) {
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
+
   const { p } = await searchParams
   const periodo = (p === 'semana' || p === 'mes') ? p : 'hoy'
   const { inicio, fin, label } = getInicioFin(periodo)
   const inicioISO = inicio.toISOString()
+  const esVendedor = session.rol === 'vendedor'
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: ferreteria } = await supabase
-    .from('ferreterias')
-    .select('id, nombre, telefono_whatsapp')
-    .eq('owner_id', user!.id)
-    .single()
-
-  if (!ferreteria) return null
 
   // Inicio para el gráfico (siempre 7 días hacia atrás desde hoy)
   const hace7dias = new Date()
@@ -74,63 +70,65 @@ export default async function DashboardPage({ searchParams }: Props) {
     supabase
       .from('cotizaciones')
       .select('*', { count: 'exact', head: true })
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .gte('created_at', inicioISO),
 
     supabase
       .from('pedidos')
       .select('*', { count: 'exact', head: true })
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .gte('created_at', inicioISO),
 
     supabase
       .from('pedidos')
       .select('*', { count: 'exact', head: true })
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .eq('estado', 'pendiente'),
 
     supabase
       .from('pedidos')
       .select('total')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .gte('created_at', inicioISO)
       .neq('estado', 'cancelado'),
 
     supabase
       .from('pedidos')
       .select('id, numero_pedido, nombre_cliente, estado, total, created_at')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .order('created_at', { ascending: false })
       .limit(5),
 
     supabase
       .from('cotizaciones')
       .select('created_at')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .gte('created_at', hace7diasISO),
 
     supabase
       .from('pedidos')
       .select('created_at')
-      .eq('ferreteria_id', ferreteria.id)
+      .eq('ferreteria_id', session.ferreteriaId)
       .gte('created_at', hace7diasISO),
 
     supabase
       .from('items_cotizacion')
       .select('nombre_producto, cantidad, cotizaciones!inner(ferreteria_id, created_at)')
-      .eq('cotizaciones.ferreteria_id', ferreteria.id)
+      .eq('cotizaciones.ferreteria_id', session.ferreteriaId)
       .gte('cotizaciones.created_at', (() => {
         const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString()
       })()),
 
-    // Ganancias del periodo (total - costo_total, excluyendo cancelados)
-    supabase
-      .from('pedidos')
-      .select('total, costo_total')
-      .eq('ferreteria_id', ferreteria.id)
-      .gte('created_at', inicioISO)
-      .neq('estado', 'cancelado')
-      .not('costo_total', 'is', null),
+    // Ganancias — solo para dueño
+    esVendedor
+      ? Promise.resolve({ data: null, error: null })
+      : supabase
+          .from('pedidos')
+          .select('total, costo_total')
+          .eq('ferreteria_id', session.ferreteriaId)
+          .gte('created_at', inicioISO)
+          .neq('estado', 'cancelado')
+          .not('costo_total', 'is', null),
   ])
 
   const ingresosPeriodo = (pedidosData ?? []).reduce((s, p) => s + (p.total ?? 0), 0)
@@ -182,13 +180,14 @@ export default async function DashboardPage({ searchParams }: Props) {
       color: 'bg-yellow-50 text-yellow-600',
       desc: 'esperando atención',
     },
-    {
+    // Solo dueños ven ingresos/ganancias
+    ...(!esVendedor ? [{
       label: `Ingresos ${label}`,
       valor: formatPEN(ingresosPeriodo),
       icono: TrendingUp,
       color: 'bg-orange-50 text-orange-600',
       desc: hayGanancia ? `Ganancia: ${formatPEN(gananciaPeriodo)}` : 'en pedidos confirmados',
-    },
+    }] : []),
   ]
 
   return (
@@ -197,7 +196,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-            {ferreteria.nombre}
+            {session.nombreFerreteria}
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {new Date().toLocaleDateString('es-PE', {
@@ -262,36 +261,34 @@ export default async function DashboardPage({ searchParams }: Props) {
 
       {/* Estado del bot + Pedidos recientes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-        <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
-          <h3 className="font-semibold text-gray-900 mb-4">Estado del bot</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Bot de WhatsApp</span>
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                Activo
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Número conectado</span>
-              <span className="text-sm font-medium text-gray-800">+{ferreteria.telefono_whatsapp}</span>
-            </div>
-            <div className="pt-1 space-y-1.5">
-              {[
-                { label: 'Ver pedidos pendientes', href: '/dashboard/orders' },
-                { label: 'Agregar producto', href: '/dashboard/catalog/new' },
-                { label: 'Ver conversaciones', href: '/dashboard/conversations' },
-                { label: 'Configuración', href: '/dashboard/settings' },
-              ].map(({ label: lbl, href }) => (
-                <Link key={href} href={href} className="flex items-center text-sm text-orange-600 hover:text-orange-700 hover:underline">
-                  → {lbl}
-                </Link>
-              ))}
+        {!esVendedor && (
+          <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+            <h3 className="font-semibold text-gray-900 mb-4">Estado del bot</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Bot de WhatsApp</span>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                  Activo
+                </span>
+              </div>
+              <div className="pt-1 space-y-1.5">
+                {[
+                  { label: 'Ver pedidos pendientes', href: '/dashboard/orders' },
+                  { label: 'Agregar producto', href: '/dashboard/catalog/new' },
+                  { label: 'Ver conversaciones', href: '/dashboard/conversations' },
+                  { label: 'Configuración', href: '/dashboard/settings' },
+                ].map(({ label: lbl, href }) => (
+                  <Link key={href} href={href} className="flex items-center text-sm text-orange-600 hover:text-orange-700 hover:underline">
+                    → {lbl}
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+        <div className={`bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm ${esVendedor ? 'lg:col-span-2' : ''}`}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Pedidos recientes</h3>
             <Link href="/dashboard/orders" className="text-xs text-orange-500 hover:underline">Ver todos →</Link>
@@ -310,7 +307,9 @@ export default async function DashboardPage({ searchParams }: Props) {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorEstadoPedido(p.estado)}`}>
                       {labelEstadoPedido(p.estado)}
                     </span>
-                    <span className="text-xs font-semibold text-gray-700">{formatPEN(p.total)}</span>
+                    {!esVendedor && (
+                      <span className="text-xs font-semibold text-gray-700">{formatPEN(p.total)}</span>
+                    )}
                   </div>
                 </div>
               ))}

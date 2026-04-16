@@ -2,18 +2,15 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generarYEnviarComprobante } from '@/lib/pdf/generar-comprobante'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 // GET /api/orders/[id]/comprobante — obtener comprobante existente
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
   const { id: pedidoId } = await params
-
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const admin = createAdminClient()
   const { data: comprobante, error } = await admin
@@ -31,19 +28,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 // POST /api/orders/[id]/comprobante — generar y enviar comprobante
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-
   const { id: pedidoId } = await params
-
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const resultado = await generarYEnviarComprobante({
     pedidoId,
-    ferreteriaId: ferreteria.id,
+    ferreteriaId: session.ferreteriaId,
   })
 
   if (!resultado.ok) {

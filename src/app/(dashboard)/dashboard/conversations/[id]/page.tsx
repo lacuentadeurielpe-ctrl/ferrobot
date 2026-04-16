@@ -1,8 +1,9 @@
 // Vista individual de conversación
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import ConversationsList from '@/components/conversations/ConversationsList'
 import ChatView from '@/components/conversations/ChatView'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,20 +13,17 @@ interface Props {
 
 export default async function ConversationPage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const session = await getSessionInfo()
+  if (!session) redirect('/auth/login')
 
-  const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id').eq('owner_id', user.id).single()
-  if (!ferreteria) return null
+  const supabase = await createClient()
 
   // Obtener conversación con datos del cliente
   const { data: conversacion } = await supabase
     .from('conversaciones')
     .select('*, clientes(nombre, telefono)')
     .eq('id', id)
-    .eq('ferreteria_id', ferreteria.id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .single()
 
   if (!conversacion) notFound()
@@ -42,7 +40,7 @@ export default async function ConversationPage({ params }: Props) {
   const { data: conversaciones } = await supabase
     .from('conversaciones')
     .select('id, estado, bot_pausado, ultima_actividad, clientes(nombre, telefono)')
-    .eq('ferreteria_id', ferreteria.id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .order('ultima_actividad', { ascending: false })
     .limit(50)
 
@@ -70,7 +68,7 @@ export default async function ConversationPage({ params }: Props) {
     <div className="absolute inset-0 flex overflow-hidden">
       {/* Panel izquierdo */}
       <div className="w-72 shrink-0 border-r border-gray-200 bg-white flex flex-col">
-        <ConversationsList inicial={enriquecidas} ferreteriaId={ferreteria.id} />
+        <ConversationsList inicial={enriquecidas} ferreteriaId={session.ferreteriaId} />
       </div>
 
       {/* Panel derecho */}
@@ -83,7 +81,7 @@ export default async function ConversationPage({ params }: Props) {
               : conversacion.clientes) as { nombre: string | null; telefono: string } | null,
           }}
           mensajesIniciales={mensajes ?? []}
-          ferreteriaId={ferreteria.id}
+          ferreteriaId={session.ferreteriaId}
         />
       </div>
     </div>

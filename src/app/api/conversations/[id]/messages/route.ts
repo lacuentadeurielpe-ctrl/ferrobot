@@ -2,26 +2,27 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
+import { getSessionInfo } from '@/lib/auth/roles'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const supabase = await createClient()
   const { id } = await params
   const { texto } = await request.json()
   if (!texto?.trim()) return NextResponse.json({ error: 'Texto requerido' }, { status: 400 })
 
-  // Verificar que la conversación pertenece a la ferretería del dueño
+  // Verificar que la conversación pertenece a la ferretería
   const { data: ferreteria } = await supabase
-    .from('ferreterias').select('id, telefono_whatsapp').eq('owner_id', user.id).single()
+    .from('ferreterias').select('id, telefono_whatsapp').eq('id', session.ferreteriaId).single()
   if (!ferreteria) return NextResponse.json({ error: 'Ferretería no encontrada' }, { status: 404 })
 
   const { data: conversacion } = await supabase
     .from('conversaciones')
     .select('*, clientes(telefono)')
     .eq('id', id)
-    .eq('ferreteria_id', ferreteria.id)
+    .eq('ferreteria_id', session.ferreteriaId)
     .single()
 
   if (!conversacion) return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 })
