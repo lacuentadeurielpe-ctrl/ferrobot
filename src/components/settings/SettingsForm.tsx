@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Plus, X, Save, Loader2, Check, Trash2, Upload, ImageOff } from 'lucide-react'
+import { Plus, X, Save, Loader2, Check, Trash2, Upload, ImageOff, QrCode } from 'lucide-react'
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const DIAS_LABEL: Record<string, string> = {
@@ -26,6 +26,18 @@ const COLORES_PRESET = [
   { label: 'Morado', value: '#7c3aed' },
 ]
 
+interface DatosYape {
+  numero: string
+  qr_url: string | null
+}
+
+interface DatosTransferencia {
+  banco: string
+  cuenta: string
+  cci: string | null
+  titular: string
+}
+
 interface Ferreteria {
   nombre: string
   direccion: string | null
@@ -42,7 +54,18 @@ interface Ferreteria {
   mensaje_comprobante: string | null
   telefono_dueno: string | null
   resumen_diario_activo: boolean
+  datos_yape: DatosYape | null
+  datos_transferencia: DatosTransferencia | null
+  metodos_pago_activos: string[] | null
 }
+
+const TODOS_METODOS = [
+  { key: 'efectivo', label: 'Efectivo', desc: 'Pago en efectivo al momento de la entrega' },
+  { key: 'yape', label: 'Yape', desc: 'Transferencia instantánea por Yape' },
+  { key: 'transferencia', label: 'Transferencia bancaria', desc: 'Depósito o transferencia a cuenta bancaria' },
+  { key: 'tarjeta', label: 'Tarjeta / POS', desc: 'Pago con tarjeta de crédito o débito' },
+  { key: 'credito', label: 'Crédito', desc: 'Pago diferido con límite acordado' },
+]
 
 interface SettingsFormProps {
   ferreteria: Ferreteria
@@ -50,7 +73,7 @@ interface SettingsFormProps {
   margenMinimo?: number
 }
 
-type Tab = 'negocio' | 'horario' | 'bot' | 'zonas' | 'comprobante'
+type Tab = 'negocio' | 'horario' | 'bot' | 'zonas' | 'comprobante' | 'pagos'
 
 export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margenMinimo = 10 }: SettingsFormProps) {
   const router = useRouter()
@@ -88,6 +111,20 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
   const [subiendoLogo, setSubiendoLogo] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Pagos state
+  const [metodosActivos, setMetodosActivos] = useState<string[]>(
+    ferreteria.metodos_pago_activos ?? ['efectivo', 'yape', 'transferencia', 'tarjeta', 'credito']
+  )
+  const [datosYape, setDatosYape] = useState<DatosYape>(
+    ferreteria.datos_yape ?? { numero: '', qr_url: null }
+  )
+  const [datosTransferencia, setDatosTransferencia] = useState<DatosTransferencia>(
+    ferreteria.datos_transferencia ?? { banco: '', cuenta: '', cci: null, titular: '' }
+  )
+  const [subiendoQR, setSubiendoQR] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
+  const qrInputRef = useRef<HTMLInputElement>(null)
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -128,6 +165,19 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
           margen_minimo_porcentaje: Number(form.margen_minimo_porcentaje),
           mensaje_comprobante: form.mensaje_comprobante.trim() || null,
           telefono_dueno: form.telefono_dueno.trim() || null,
+          // Pagos
+          metodos_pago_activos: metodosActivos,
+          datos_yape: metodosActivos.includes('yape') && datosYape.numero.trim()
+            ? { numero: datosYape.numero.trim(), qr_url: datosYape.qr_url }
+            : null,
+          datos_transferencia: metodosActivos.includes('transferencia') && datosTransferencia.banco.trim()
+            ? {
+                banco: datosTransferencia.banco.trim(),
+                cuenta: datosTransferencia.cuenta.trim(),
+                cci: datosTransferencia.cci?.trim() || null,
+                titular: datosTransferencia.titular.trim(),
+              }
+            : null,
         }),
       })
 
@@ -226,12 +276,53 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
     }
   }
 
+  async function subirQR(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSubiendoQR(true)
+    setQrError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/settings/yape-qr', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error((await res.json()).error)
+      const { url } = await res.json()
+      setDatosYape((prev) => ({ ...prev, qr_url: url }))
+    } catch (e) {
+      setQrError(e instanceof Error ? e.message : 'Error subiendo QR')
+    } finally {
+      setSubiendoQR(false)
+      if (qrInputRef.current) qrInputRef.current.value = ''
+    }
+  }
+
+  async function eliminarQR() {
+    setSubiendoQR(true)
+    setQrError(null)
+    try {
+      await fetch('/api/settings/yape-qr', { method: 'DELETE' })
+      setDatosYape((prev) => ({ ...prev, qr_url: null }))
+    } catch {
+      setQrError('Error eliminando QR')
+    } finally {
+      setSubiendoQR(false)
+    }
+  }
+
+  function toggleMetodo(key: string) {
+    if (key === 'efectivo') return // efectivo siempre activo
+    setMetodosActivos((prev) =>
+      prev.includes(key) ? prev.filter((m) => m !== key) : [...prev, key]
+    )
+  }
+
   const TABS: { key: Tab; label: string }[] = [
     { key: 'negocio', label: 'Negocio' },
     { key: 'horario', label: 'Horario' },
     { key: 'zonas', label: 'Zonas de delivery' },
     { key: 'bot', label: 'Mensajes del bot' },
     { key: 'comprobante', label: 'Comprobante' },
+    { key: 'pagos', label: 'Pagos' },
   ]
 
   return (
@@ -689,6 +780,169 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
               Vista previa del encabezado del PDF
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── TAB: PAGOS ── */}
+      {tab === 'pagos' && (
+        <div className="space-y-6">
+          {/* Métodos activos */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-3">Métodos de pago aceptados</p>
+            <div className="space-y-2">
+              {TODOS_METODOS.map(({ key, label, desc }) => {
+                const activo = metodosActivos.includes(key)
+                const bloqueado = key === 'efectivo'
+                return (
+                  <label
+                    key={key}
+                    className={cn(
+                      'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition',
+                      activo ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-white',
+                      bloqueado && 'cursor-default opacity-70'
+                    )}
+                  >
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={activo}
+                      disabled={bloqueado}
+                      onClick={() => toggleMetodo(key)}
+                      className={cn(
+                        'relative w-9 h-5 rounded-full border-2 border-transparent transition-colors shrink-0',
+                        activo ? 'bg-orange-500' : 'bg-gray-200'
+                      )}
+                    >
+                      <span className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
+                        activo ? 'translate-x-4' : 'translate-x-0'
+                      )} />
+                    </button>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-500">{desc}</p>
+                    </div>
+                    {bloqueado && (
+                      <span className="ml-auto text-xs text-gray-400 shrink-0">Siempre activo</span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Yape */}
+          {metodosActivos.includes('yape') && (
+            <div className="border-t border-gray-100 pt-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Datos de Yape</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Número Yape</label>
+                  <input
+                    value={datosYape.numero}
+                    onChange={(e) => setDatosYape((p) => ({ ...p, numero: e.target.value }))}
+                    placeholder="51987654321"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-2 block">Código QR de Yape</label>
+                  <div className="flex items-start gap-4">
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
+                      {datosYape.qr_url
+                        ? <img src={datosYape.qr_url} alt="QR Yape" className="w-full h-full object-contain p-1" />
+                        : <QrCode className="w-7 h-7 text-gray-300" />
+                      }
+                    </div>
+                    <div className="space-y-2">
+                      <input
+                        ref={qrInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={subirQR}
+                      />
+                      <button
+                        type="button"
+                        disabled={subiendoQR}
+                        onClick={() => qrInputRef.current?.click()}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                      >
+                        {subiendoQR ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        {subiendoQR ? 'Subiendo…' : 'Subir QR'}
+                      </button>
+                      {datosYape.qr_url && (
+                        <button
+                          type="button"
+                          disabled={subiendoQR}
+                          onClick={eliminarQR}
+                          className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 transition disabled:opacity-50"
+                        >
+                          <X className="w-3.5 h-3.5" /> Eliminar QR
+                        </button>
+                      )}
+                      <p className="text-xs text-gray-400">PNG o JPG. Máx 2 MB.</p>
+                      {qrError && <p className="text-xs text-red-500">{qrError}</p>}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    El bot enviará el QR automáticamente cuando el cliente elija pagar por Yape.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Transferencia */}
+          {metodosActivos.includes('transferencia') && (
+            <div className="border-t border-gray-100 pt-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Datos bancarios</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Banco *</label>
+                  <input
+                    value={datosTransferencia.banco}
+                    onChange={(e) => setDatosTransferencia((p) => ({ ...p, banco: e.target.value }))}
+                    placeholder="BCP, Interbank, BBVA…"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Titular *</label>
+                  <input
+                    value={datosTransferencia.titular}
+                    onChange={(e) => setDatosTransferencia((p) => ({ ...p, titular: e.target.value }))}
+                    placeholder="Nombre del titular"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Número de cuenta *</label>
+                  <input
+                    value={datosTransferencia.cuenta}
+                    onChange={(e) => setDatosTransferencia((p) => ({ ...p, cuenta: e.target.value }))}
+                    placeholder="000-00000000-0-00"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">
+                    CCI <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <input
+                    value={datosTransferencia.cci ?? ''}
+                    onChange={(e) => setDatosTransferencia((p) => ({ ...p, cci: e.target.value || null }))}
+                    placeholder="00200000000000000000"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                El bot enviará estos datos automáticamente cuando el cliente elija pago por transferencia.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

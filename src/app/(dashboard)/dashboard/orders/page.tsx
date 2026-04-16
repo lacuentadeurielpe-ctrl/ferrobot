@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import OrdersTable from '@/components/orders/OrdersTable'
 import { ShoppingCart } from 'lucide-react'
 import { redirect } from 'next/navigation'
+import type { PermisoMap } from '@/lib/auth/permisos'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ export default async function OrdersPage() {
   const [{ data: pedidos }, { data: productos }, { data: zonas }, { data: repartidores }] = await Promise.all([
     supabase
       .from('pedidos')
-      .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*)')
+      .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*), metodo_pago, estado_pago, pago_confirmado_por, pago_confirmado_at')
       .eq('ferreteria_id', session.ferreteriaId)
       .order('created_at', { ascending: false })
       .limit(100),
@@ -56,6 +57,7 @@ export default async function OrdersPage() {
         ferreteriaId={session.ferreteriaId}
         rol={session.rol}
         repartidores={repartidores ?? []}
+        permisos={session.permisos as PermisoMap}
       />
     </div>
   )

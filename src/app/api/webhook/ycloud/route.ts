@@ -3,8 +3,7 @@
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { verificarFirmaWebhook, extraerMensaje, descargarMedia, type YCloudWebhookPayload } from '@/lib/whatsapp/ycloud'
-import { enviarMensaje } from '@/lib/whatsapp/ycloud'
+import { verificarFirmaWebhook, extraerMensaje, descargarMedia, type YCloudWebhookPayload, enviarMensaje, enviarImagen } from '@/lib/whatsapp/ycloud'
 import { handleIncomingMessage } from '@/lib/bot/message-handler'
 import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
 
@@ -219,7 +218,7 @@ export async function POST(request: Request) {
   const textoCompleto = notaParaBot ? `${textoMensaje}\n\n${notaParaBot}` : textoMensaje
 
   try {
-    const { respuesta } = await handleIncomingMessage({
+    const { respuesta, mensajesExtra } = await handleIncomingMessage({
       supabase,
       ferreteria,
       telefonoCliente,
@@ -234,6 +233,21 @@ export async function POST(request: Request) {
 
     await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta })
     console.log(`[Webhook] ENVIADO OK a ${telefonoCliente} (${respuesta.length} chars)`)
+
+    // Enviar mensajes adicionales (ej: datos de pago + QR Yape)
+    if (mensajesExtra?.length) {
+      for (const extra of mensajesExtra) {
+        try {
+          if (extra.tipo === 'texto') {
+            await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: extra.texto })
+          } else if (extra.tipo === 'imagen') {
+            await enviarImagen({ from: telefonoNorm, to: telefonoCliente, imageUrl: extra.url, caption: extra.caption })
+          }
+        } catch (e) {
+          console.error('[Webhook] Error enviando mensaje extra:', e instanceof Error ? e.message : e)
+        }
+      }
+    }
     return NextResponse.json({ ok: true })
 
   } catch (error) {

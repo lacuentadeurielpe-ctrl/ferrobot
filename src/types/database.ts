@@ -90,6 +90,7 @@ export interface Ferreteria {
   // Métodos de pago digitales
   datos_yape: DatosYape | null
   datos_transferencia: DatosTransferencia | null
+  metodos_pago_activos: string[] | null  // ['efectivo','yape','transferencia','tarjeta','credito']
   created_at: string
   updated_at: string
 }

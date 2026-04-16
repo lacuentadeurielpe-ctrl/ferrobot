@@ -3,10 +3,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
-import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download } from 'lucide-react'
+import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2 } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import { createClient } from '@/lib/supabase/client'
 import type { Rol } from '@/lib/auth/roles'
+import { checkPermiso, type PermisoMap } from '@/lib/auth/permisos'
 
 interface Repartidor {
   id: string
@@ -37,12 +38,54 @@ interface Pedido {
   cobrado_metodo: string | null
   incidencia_tipo: string | null
   incidencia_desc: string | null
+  metodo_pago: string | null
+  estado_pago: string
+  pago_confirmado_por: string | null
+  pago_confirmado_at: string | null
   created_at: string
   nombre_cliente: string
   telefono_cliente: string
   clientes: { nombre: string | null; telefono: string } | null
   zonas_delivery: { nombre: string } | null
   items_pedido: ItemPedido[]
+}
+
+// ── Helpers de pago ───────────────────────────────────────────────────────────
+
+function labelMetodoPago(metodo: string | null): string {
+  if (!metodo) return '—'
+  const labels: Record<string, string> = {
+    efectivo: '💵 Efectivo',
+    yape: '📱 Yape',
+    transferencia: '🏦 Transferencia',
+    tarjeta: '💳 Tarjeta',
+    credito: '🤝 Crédito',
+  }
+  return labels[metodo] ?? metodo
+}
+
+function labelEstadoPago(estado: string): string {
+  const labels: Record<string, string> = {
+    pendiente: 'Sin pago',
+    verificando: 'Verificando',
+    pagado: 'Pagado',
+    credito_activo: 'Crédito activo',
+    credito_vencido: 'Crédito vencido',
+    reembolso_pendiente: 'Reembolso',
+  }
+  return labels[estado] ?? estado
+}
+
+function colorEstadoPago(estado: string): string {
+  const colors: Record<string, string> = {
+    pendiente: 'bg-gray-100 text-gray-500',
+    verificando: 'bg-amber-100 text-amber-700',
+    pagado: 'bg-green-100 text-green-700',
+    credito_activo: 'bg-blue-100 text-blue-700',
+    credito_vencido: 'bg-red-100 text-red-600',
+    reembolso_pendiente: 'bg-purple-100 text-purple-700',
+  }
+  return colors[estado] ?? 'bg-gray-100 text-gray-500'
 }
 
 interface Producto {
@@ -88,24 +131,36 @@ function estaEnRango(fecha: string, rango: string): boolean {
   return true
 }
 
-export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId, rol = 'dueno', repartidores = [] }: {
+export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId, rol = 'dueno', repartidores = [], permisos }: {
   pedidos: Pedido[]
   productos?: Producto[]
   zonas?: Zona[]
   ferreteriaId?: string
   rol?: Rol
   repartidores?: Repartidor[]
+  permisos?: Partial<PermisoMap>
 }) {
   const router = useRouter()
   const esDueno = rol === 'dueno'
+  const sessionData = { rol, permisos: permisos ?? {} }
+  const puedeConfirmarPagos = checkPermiso(sessionData, 'registrar_pagos')
   const [pedidos, setPedidos] = useState(inicial)
   const [expandido, setExpandido] = useState<string | null>(null)
   const [asignando, setAsignando] = useState<string | null>(null)
   const [actualizando, setActualizando] = useState<string | null>(null)
+  const [pagando, setPagando] = useState<string | null>(null)
   const [modalNuevo, setModalNuevo] = useState(false)
   const [nuevoPedidoAlert, setNuevoPedidoAlert] = useState(false)
   // Dialog de motivo de cancelación
   const [cancelDialog, setCancelDialog] = useState<{ pedidoId: string; motivo: string } | null>(null)
+  // Dialog de aprobación de crédito
+  const [creditoDialog, setCreditoDialog] = useState<{
+    pedidoId: string
+    fechaLimite: string
+    notas: string
+  } | null>(null)
+  const [aprobandoCredito, setAprobandoCredito] = useState(false)
+  const puedeAprobarCreditos = checkPermiso(sessionData, 'aprobar_creditos')
 
   // Realtime: notificar cuando llega un pedido nuevo
   useEffect(() => {
@@ -234,7 +289,10 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
           ...(motivoCancelacion ? { motivo_cancelacion: motivoCancelacion } : {}),
         }),
       })
-      if (!res.ok) throw new Error('Error')
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Error al actualizar el estado')
+      }
       const actualizado = await res.json()
       setPedidos((prev) =>
         prev.map((p) => (p.id === pedidoId
@@ -247,6 +305,74 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
     } finally {
       setActualizando(null)
       setCancelDialog(null)
+    }
+  }
+
+  async function actualizarPago(pedidoId: string, body: { metodo_pago?: string; estado_pago?: string }) {
+    setPagando(pedidoId)
+    try {
+      const res = await fetch(`/api/pedidos/${pedidoId}/pago`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Error al actualizar el pago')
+      }
+      const data = await res.json()
+      setPedidos((prev) =>
+        prev.map((p) =>
+          p.id === pedidoId
+            ? {
+                ...p,
+                metodo_pago: data.metodo_pago ?? p.metodo_pago,
+                estado_pago: data.estado_pago ?? p.estado_pago,
+                pago_confirmado_por: data.pago_confirmado_por ?? p.pago_confirmado_por,
+                pago_confirmado_at: data.pago_confirmado_at ?? p.pago_confirmado_at,
+              }
+            : p
+        )
+      )
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al actualizar el pago')
+    } finally {
+      setPagando(null)
+    }
+  }
+
+  async function aprobarCredito() {
+    if (!creditoDialog) return
+    if (!creditoDialog.fechaLimite) return alert('Selecciona la fecha límite del crédito')
+
+    setAprobandoCredito(true)
+    try {
+      const res = await fetch('/api/creditos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pedido_id: creditoDialog.pedidoId,
+          fecha_limite: creditoDialog.fechaLimite,
+          notas: creditoDialog.notas || null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? 'Error al aprobar crédito')
+      }
+      // Actualizar estado_pago en el pedido local
+      setPedidos((prev) =>
+        prev.map((p) =>
+          p.id === creditoDialog.pedidoId
+            ? { ...p, estado_pago: 'credito_activo' }
+            : p
+        )
+      )
+      setCreditoDialog(null)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al aprobar crédito')
+    } finally {
+      setAprobandoCredito(false)
     }
   }
 
@@ -359,6 +485,51 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                 onClick={() => cambiarEstado(cancelDialog.pedidoId, 'cancelado', cancelDialog.motivo || undefined)}
                 className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition"
               >Confirmar cancelación</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog de aprobación de crédito */}
+      {creditoDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="font-semibold text-gray-900 mb-1">Aprobar crédito</h3>
+            <p className="text-sm text-gray-500 mb-4">El cliente pagará en un plazo acordado. Define la fecha límite.</p>
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Fecha límite de pago *</label>
+                <input
+                  type="date"
+                  value={creditoDialog.fechaLimite}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setCreditoDialog((d) => d ? { ...d, fechaLimite: e.target.value } : d)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Notas (opcional)</label>
+                <input
+                  type="text"
+                  value={creditoDialog.notas}
+                  onChange={(e) => setCreditoDialog((d) => d ? { ...d, notas: e.target.value } : d)}
+                  placeholder="Condiciones del crédito…"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setCreditoDialog(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
+                Cancelar
+              </button>
+              <button
+                onClick={aprobarCredito}
+                disabled={aprobandoCredito}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition"
+              >
+                {aprobandoCredito ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Aprobar crédito
+              </button>
             </div>
           </div>
         </div>
@@ -483,6 +654,20 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     {formatPEN(pedido.total)}
                   </p>
 
+                  {/* Badge de estado de pago — solo métodos que no son efectivo ni crédito */}
+                  {pedido.metodo_pago && pedido.metodo_pago !== 'efectivo' && pedido.metodo_pago !== 'credito' && pedido.estado !== 'cancelado' && (
+                    <span className={cn(
+                      'hidden sm:inline-flex shrink-0 items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                      colorEstadoPago(pedido.estado_pago)
+                    )}>
+                      {pedido.estado_pago === 'pagado'
+                        ? <CheckCircle2 className="w-3 h-3" />
+                        : <CreditCard className="w-3 h-3" />
+                      }
+                      {labelEstadoPago(pedido.estado_pago)}
+                    </span>
+                  )}
+
                   <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                     {actualizando === pedido.id ? (
                       <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
@@ -549,6 +734,97 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       <p className="text-xs text-gray-500 mb-2">
                         <span className="font-medium">Notas:</span> {pedido.notas}
                       </p>
+                    )}
+
+                    {/* ── Sección de pago ───────────────────────────────────── */}
+                    {pedido.estado !== 'cancelado' && (
+                      <div className="mb-3 border border-gray-100 rounded-xl p-3 bg-white">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-medium text-gray-500">Método de pago:</span>
+                            <select
+                              value={pedido.metodo_pago ?? ''}
+                              disabled={pagando === pedido.id || pedido.estado === 'entregado'}
+                              onChange={(e) => actualizarPago(pedido.id, { metodo_pago: e.target.value || undefined })}
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50"
+                            >
+                              <option value="">— Sin definir —</option>
+                              <option value="efectivo">💵 Efectivo</option>
+                              <option value="yape">📱 Yape</option>
+                              <option value="transferencia">🏦 Transferencia</option>
+                              <option value="tarjeta">💳 Tarjeta</option>
+                              <option value="credito">🤝 Crédito</option>
+                            </select>
+                          </div>
+
+                          {/* Acciones según método y estado de pago */}
+                          {pagando === pedido.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                          ) : !pedido.metodo_pago ? (
+                            <span className="text-xs text-gray-400">Sin método definido</span>
+                          ) : pedido.estado_pago === 'pagado' ? (
+                            <span className="flex items-center gap-1 text-xs font-medium text-green-700">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Pago confirmado
+                            </span>
+                          ) : pedido.metodo_pago === 'credito' && pedido.estado_pago === 'pendiente' ? (
+                            puedeAprobarCreditos ? (
+                              <button
+                                onClick={() => setCreditoDialog({ pedidoId: pedido.id, fechaLimite: '', notas: '' })}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Aprobar crédito
+                              </button>
+                            ) : (
+                              <span className="text-xs text-blue-600">Pendiente aprobación</span>
+                            )
+                          ) : pedido.metodo_pago === 'credito' && pedido.estado_pago === 'credito_activo' ? (
+                            <a
+                              href="/dashboard/creditos"
+                              className="text-xs text-blue-600 font-medium hover:underline"
+                            >
+                              Ver crédito activo →
+                            </a>
+                          ) : pedido.estado_pago === 'verificando' ? (
+                            puedeConfirmarPagos ? (
+                              <button
+                                onClick={() => actualizarPago(pedido.id, { estado_pago: 'pagado' })}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Confirmar pago
+                              </button>
+                            ) : (
+                              <span className={cn('flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium', colorEstadoPago('verificando'))}>
+                                <CreditCard className="w-3 h-3" />
+                                En verificación
+                              </span>
+                            )
+                          ) : pedido.metodo_pago === 'tarjeta' ? (
+                            /* POS — requiere confirmación antes de avanzar */
+                            puedeConfirmarPagos ? (
+                              <button
+                                onClick={() => actualizarPago(pedido.id, { estado_pago: 'pagado' })}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Confirmar POS
+                              </button>
+                            ) : (
+                              <span className="text-xs text-amber-600 font-medium">POS — pendiente confirmación</span>
+                            )
+                          ) : (
+                            /* efectivo / yape / transferencia — contra entrega, registro opcional */
+                            <button
+                              onClick={() => actualizarPago(pedido.id, { estado_pago: 'verificando' })}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 transition"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              Marcar cobrado
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )}
 
                     {/* Asignar repartidor — solo para delivery, solo para dueño/vendedor */}

@@ -14,6 +14,8 @@ import {
   Wrench,
   FileText,
   Users,
+  CreditCard,
+  ClipboardList,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -34,6 +36,8 @@ const navItems: NavItem[] = [
   { label: 'Pedidos',        href: '/dashboard/orders',         icon: ShoppingCart,    badge: 'pedidos',      permiso: 'ver_pedidos' },
   { label: 'Conversaciones', href: '/dashboard/conversations',  icon: MessageSquare,   badge: 'conversaciones', permiso: 'ver_pedidos' },
   { label: 'Clientes',       href: '/dashboard/clientes',       icon: Users,           permiso: 'ver_historial_clientes' },
+  { label: 'Créditos',       href: '/dashboard/creditos',       icon: CreditCard,      permiso: 'ver_creditos' },
+  { label: 'Rendiciones',    href: '/dashboard/rendiciones',    icon: ClipboardList,   permiso: 'ver_caja_dia' },
   { label: 'Configuración',  href: '/dashboard/settings',       icon: Settings,        permiso: 'configurar_ferreteria' },
 ]
 

@@ -61,6 +61,9 @@ export default async function SettingsPage() {
           mensaje_comprobante: ferreteria.mensaje_comprobante ?? null,
           telefono_dueno: ferreteria.telefono_dueno ?? null,
           resumen_diario_activo: ferreteria.resumen_diario_activo ?? false,
+          datos_yape: ferreteria.datos_yape ?? null,
+          datos_transferencia: ferreteria.datos_transferencia ?? null,
+          metodos_pago_activos: ferreteria.metodos_pago_activos ?? null,
         }}
         zonas={zonas ?? []}
         margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
@@ -71,7 +74,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="mt-6">
-        <RepartidoresSection />
+        <RepartidoresSection modoInicial={ferreteria.modo_asignacion_delivery ?? 'manual'} />
       </div>
     </div>
   )

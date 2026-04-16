@@ -94,6 +94,43 @@ export async function enviarDocumento({
   return response.json()
 }
 
+interface EnviarImagenParams {
+  from: string
+  to: string
+  imageUrl: string   // URL pública de la imagen
+  caption?: string
+}
+
+// Envía una imagen por WhatsApp vía YCloud
+export async function enviarImagen({ from, to, imageUrl, caption }: EnviarImagenParams): Promise<YCloudMensaje> {
+  const apiKey = process.env.YCLOUD_API_KEY
+  if (!apiKey) throw new Error('YCLOUD_API_KEY no configurado')
+
+  const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages/sendDirectly`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+    },
+    body: JSON.stringify({
+      from: e164(from),
+      to: e164(to),
+      type: 'image',
+      image: {
+        link: imageUrl,
+        ...(caption ? { caption } : {}),
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`YCloud error ${response.status}: ${error}`)
+  }
+
+  return response.json()
+}
+
 // Verifica la firma HMAC-SHA256 del webhook de YCloud
 // Header: x-ycloud-signature
 export async function verificarFirmaWebhook(

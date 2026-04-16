@@ -14,14 +14,23 @@ interface Props {
   params: Promise<{ token: string }>
 }
 
+const PEDIDO_SELECT = `
+  id, numero_pedido, nombre_cliente, telefono_cliente,
+  direccion_entrega, total, estado, notas,
+  cobrado_monto, cobrado_metodo, incidencia_tipo, incidencia_desc,
+  created_at,
+  clientes(nombre, telefono),
+  zonas_delivery(nombre),
+  items_pedido(id, nombre_producto, cantidad, precio_unitario)
+`
+
 export default async function DeliveryPage({ params }: Props) {
   const { token } = await params
   const supabase = adminClient()
 
-  // Identificar repartidor por token (bypasea RLS con service role)
   const { data: repartidor } = await supabase
     .from('repartidores')
-    .select('id, nombre, ferreteria_id, ferreterias(nombre)')
+    .select('id, nombre, ferreteria_id, ferreterias(nombre, modo_asignacion_delivery)')
     .eq('token', token)
     .eq('activo', true)
     .single()
@@ -38,24 +47,50 @@ export default async function DeliveryPage({ params }: Props) {
     )
   }
 
-  const ferreteriaNombre = (repartidor.ferreterias as any)?.nombre ?? 'Ferretería'
+  const ferr = repartidor.ferreterias as any
+  const ferreteriaNombre = ferr?.nombre ?? 'Ferretería'
+  const modo: 'manual' | 'libre' = ferr?.modo_asignacion_delivery === 'libre' ? 'libre' : 'manual'
+  const hoy = new Date().toISOString().slice(0, 10)
 
-  // Pedidos asignados pendientes de entrega
-  const { data: pedidos } = await supabase
-    .from('pedidos')
-    .select(`
-      id, numero_pedido, nombre_cliente, telefono_cliente,
-      direccion_entrega, total, estado, notas,
-      cobrado_monto, cobrado_metodo, incidencia_tipo, incidencia_desc,
-      created_at,
-      clientes(nombre, telefono),
-      zonas_delivery(nombre),
-      items_pedido(id, nombre_producto, cantidad, precio_unitario)
-    `)
-    .eq('ferreteria_id', repartidor.ferreteria_id)
-    .eq('repartidor_id', repartidor.id)
-    .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
-    .order('created_at', { ascending: true })
+  const [
+    { data: pedidos },
+    { data: cobrosHoy },
+  ] = await Promise.all([
+    // Pedidos asignados y pendientes
+    supabase
+      .from('pedidos')
+      .select(PEDIDO_SELECT)
+      .eq('ferreteria_id', repartidor.ferreteria_id)
+      .eq('repartidor_id', repartidor.id)
+      .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
+      .order('created_at', { ascending: true }),
+
+    // Cobros del día (entregados hoy)
+    supabase
+      .from('pedidos')
+      .select('id, numero_pedido, total, cobrado_monto, cobrado_metodo, clientes(nombre), created_at')
+      .eq('ferreteria_id', repartidor.ferreteria_id)
+      .eq('repartidor_id', repartidor.id)
+      .eq('estado', 'entregado')
+      .gte('created_at', `${hoy}T00:00:00`)
+      .order('created_at', { ascending: false }),
+  ])
+
+  // Pedidos disponibles (solo en modo libre)
+  let pedidosDisponibles: unknown[] = []
+  if (modo === 'libre') {
+    const { data: disponibles } = await supabase
+      .from('pedidos')
+      .select(PEDIDO_SELECT)
+      .eq('ferreteria_id', repartidor.ferreteria_id)
+      .is('repartidor_id', null)
+      .eq('modalidad', 'delivery')
+      .in('estado', ['confirmado', 'en_preparacion'])
+      .order('created_at', { ascending: true })
+    pedidosDisponibles = disponibles ?? []
+  }
+
+  const totalPendientes = pedidos?.length ?? 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -70,25 +105,20 @@ export default async function DeliveryPage({ params }: Props) {
             <p className="text-xs text-orange-100">{ferreteriaNombre}</p>
           </div>
           <div className="ml-auto text-right">
-            <p className="text-2xl font-bold">{pedidos?.length ?? 0}</p>
+            <p className="text-2xl font-bold">{totalPendientes}</p>
             <p className="text-xs text-orange-100">pendientes</p>
           </div>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-4">
-        {!pedidos || pedidos.length === 0 ? (
-          <div className="text-center py-16">
-            <Package className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-400 font-medium">Sin entregas pendientes</p>
-            <p className="text-sm text-gray-300 mt-1">¡Todo al día! 🎉</p>
-          </div>
-        ) : (
-          <DeliveryView
-            pedidos={pedidos as any}
-            token={token}
-          />
-        )}
+        <DeliveryView
+          pedidos={(pedidos ?? []) as any}
+          pedidosDisponibles={(pedidosDisponibles ?? []) as any}
+          cobrosHoy={(cobrosHoy ?? []) as any}
+          token={token}
+          modo={modo}
+        />
       </div>
     </div>
   )

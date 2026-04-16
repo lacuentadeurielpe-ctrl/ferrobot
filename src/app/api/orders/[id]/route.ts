@@ -39,18 +39,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // Obtener datos de la ferretería (para mensajes WhatsApp y validación)
   const { data: ferreteria } = await supabase
     .from('ferreterias')
-    .select('id, nombre, telefono_whatsapp')
+    .select('id, nombre, telefono_whatsapp, modo_asignacion_delivery')
     .eq('id', session.ferreteriaId)
     .single()
   if (!ferreteria) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // Obtener estado actual del pedido antes de actualizar (para gestión de stock)
+  // Obtener estado actual del pedido antes de actualizar (para gestión de stock y validación de pago)
   const { data: pedidoActual } = await supabase
     .from('pedidos')
-    .select('estado')
+    .select('estado, metodo_pago, estado_pago')
     .eq('id', id)
     .eq('ferreteria_id', ferreteria.id)
     .single()
+
+  // Validar pago antes de avanzar a en_preparacion o enviado
+  // Solo tarjeta/POS requiere confirmación anticipada — el resto puede cobrarse contra entrega
+  if (body.estado && ['en_preparacion', 'enviado'].includes(body.estado)) {
+    const metodo = pedidoActual?.metodo_pago
+    const estadoPago = pedidoActual?.estado_pago
+    if (metodo === 'tarjeta' && estadoPago !== 'pagado') {
+      return NextResponse.json({
+        error: 'Los pagos con tarjeta/POS deben confirmarse antes de preparar el pedido',
+        codigo: 'PAGO_PENDIENTE',
+        estado_pago: estadoPago,
+      }, { status: 400 })
+    }
+  }
 
   const { data, error } = await supabase
     .from('pedidos')
@@ -104,6 +118,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       } catch (e) {
         console.error('[API] Error enviando notificación de estado:', e)
         // No fallar — el estado ya se actualizó
+      }
+    }
+  }
+
+  // Modo libre: notificar a todos los repartidores activos con teléfono al confirmar
+  if (body.estado === 'confirmado' && data.modalidad === 'delivery' && (ferreteria as any).modo_asignacion_delivery === 'libre' && process.env.YCLOUD_API_KEY) {
+    const { data: repartidores } = await supabase
+      .from('repartidores')
+      .select('id, nombre, telefono, token')
+      .eq('ferreteria_id', ferreteria.id)
+      .eq('activo', true)
+      .not('telefono', 'is', null)
+
+    if (repartidores?.length) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+        ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      const zona = (data as any).zonas_delivery?.nombre ?? null
+      const nombre = (data.clientes as any)?.nombre ?? data.nombre_cliente ?? 'Cliente'
+
+      for (const rep of repartidores) {
+        const msg = `🚚 *Nuevo pedido disponible — ${ferreteria.nombre}*\n\nPedido: *${data.numero_pedido}*\nCliente: ${nombre}${zona ? `\nZona: ${zona}` : ''}\nTotal: S/ ${data.total.toFixed(2)}\n\n👉 Entra a tu app para aceptarlo:\n${baseUrl}/delivery/${rep.token}`
+        enviarMensaje({
+          from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
+          to: rep.telefono!,
+          texto: msg,
+        }).catch((e) => console.error(`[ModoLibre] Error notificando a ${rep.nombre}:`, e))
       }
     }
   }

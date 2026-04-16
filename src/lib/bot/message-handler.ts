@@ -26,9 +26,14 @@ interface HandleMessageParams {
   ycloudMessageId?: string
 }
 
+type MensajeExtra =
+  | { tipo: 'texto'; texto: string }
+  | { tipo: 'imagen'; url: string; caption?: string }
+
 interface HandleMessageResult {
   respuesta: string | null
   conversacionId: string
+  mensajesExtra?: MensajeExtra[]
 }
 
 function estaEnHorario(ferreteria: Ferreteria): boolean {
@@ -145,6 +150,7 @@ export async function handleIncomingMessage({
 
   // ── 8. Ejecutar acción según intent ───────────────────────────────────────
   let mensajeFinal = respuestaAI.respuesta
+  const mensajesExtra: MensajeExtra[] = []
 
   switch (respuestaAI.intent) {
 
@@ -376,6 +382,45 @@ export async function handleIncomingMessage({
         `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
         `${modalidadTexto}\n\n` +
         `El encargado lo confirmará en breve. ¡Gracias, ${dp.nombre_cliente}! 🙏`
+
+      // ── Enviar instrucciones de pago si hay métodos digitales configurados
+      const metodosActivos: string[] = (ferreteria as any).metodos_pago_activos ?? []
+      const datosYape = (ferreteria as any).datos_yape ?? null
+      const datosTransferencia = (ferreteria as any).datos_transferencia ?? null
+
+      const lineasPago: string[] = []
+
+      if (metodosActivos.includes('yape') && datosYape?.numero) {
+        lineasPago.push(`💚 *Yape:* ${datosYape.numero}`)
+      }
+      if (metodosActivos.includes('transferencia') && datosTransferencia?.banco) {
+        lineasPago.push(
+          `🏦 *Transferencia (${datosTransferencia.banco}):*\n` +
+          `  Cuenta: ${datosTransferencia.cuenta}\n` +
+          (datosTransferencia.cci ? `  CCI: ${datosTransferencia.cci}\n` : '') +
+          `  Titular: ${datosTransferencia.titular}`
+        )
+      }
+      if (metodosActivos.includes('efectivo')) {
+        lineasPago.push(`💵 *Efectivo* al momento de la entrega`)
+      }
+
+      if (lineasPago.length > 0) {
+        const textoPago =
+          `💳 *Formas de pago disponibles:*\n\n` +
+          lineasPago.join('\n\n') +
+          `\n\nSi pagas por Yape o transferencia, envía el comprobante y lo confirmaremos. 🙏`
+        mensajesExtra.push({ tipo: 'texto', texto: textoPago })
+      }
+
+      // Enviar QR de Yape si está disponible
+      if (metodosActivos.includes('yape') && datosYape?.qr_url) {
+        mensajesExtra.push({
+          tipo: 'imagen',
+          url: datosYape.qr_url,
+          caption: `QR de Yape — ${datosYape.numero}`,
+        })
+      }
       break
     }
 
@@ -622,5 +667,5 @@ export async function handleIncomingMessage({
   }
 
   await guardarMensaje(supabase, conversacion.id, 'bot', mensajeFinal)
-  return { respuesta: mensajeFinal, conversacionId: conversacion.id }
+  return { respuesta: mensajeFinal, conversacionId: conversacion.id, mensajesExtra: mensajesExtra.length > 0 ? mensajesExtra : undefined }
 }

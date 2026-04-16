@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Truck, Plus, UserX, UserCheck, Loader2, Copy, Check, Phone } from 'lucide-react'
+import { Truck, Plus, UserX, UserCheck, Loader2, Copy, Check, Phone, Shuffle, ListOrdered } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Repartidor {
@@ -13,7 +13,11 @@ interface Repartidor {
   created_at: string
 }
 
-export default function RepartidoresSection() {
+export default function RepartidoresSection({
+  modoInicial = 'manual',
+}: {
+  modoInicial?: 'manual' | 'libre'
+}) {
   const [repartidores, setRepartidores] = useState<Repartidor[]>([])
   const [cargando, setCargando] = useState(true)
   const [accionando, setAccionando] = useState<string | null>(null)
@@ -21,6 +25,8 @@ export default function RepartidoresSection() {
   const [form, setForm] = useState({ nombre: '', telefono: '' })
   const [guardando, setGuardando] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [modo, setModo] = useState<'manual' | 'libre'>(modoInicial)
+  const [guardandoModo, setGuardandoModo] = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -33,6 +39,21 @@ export default function RepartidoresSection() {
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
+
+  async function toggleModo() {
+    const nuevoModo = modo === 'manual' ? 'libre' : 'manual'
+    setGuardandoModo(true)
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modo_asignacion_delivery: nuevoModo }),
+      })
+      if (res.ok) setModo(nuevoModo)
+    } finally {
+      setGuardandoModo(false)
+    }
+  }
 
   async function agregar(e: React.FormEvent) {
     e.preventDefault()
@@ -98,6 +119,47 @@ export default function RepartidoresSection() {
         </button>
       </div>
 
+      {/* Modo de asignación */}
+      <div className="mb-5 bg-gray-50 rounded-xl p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            {modo === 'libre'
+              ? <Shuffle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+              : <ListOrdered className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
+            }
+            <div>
+              <p className="text-sm font-medium text-gray-900">
+                Modo {modo === 'libre' ? 'libre' : 'manual'}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {modo === 'libre'
+                  ? 'Al confirmar un pedido, todos los repartidores activos reciben un WhatsApp y el primero que lo acepta se lo lleva.'
+                  : 'Asignas manualmente cada pedido a un repartidor desde el panel de pedidos.'
+                }
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={toggleModo}
+            disabled={guardandoModo}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50',
+              modo === 'libre' ? 'bg-orange-500' : 'bg-gray-200'
+            )}
+          >
+            <span className={cn(
+              'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+              modo === 'libre' ? 'translate-x-5' : 'translate-x-0'
+            )} />
+          </button>
+        </div>
+        {modo === 'libre' && (
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3">
+            ⚠️ Para que funcione el modo libre, los repartidores necesitan tener teléfono registrado y el sistema necesita WhatsApp configurado.
+          </p>
+        )}
+      </div>
+
       {/* Formulario de nuevo repartidor */}
       {mostrarForm && (
         <form onSubmit={agregar} className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
@@ -112,28 +174,24 @@ export default function RepartidoresSection() {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Teléfono (opcional)</label>
+            <label className="text-xs font-medium text-gray-600 mb-1 block">
+              Teléfono {modo === 'libre' && <span className="text-orange-500">* requerido para modo libre</span>}
+            </label>
             <input
               value={form.telefono}
               onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-              placeholder="Ej: 987654321"
+              placeholder="Ej: 51987654321"
               type="tel"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setMostrarForm(false)}
-              className="flex-1 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
-            >
+            <button type="button" onClick={() => setMostrarForm(false)}
+              className="flex-1 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition">
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={guardando}
-              className="flex-1 py-2 text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition disabled:opacity-60 flex items-center justify-center gap-2"
-            >
+            <button type="submit" disabled={guardando}
+              className="flex-1 py-2 text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition disabled:opacity-60 flex items-center justify-center gap-2">
               {guardando && <Loader2 className="w-4 h-4 animate-spin" />}
               Guardar
             </button>
@@ -153,16 +211,18 @@ export default function RepartidoresSection() {
       ) : (
         <div className="space-y-2">
           {repartidores.map((r) => (
-            <div
-              key={r.id}
-              className={cn(
-                'border rounded-xl p-3 transition',
-                r.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'
-              )}
-            >
+            <div key={r.id} className={cn(
+              'border rounded-xl p-3 transition',
+              r.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'
+            )}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{r.nombre}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-900">{r.nombre}</p>
+                    {modo === 'libre' && !r.telefono && r.activo && (
+                      <span className="text-xs text-amber-600 bg-amber-50 rounded px-1.5 py-0.5">sin tel.</span>
+                    )}
+                  </div>
                   {r.telefono && (
                     <div className="flex items-center gap-1 mt-0.5">
                       <Phone className="w-3 h-3 text-gray-400" />
@@ -193,7 +253,6 @@ export default function RepartidoresSection() {
                 </div>
               </div>
 
-              {/* Link del repartidor */}
               {r.activo && (
                 <div className="mt-2 flex items-center gap-2 bg-orange-50 rounded-lg px-2.5 py-1.5">
                   <p className="text-xs text-orange-700 truncate flex-1 font-mono">
