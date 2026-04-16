@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import SettingsForm from '@/components/settings/SettingsForm'
-import TeamSection from '@/components/settings/TeamSection'
+import EmpleadosSection from '@/components/settings/EmpleadosSection'
 import RepartidoresSection from '@/components/settings/RepartidoresSection'
 import { Settings } from 'lucide-react'
 
@@ -67,7 +67,7 @@ export default async function SettingsPage() {
       />
 
       <div className="mt-6">
-        <TeamSection />
+        <EmpleadosSection />
       </div>
 
       <div className="mt-6">
