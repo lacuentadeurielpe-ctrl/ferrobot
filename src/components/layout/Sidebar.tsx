@@ -17,23 +17,24 @@ import {
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
+import { checkPermiso, type Permiso, type PermisoMap } from '@/lib/auth/permisos'
 
 interface NavItem {
   label: string
   href: string
   icon: React.ElementType
   badge?: 'pedidos' | 'conversaciones' | 'cotizaciones'
-  solodueno?: boolean
+  permiso?: Permiso   // si está definido, solo se muestra si el usuario tiene ese permiso
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Catálogo', href: '/dashboard/catalog', icon: Package },
-  { label: 'Cotizaciones', href: '/dashboard/cotizaciones', icon: FileText, badge: 'cotizaciones' },
-  { label: 'Pedidos', href: '/dashboard/orders', icon: ShoppingCart, badge: 'pedidos' },
-  { label: 'Conversaciones', href: '/dashboard/conversations', icon: MessageSquare, badge: 'conversaciones' },
-  { label: 'Clientes', href: '/dashboard/clientes', icon: Users },
-  { label: 'Configuración', href: '/dashboard/settings', icon: Settings, solodueno: true },
+  { label: 'Dashboard',      href: '/dashboard',                icon: LayoutDashboard, permiso: 'ver_dashboard' },
+  { label: 'Catálogo',       href: '/dashboard/catalog',        icon: Package,         permiso: 'ver_stock' },
+  { label: 'Cotizaciones',   href: '/dashboard/cotizaciones',   icon: FileText,        badge: 'cotizaciones', permiso: 'ver_pedidos' },
+  { label: 'Pedidos',        href: '/dashboard/orders',         icon: ShoppingCart,    badge: 'pedidos',      permiso: 'ver_pedidos' },
+  { label: 'Conversaciones', href: '/dashboard/conversations',  icon: MessageSquare,   badge: 'conversaciones', permiso: 'ver_pedidos' },
+  { label: 'Clientes',       href: '/dashboard/clientes',       icon: Users,           permiso: 'ver_historial_clientes' },
+  { label: 'Configuración',  href: '/dashboard/settings',       icon: Settings,        permiso: 'configurar_ferreteria' },
 ]
 
 interface SidebarProps {
@@ -43,6 +44,7 @@ interface SidebarProps {
   conversacionesActivas: number
   cotizacionesPendientes: number
   rol: Rol
+  permisos: PermisoMap
 }
 
 export default function Sidebar({
@@ -52,6 +54,7 @@ export default function Sidebar({
   conversacionesActivas,
   cotizacionesPendientes,
   rol,
+  permisos,
 }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -63,9 +66,12 @@ export default function Sidebar({
     router.refresh()
   }
 
+  const session = { rol, permisos }
+
   const itemsVisibles = navItems.filter((item) => {
-    if (item.solodueno && rol !== 'dueno') return false
-    return true
+    // Sin permiso requerido → siempre visible (solo el dueño debería tener esto)
+    if (!item.permiso) return true
+    return checkPermiso(session, item.permiso)
   })
 
   return (
@@ -81,7 +87,7 @@ export default function Sidebar({
               {nombreFerreteria ?? 'FerreBot'}
             </p>
             <p className="text-gray-400 text-xs">
-              {rol === 'vendedor' ? 'Vendedor' : 'Panel de gestión'}
+              {rol === 'dueno' ? 'Panel de gestión' : 'Empleado'}
             </p>
           </div>
         </div>

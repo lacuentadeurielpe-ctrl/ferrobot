@@ -52,6 +52,7 @@ export default async function DashboardLayout({
       conversacionesActivas={conversacionesActivas ?? 0}
       cotizacionesPendientes={cotizacionesPendientes ?? 0}
       rol={session.rol}
+      permisos={session.permisos}
     />
   )
 

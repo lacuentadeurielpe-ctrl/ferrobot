@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { checkPermiso } from '@/lib/auth/permisos'
 
 export async function PATCH(
   request: Request,
@@ -10,7 +11,7 @@ export async function PATCH(
 ) {
   const session = await getSessionInfo()
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (session.rol !== 'dueno') return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 })
+  if (!checkPermiso(session, 'configurar_ferreteria')) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
 
   const { id } = await params
   const body = await request.json()
