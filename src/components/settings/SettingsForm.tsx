@@ -40,6 +40,8 @@ interface Ferreteria {
   logo_url: string | null
   color_comprobante: string
   mensaje_comprobante: string | null
+  telefono_dueno: string | null
+  resumen_diario_activo: boolean
 }
 
 interface SettingsFormProps {
@@ -71,6 +73,8 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
     margen_minimo_porcentaje: margenMinimo,
     color_comprobante: ferreteria.color_comprobante || '#1e40af',
     mensaje_comprobante: ferreteria.mensaje_comprobante ?? '',
+    telefono_dueno: ferreteria.telefono_dueno ?? '',
+    resumen_diario_activo: ferreteria.resumen_diario_activo ?? false,
   })
 
   const [nuevaFormaPago, setNuevaFormaPago] = useState('')
@@ -123,6 +127,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
           timeout_intervencion_dueno: Number(form.timeout_intervencion_dueno),
           margen_minimo_porcentaje: Number(form.margen_minimo_porcentaje),
           mensaje_comprobante: form.mensaje_comprobante.trim() || null,
+          telefono_dueno: form.telefono_dueno.trim() || null,
         }),
       })
 
@@ -322,6 +327,44 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* Resumen diario */}
+          <div className="border-t border-gray-100 pt-5">
+            <p className="text-sm font-medium text-gray-700 mb-3">Resumen diario por WhatsApp</p>
+            <div className="mb-3">
+              <label className="block text-xs text-gray-500 mb-1">
+                Tu número personal (para recibir el resumen)
+              </label>
+              <input
+                name="telefono_dueno"
+                value={form.telefono_dueno}
+                onChange={handleChange}
+                placeholder="51987654321"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              />
+              <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
+            </div>
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.resumen_diario_activo}
+                onClick={() => setForm((p) => ({ ...p, resumen_diario_activo: !p.resumen_diario_activo }))}
+                className={cn(
+                  'relative w-10 h-6 rounded-full transition-colors flex-shrink-0',
+                  form.resumen_diario_activo ? 'bg-orange-500' : 'bg-gray-200'
+                )}
+              >
+                <span className={cn(
+                  'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+                  form.resumen_diario_activo ? 'translate-x-4' : 'translate-x-0.5'
+                )} />
+              </button>
+              <span className="text-sm text-gray-700">
+                Recibir resumen cada día a las 8pm
+              </span>
+            </label>
           </div>
         </div>
       )}

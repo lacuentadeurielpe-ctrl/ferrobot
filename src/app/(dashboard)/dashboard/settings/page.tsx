@@ -59,6 +59,8 @@ export default async function SettingsPage() {
           logo_url: ferreteria.logo_url ?? null,
           color_comprobante: ferreteria.color_comprobante ?? '#1e40af',
           mensaje_comprobante: ferreteria.mensaje_comprobante ?? null,
+          telefono_dueno: ferreteria.telefono_dueno ?? null,
+          resumen_diario_activo: ferreteria.resumen_diario_activo ?? false,
         }}
         zonas={zonas ?? []}
         margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}

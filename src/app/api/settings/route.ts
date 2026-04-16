@@ -32,6 +32,7 @@ export async function PATCH(request: Request) {
     'formas_pago', 'mensaje_bienvenida', 'mensaje_fuera_horario',
     'timeout_intervencion_dueno',
     'color_comprobante', 'mensaje_comprobante',
+    'telefono_dueno', 'resumen_diario_activo',
   ]
 
   const update: Record<string, unknown> = {}
