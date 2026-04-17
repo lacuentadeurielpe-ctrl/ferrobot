@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import {
@@ -16,6 +17,8 @@ import {
   Users,
   CreditCard,
   ClipboardList,
+  Camera,
+  Loader2,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -66,6 +69,29 @@ export default function Sidebar({
   const router = useRouter()
   const supabase = createClient()
 
+  const [logoLocal, setLogoLocal] = useState<string | null | undefined>(logoUrl)
+  const [subiendoLogo, setSubiendoLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSubiendoLogo(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/settings/logo', { method: 'POST', body: fd })
+      if (res.ok) {
+        const { url } = await res.json()
+        setLogoLocal(url)
+        router.refresh()
+      }
+    } finally {
+      setSubiendoLogo(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     router.push('/auth/login')
@@ -85,19 +111,52 @@ export default function Sidebar({
       {/* Logo */}
       <div className="px-4 py-4 border-b border-gray-700">
         <div className="flex items-center gap-3">
-          {/* Avatar: logo de la ferretería o ícono de fallback */}
-          <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-gray-800 flex items-center justify-center border border-gray-700">
-            {logoUrl
-              ? <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
-              : <Wrench className="w-5 h-5 text-orange-400" />
-            }
+          {/* Avatar: logo de la ferretería — clickeable para el dueño */}
+          <div className="relative shrink-0 group">
+            <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-800 flex items-center justify-center border border-gray-700">
+              {subiendoLogo
+                ? <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />
+                : logoLocal
+                  ? <img src={logoLocal} alt="Logo" className="w-full h-full object-cover" />
+                  : <Wrench className="w-5 h-5 text-orange-400" />
+              }
+            </div>
+            {/* Overlay de cámara — solo para el dueño */}
+            {rol === 'dueno' && !subiendoLogo && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  title="Cambiar logo"
+                  className="absolute inset-0 rounded-xl bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                </button>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
+              </>
+            )}
           </div>
+
           <div className="min-w-0">
             <p className="text-white font-semibold text-sm truncate leading-tight">
               {nombreFerreteria ?? 'FerreBot'}
             </p>
             <p className="text-gray-400 text-xs mt-0.5">
-              {rol === 'dueno' ? 'Panel de gestión' : 'Empleado'}
+              {rol === 'dueno' ? (
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  className="hover:text-orange-400 transition"
+                >
+                  {logoLocal ? 'Cambiar logo' : 'Subir logo'}
+                </button>
+              ) : 'Empleado'}
             </p>
           </div>
         </div>
