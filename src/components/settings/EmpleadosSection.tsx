@@ -659,7 +659,7 @@ export default function EmpleadosSection() {
           </div>
         ) : miembros.length === 0 ? (
           <div className="text-center py-8">
-            <ShieldCheck className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+            <ShieldCheck className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p className="text-sm text-gray-400">Aún no hay empleados.</p>
             <p className="text-xs text-gray-400 mt-1">Crea el primero con el botón de arriba.</p>
           </div>

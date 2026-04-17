@@ -312,7 +312,7 @@ export default function CatalogAIPage() {
                       onClick={() => inputImagenRef.current?.click()}
                       className="w-full border-2 border-dashed border-gray-200 rounded-xl p-10 text-center hover:border-purple-300 hover:bg-purple-50/30 transition group"
                     >
-                      <Camera className="w-10 h-10 text-gray-200 group-hover:text-purple-400 mx-auto mb-3 transition" />
+                      <Camera className="w-10 h-10 text-gray-300 group-hover:text-purple-400 mx-auto mb-3 transition" />
                       <p className="text-sm font-medium text-gray-500 group-hover:text-purple-600">
                         Haz clic para seleccionar una imagen
                       </p>
@@ -417,7 +417,7 @@ export default function CatalogAIPage() {
                   className="text-xs text-purple-600 hover:text-purple-800 font-medium transition">
                   Seleccionar todo
                 </button>
-                <span className="text-gray-200">|</span>
+                <span className="text-gray-400">|</span>
                 <button onClick={deseleccionarTodos}
                   className="text-xs text-gray-400 hover:text-gray-600 font-medium transition">
                   Deseleccionar todo

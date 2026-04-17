@@ -344,8 +344,8 @@ export default async function DashboardPage() {
                       href={`/dashboard/orders?estado=${estado.key}`}
                       className={`flex-1 rounded-lg px-2 py-2.5 text-center transition ${activo ? 'bg-orange-50 hover:bg-orange-100' : 'bg-gray-50'}`}
                     >
-                      <p className={`text-xl font-bold ${activo ? 'text-orange-600' : 'text-gray-300'}`}>{count}</p>
-                      <p className={`text-xs mt-0.5 ${activo ? 'text-gray-600' : 'text-gray-300'}`}>{estado.label}</p>
+                      <p className={`text-xl font-bold ${activo ? 'text-orange-600' : 'text-gray-400'}`}>{count}</p>
+                      <p className={`text-xs mt-0.5 ${activo ? 'text-gray-600' : 'text-gray-400'}`}>{estado.label}</p>
                     </Link>
                     {i < ESTADOS_PIPELINE.length - 1 && (
                       <ChevronRight className="w-3 h-3 text-gray-200 shrink-0" />

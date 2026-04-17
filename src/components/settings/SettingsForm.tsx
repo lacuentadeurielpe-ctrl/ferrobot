@@ -562,7 +562,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 </div>
                 <button
                   onClick={() => eliminarZona(zona.id)}
-                  className="text-gray-300 hover:text-red-500 transition shrink-0"
+                  className="text-gray-400 hover:text-red-500 transition shrink-0"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -673,7 +673,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
               <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
                 {logoUrl
                   ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
-                  : <ImageOff className="w-7 h-7 text-gray-300" />
+                  : <ImageOff className="w-7 h-7 text-gray-400" />
                 }
               </div>
               <div className="space-y-2">
@@ -852,7 +852,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
                       {datosYape.qr_url
                         ? <img src={datosYape.qr_url} alt="QR Yape" className="w-full h-full object-contain p-1" />
-                        : <QrCode className="w-7 h-7 text-gray-300" />
+                        : <QrCode className="w-7 h-7 text-gray-400" />
                       }
                     </div>
                     <div className="space-y-2">

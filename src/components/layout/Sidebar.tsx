@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   nombreFerreteria: string | null
   ferreteriaId: string
+  logoUrl?: string | null
   pedidosPendientes: number
   conversacionesActivas: number
   cotizacionesPendientes: number
@@ -54,6 +55,7 @@ interface SidebarProps {
 export default function Sidebar({
   nombreFerreteria,
   ferreteriaId,
+  logoUrl,
   pedidosPendientes,
   conversacionesActivas,
   cotizacionesPendientes,
@@ -81,16 +83,20 @@ export default function Sidebar({
   return (
     <aside className="w-60 shrink-0 bg-gray-900 min-h-screen flex flex-col">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-700">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center shrink-0">
-            <Wrench className="w-4 h-4 text-white" />
+      <div className="px-4 py-4 border-b border-gray-700">
+        <div className="flex items-center gap-3">
+          {/* Avatar: logo de la ferretería o ícono de fallback */}
+          <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-gray-800 flex items-center justify-center border border-gray-700">
+            {logoUrl
+              ? <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+              : <Wrench className="w-5 h-5 text-orange-400" />
+            }
           </div>
           <div className="min-w-0">
-            <p className="text-white font-semibold text-sm truncate">
+            <p className="text-white font-semibold text-sm truncate leading-tight">
               {nombreFerreteria ?? 'FerreBot'}
             </p>
-            <p className="text-gray-400 text-xs">
+            <p className="text-gray-400 text-xs mt-0.5">
               {rol === 'dueno' ? 'Panel de gestión' : 'Empleado'}
             </p>
           </div>

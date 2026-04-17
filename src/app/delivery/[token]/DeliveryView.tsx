@@ -353,7 +353,7 @@ export default function DeliveryView({
         <div className="space-y-3">
           {pedidos.length === 0 ? (
             <div className="text-center py-16">
-              <Package className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-400 font-medium">Sin entregas asignadas</p>
               {modo === 'libre' && disponibles.length > 0 && (
                 <button
@@ -377,9 +377,9 @@ export default function DeliveryView({
         <div className="space-y-3">
           {disponibles.length === 0 ? (
             <div className="text-center py-16">
-              <Inbox className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+              <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-400 font-medium">No hay pedidos disponibles</p>
-              <p className="text-sm text-gray-300 mt-1">Regresa en unos momentos</p>
+              <p className="text-sm text-gray-500 mt-1">Regresa en unos momentos</p>
             </div>
           ) : (
             disponibles.map((p, i) => (

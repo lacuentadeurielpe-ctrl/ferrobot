@@ -6,9 +6,11 @@ import { Menu, X } from 'lucide-react'
 interface MobileSidebarWrapperProps {
   sidebar: React.ReactNode
   children: React.ReactNode
+  nombreFerreteria?: string | null
+  logoUrl?: string | null
 }
 
-export default function MobileSidebarWrapper({ sidebar, children }: MobileSidebarWrapperProps) {
+export default function MobileSidebarWrapper({ sidebar, children, nombreFerreteria, logoUrl }: MobileSidebarWrapperProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -52,7 +54,12 @@ export default function MobileSidebarWrapper({ sidebar, children }: MobileSideba
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-sm font-semibold text-gray-800">FerreBot</span>
+          {logoUrl && (
+            <img src={logoUrl} alt="Logo" className="w-7 h-7 rounded-lg object-cover border border-gray-100" />
+          )}
+          <span className="text-sm font-semibold text-gray-800 truncate">
+            {nombreFerreteria ?? 'FerreBot'}
+          </span>
         </div>
 
         <main className="flex-1 relative overflow-auto">

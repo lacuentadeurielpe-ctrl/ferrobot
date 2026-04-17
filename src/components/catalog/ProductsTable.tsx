@@ -118,7 +118,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
       {/* Tabla */}
       {productosFiltrados.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-lg font-medium text-gray-300 mb-2">Sin productos</p>
+          <p className="text-lg font-medium text-gray-500 mb-2">Sin productos</p>
           <p className="text-sm">
             {busqueda ? 'No hay productos que coincidan con la búsqueda.' : 'Agrega tu primer producto usando el botón de arriba.'}
           </p>
@@ -154,7 +154,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     {getNombreCategoria(producto.categoria_id) ? (
                       <Badge variant="blue">{getNombreCategoria(producto.categoria_id)}</Badge>
                     ) : (
-                      <span className="text-xs text-gray-300">—</span>
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -183,7 +183,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                         </div>
                       )
                     })() : (
-                      <span className="text-xs text-gray-300">—</span>
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -198,7 +198,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                         ? <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                         : producto.activo
                           ? <ToggleRight className="w-6 h-6 text-green-500" />
-                          : <ToggleLeft className="w-6 h-6 text-gray-300" />
+                          : <ToggleLeft className="w-6 h-6 text-gray-400" />
                       }
                     </button>
                   </td>
@@ -206,7 +206,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     {producto.reglas_descuento && producto.reglas_descuento.length > 0 ? (
                       <Badge variant="orange">{producto.reglas_descuento.length} rango{producto.reglas_descuento.length !== 1 ? 's' : ''}</Badge>
                     ) : (
-                      <span className="text-xs text-gray-300">—</span>
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

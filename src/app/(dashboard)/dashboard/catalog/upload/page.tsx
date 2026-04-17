@@ -209,7 +209,7 @@ export default function UploadPage() {
                 onClick={() => inputRef.current?.click()}
                 className="w-full border-2 border-dashed border-gray-200 rounded-xl p-10 text-center hover:border-orange-300 hover:bg-orange-50/30 transition group"
               >
-                <FileSpreadsheet className="w-10 h-10 text-gray-300 group-hover:text-orange-400 mx-auto mb-3 transition" />
+                <FileSpreadsheet className="w-10 h-10 text-gray-400 group-hover:text-orange-400 mx-auto mb-3 transition" />
                 <p className="text-sm font-medium text-gray-600 group-hover:text-orange-600">
                   Haz clic para seleccionar el archivo
                 </p>

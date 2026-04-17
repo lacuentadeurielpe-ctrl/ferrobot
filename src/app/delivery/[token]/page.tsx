@@ -39,7 +39,7 @@ export default async function DeliveryPage({ params }: Props) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <Truck className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <Truck className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <h1 className="text-lg font-bold text-gray-700">Enlace inválido</h1>
           <p className="text-sm text-gray-400 mt-1">Este enlace no existe o fue desactivado.</p>
         </div>

@@ -26,6 +26,7 @@ export default async function DashboardLayout({
     { count: pedidosPendientes },
     { count: conversacionesActivas },
     { count: cotizacionesPendientes },
+    { data: ferreteriaData },
   ] = await Promise.all([
     supabase
       .from('pedidos')
@@ -42,12 +43,19 @@ export default async function DashboardLayout({
       .select('*', { count: 'exact', head: true })
       .eq('ferreteria_id', session.ferreteriaId)
       .eq('estado', 'pendiente_aprobacion'),
+
+    supabase
+      .from('ferreterias')
+      .select('logo_url')
+      .eq('id', session.ferreteriaId)
+      .single(),
   ])
 
   const sidebarNode = (
     <Sidebar
       nombreFerreteria={session.nombreFerreteria}
       ferreteriaId={session.ferreteriaId}
+      logoUrl={ferreteriaData?.logo_url ?? null}
       pedidosPendientes={pedidosPendientes ?? 0}
       conversacionesActivas={conversacionesActivas ?? 0}
       cotizacionesPendientes={cotizacionesPendientes ?? 0}
@@ -57,7 +65,11 @@ export default async function DashboardLayout({
   )
 
   return (
-    <MobileSidebarWrapper sidebar={sidebarNode}>
+    <MobileSidebarWrapper
+      sidebar={sidebarNode}
+      nombreFerreteria={session.nombreFerreteria}
+      logoUrl={ferreteriaData?.logo_url ?? null}
+    >
       {children}
     </MobileSidebarWrapper>
   )

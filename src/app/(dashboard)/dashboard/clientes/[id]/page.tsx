@@ -70,7 +70,7 @@ export default async function ClienteDetallePage({ params }: Props) {
               <Phone className="w-3 h-3" />
               {cliente.telefono}
             </span>
-            <span className="text-xs text-gray-300">·</span>
+            <span className="text-xs text-gray-400">·</span>
             <span className="text-xs text-gray-400">Cliente desde {formatFecha(cliente.created_at)}</span>
           </div>
         </div>

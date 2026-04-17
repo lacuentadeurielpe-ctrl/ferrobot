@@ -315,7 +315,7 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
                         S/{(item.cantidad * item.precio_unitario).toFixed(2)}
                       </span>
                     </div>
-                    <button onClick={() => eliminarItem(idx)} className="text-gray-300 hover:text-red-500 transition ml-1">
+                    <button onClick={() => eliminarItem(idx)} className="text-gray-400 hover:text-red-500 transition ml-1">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
