@@ -28,6 +28,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
     precio_compra: producto?.precio_compra?.toString() ?? '',
     unidad: producto?.unidad ?? 'unidad',
     stock: producto?.stock?.toString() ?? '0',
+    stock_minimo: producto?.stock_minimo?.toString() ?? '',
     modo_negociacion: producto?.modo_negociacion ?? false,
     umbral_negociacion_cantidad: producto?.umbral_negociacion_cantidad?.toString() ?? '',
     activo: producto?.activo ?? true,
@@ -78,6 +79,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
       precio_compra: parseFloat(form.precio_compra) || 0,
       unidad: form.unidad,
       stock: parseInt(form.stock) || 0,
+      stock_minimo: form.stock_minimo ? parseInt(form.stock_minimo) : null,
       modo_negociacion: form.modo_negociacion,
       umbral_negociacion_cantidad: form.umbral_negociacion_cantidad
         ? parseInt(form.umbral_negociacion_cantidad)
@@ -262,6 +264,23 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 min={0}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Alerta de stock mínimo
+                <span className="ml-1 text-xs text-gray-400 font-normal">opcional</span>
+              </label>
+              <input
+                type="number"
+                name="stock_minimo"
+                value={form.stock_minimo}
+                onChange={handleChange}
+                min={0}
+                placeholder="Ej: 5"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              />
+              <p className="text-xs text-gray-400 mt-1">El dashboard te alertará cuando el stock caiga a este nivel</p>
             </div>
           </div>
 

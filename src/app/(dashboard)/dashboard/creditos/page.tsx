@@ -15,14 +15,6 @@ export default async function CreditosPage() {
 
   const supabase = await createClient()
 
-  // Marcar automáticamente como vencidos
-  await supabase
-    .from('creditos')
-    .update({ estado: 'vencido' })
-    .eq('ferreteria_id', session.ferreteriaId)
-    .eq('estado', 'activo')
-    .lt('fecha_limite', new Date().toISOString().slice(0, 10))
-
   const { data: creditos } = await supabase
     .from('creditos')
     .select(`

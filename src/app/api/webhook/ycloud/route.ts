@@ -90,11 +90,53 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      // Fallback si no hay OpenAI o falló
-      await enviarMensaje({
-        from: telefonoNorm, to: telefonoCliente,
-        texto: '🎧 Escuché tu audio! Por ahora no puedo procesarlo. Escríbeme qué necesitas y te atiendo de inmediato 🙌',
-      }).catch(() => {})
+      // Sin OpenAI: pausar bot, avisar al cliente, notificar al dueño
+      try {
+        const supabaseAudio = createAdminClient()
+
+        // Identificar la ferretería por el número receptor
+        const { data: ferreteriaAudio } = await supabaseAudio
+          .from('ferreterias')
+          .select('id, telefono_dueno')
+          .or(`telefono_whatsapp.eq.${telefonoNorm},telefono_whatsapp.eq.+${telefonoNorm}`)
+          .eq('activo', true)
+          .single()
+
+        if (ferreteriaAudio) {
+          // Pausar la conversación
+          const { data: conv } = await supabaseAudio
+            .from('conversaciones')
+            .select('id')
+            .eq('ferreteria_id', ferreteriaAudio.id)
+            .eq('telefono_cliente', telefonoCliente)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+
+          if (conv) {
+            await supabaseAudio
+              .from('conversaciones')
+              .update({ bot_pausado: true, bot_pausado_at: new Date().toISOString() })
+              .eq('id', conv.id)
+          }
+
+          // Notificar al dueño si tiene teléfono configurado
+          if (ferreteriaAudio.telefono_dueno) {
+            await enviarMensaje({
+              from: telefonoNorm, to: ferreteriaAudio.telefono_dueno,
+              texto: `🎧 *Nota de voz sin procesar*\nEl cliente ${telefonoCliente} envió una nota de voz. Respóndele desde el panel o WhatsApp.\n\nEl bot está pausado para esta conversación.`,
+            }).catch(() => {})
+          }
+        }
+
+        // Avisar al cliente
+        await enviarMensaje({
+          from: telefonoNorm, to: telefonoCliente,
+          texto: '🎧 Recibí tu nota de voz. Un encargado te responde en breve 🙌',
+        }).catch(() => {})
+      } catch (e) {
+        console.error('[Webhook] Error en fallback de audio:', e)
+      }
       return NextResponse.json({ ok: true })
     }
 

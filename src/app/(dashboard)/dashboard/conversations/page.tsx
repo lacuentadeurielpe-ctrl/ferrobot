@@ -24,26 +24,35 @@ export default async function ConversationsPage() {
     .order('ultima_actividad', { ascending: false })
     .limit(50)
 
-  // Enriquecer con último mensaje de cada conversación
-  const enriquecidas = await Promise.all(
-    (conversaciones ?? []).map(async (conv) => {
-      const { data: ultimo } = await supabase
-        .from('mensajes')
-        .select('contenido, role')
-        .eq('conversacion_id', conv.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+  const convIds = (conversaciones ?? []).map(c => c.id)
 
-      const clientes = Array.isArray(conv.clientes) ? conv.clientes[0] ?? null : conv.clientes
-      return {
-        ...conv,
-        clientes: clientes as { nombre: string | null; telefono: string } | null,
-        ultimo_mensaje: ultimo?.contenido ?? undefined,
-        rol_ultimo: ultimo?.role ?? undefined,
+  // Una sola query para todos los últimos mensajes
+  let ultimosMensajes: Record<string, { contenido: string; role: string }> = {}
+  if (convIds.length > 0) {
+    const { data: mensajes } = await supabase
+      .from('mensajes')
+      .select('conversacion_id, contenido, role, created_at')
+      .in('conversacion_id', convIds)
+      .order('created_at', { ascending: false })
+
+    // Tomar solo el primero por conversación (ya vienen ordenados desc)
+    for (const m of mensajes ?? []) {
+      if (!ultimosMensajes[m.conversacion_id]) {
+        ultimosMensajes[m.conversacion_id] = { contenido: m.contenido, role: m.role }
       }
-    })
-  )
+    }
+  }
+
+  const enriquecidas = (conversaciones ?? []).map((conv) => {
+    const ultimo = ultimosMensajes[conv.id]
+    const clientes = Array.isArray(conv.clientes) ? conv.clientes[0] ?? null : conv.clientes
+    return {
+      ...conv,
+      clientes: clientes as { nombre: string | null; telefono: string } | null,
+      ultimo_mensaje: ultimo?.contenido ?? undefined,
+      rol_ultimo: ultimo?.role ?? undefined,
+    }
+  })
 
   return (
     <div className="absolute inset-0 flex overflow-hidden">

@@ -132,6 +132,7 @@ export interface Producto {
   precio_compra: number          // costo al proveedor
   unidad: string
   stock: number
+  stock_minimo: number | null   // alerta cuando stock <= este valor
   modo_negociacion: boolean
   umbral_negociacion_cantidad: number | null
   activo: boolean

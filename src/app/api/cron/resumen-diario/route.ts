@@ -60,6 +60,19 @@ export async function GET(request: Request) {
 
   const resultados: Array<{ ferreteria: string; ok: boolean; error?: string }> = []
 
+  // Marcar créditos vencidos (ejecutar una vez, aplica a todas las ferreterías)
+  try {
+    const hoy = new Date().toISOString().slice(0, 10)
+    await supabase
+      .from('creditos')
+      .update({ estado: 'vencido' })
+      .eq('estado', 'activo')
+      .lt('fecha_limite', hoy)
+    console.log('[cron/resumen-diario] Créditos vencidos marcados')
+  } catch (e) {
+    console.error('[cron/resumen-diario] Error marcando créditos vencidos:', e)
+  }
+
   for (const ferreteria of ferreterias ?? []) {
     try {
       const fid = ferreteria.id
