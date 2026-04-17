@@ -147,7 +147,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 value={form.nombre}
                 onChange={handleChange}
                 placeholder="Ej: Cemento Portland Tipo I"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
             </div>
 
@@ -159,7 +159,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 onChange={handleChange}
                 rows={2}
                 placeholder="Descripción opcional del producto..."
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
               />
             </div>
 
@@ -169,7 +169,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 name="categoria_id"
                 value={form.categoria_id}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
               >
                 <option value="">Sin categoría</option>
                 {categorias.map((c) => (
@@ -186,7 +186,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 name="unidad"
                 value={form.unidad}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
               >
                 {UNIDADES.map((u) => (
                   <option key={u} value={u}>{u}</option>
@@ -208,7 +208,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 min={0}
                 step="0.01"
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
             </div>
 
@@ -225,7 +225,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 min={0}
                 step="0.01"
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
             </div>
 
@@ -262,7 +262,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 value={form.stock}
                 onChange={handleChange}
                 min={0}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
             </div>
 
@@ -278,7 +278,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 onChange={handleChange}
                 min={0}
                 placeholder="Ej: 5"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
               <p className="text-xs text-gray-400 mt-1">El dashboard te alertará cuando el stock caiga a este nivel</p>
             </div>
@@ -320,7 +320,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                   onChange={handleChange}
                   min={1}
                   placeholder="Ej: 50"
-                  className="w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                 />
               </div>
             )}

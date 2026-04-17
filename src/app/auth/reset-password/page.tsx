@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu@correo.com"
             required
-            className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
+            className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
           />
         </div>
 

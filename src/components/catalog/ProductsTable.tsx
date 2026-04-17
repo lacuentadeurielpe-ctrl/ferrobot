@@ -76,13 +76,13 @@ export default function ProductsTable({ productos: initialProductos, categorias:
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar producto..."
-          className="flex-1 min-w-48 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+          className="flex-1 min-w-48 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
         />
 
         <select
           value={categoriaFiltro}
           onChange={(e) => setCategoriaFiltro(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+          className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
         >
           <option value="todas">Todas las categorías</option>
           {categorias.map((c) => (

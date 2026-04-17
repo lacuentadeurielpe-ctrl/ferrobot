@@ -109,7 +109,7 @@ export default function CategoryManager({ categorias, onChange }: CategoryManage
           onChange={(e) => setNueva(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), crear())}
           placeholder="Nueva categoría..."
-          className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+          className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
         />
         <button onClick={crear} disabled={!nueva.trim() || loading === 'nueva'}
           className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm transition">

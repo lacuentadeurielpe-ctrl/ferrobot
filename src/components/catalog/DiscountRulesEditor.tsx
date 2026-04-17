@@ -85,7 +85,7 @@ export default function DiscountRulesEditor({
                   min={1}
                   value={regla.cantidad_min}
                   onChange={(e) => actualizar(idx, 'cantidad_min', parseInt(e.target.value) || 1)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
                 />
               </div>
               <div>
@@ -96,7 +96,7 @@ export default function DiscountRulesEditor({
                   placeholder="Sin límite"
                   value={regla.cantidad_max ?? ''}
                   onChange={(e) => actualizar(idx, 'cantidad_max', e.target.value ? parseInt(e.target.value) : null)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
                 />
               </div>
               <div>
@@ -107,7 +107,7 @@ export default function DiscountRulesEditor({
                   step="0.01"
                   value={regla.precio_unitario || ''}
                   onChange={(e) => actualizar(idx, 'precio_unitario', parseFloat(e.target.value) || 0)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
                 />
               </div>
             </div>

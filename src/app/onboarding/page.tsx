@@ -178,7 +178,7 @@ export default function OnboardingPage() {
                     value={form.nombre}
                     onChange={handleChange}
                     placeholder="Ej: Ferretería Don Mario"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
 
@@ -191,7 +191,7 @@ export default function OnboardingPage() {
                     value={form.direccion}
                     onChange={handleChange}
                     placeholder="Ej: Jr. Los Ferreros 123, Lima"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
 
@@ -204,7 +204,7 @@ export default function OnboardingPage() {
                     value={form.telefono_whatsapp}
                     onChange={handleChange}
                     placeholder="Ej: 51987654321 (con código de país)"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     Debe coincidir con el número configurado en YCloud
@@ -245,7 +245,7 @@ export default function OnboardingPage() {
                     name="horario_apertura"
                     value={form.horario_apertura}
                     onChange={handleChange}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
                 <div>
@@ -257,7 +257,7 @@ export default function OnboardingPage() {
                     name="horario_cierre"
                     value={form.horario_cierre}
                     onChange={handleChange}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
               </div>
@@ -273,7 +273,7 @@ export default function OnboardingPage() {
                     onChange={(e) => setNuevaFormaPago(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), agregarFormaPago())}
                     placeholder="Ej: Yape, Efectivo, Transferencia..."
-                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                   <button
                     type="button"
@@ -314,7 +314,7 @@ export default function OnboardingPage() {
                       value={zona.nombre}
                       onChange={(e) => actualizarZona(idx, 'nombre', e.target.value)}
                       placeholder={`Ej: Cercado, Miraflores, Surco...`}
-                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                     />
                     <div className="flex items-center gap-2 shrink-0">
                       <input
@@ -369,7 +369,7 @@ export default function OnboardingPage() {
                   onChange={handleChange}
                   rows={3}
                   placeholder="Ej: ¡Hola! Soy el asistente de Ferretería Don Mario. ¿En qué le puedo ayudar hoy?"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
                 />
               </div>
 
@@ -383,7 +383,7 @@ export default function OnboardingPage() {
                   onChange={handleChange}
                   rows={3}
                   placeholder="Ej: Gracias por escribirnos. En este momento estamos cerrados. Atendemos de lunes a sábado de 8am a 6pm. Le responderemos en cuanto abramos."
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
                 />
               </div>
 

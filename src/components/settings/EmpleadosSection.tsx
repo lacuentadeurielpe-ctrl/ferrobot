@@ -154,7 +154,7 @@ function ModalNuevoEmpleado({
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   placeholder="Juan Pérez"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                 />
               </div>
               <div>
@@ -166,7 +166,7 @@ function ModalNuevoEmpleado({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="juan@ejemplo.com"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                 />
               </div>
               <div>
@@ -179,7 +179,7 @@ function ModalNuevoEmpleado({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Mín. 6 caracteres"
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                   <button
                     type="button"
@@ -518,7 +518,7 @@ function EmpleadoCard({
                   value={nuevaPass}
                   onChange={(e) => setNuevaPass(e.target.value)}
                   placeholder="Mín. 6 caracteres"
-                  className="w-full px-3 py-2 pr-9 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-full px-3 py-2 pr-9 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                 />
                 <button type="button" onClick={() => setVerPass(!verPass)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
                   {verPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}

@@ -356,7 +356,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
               name="nombre"
               value={form.nombre}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
             />
           </div>
 
@@ -367,7 +367,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
               value={form.direccion}
               onChange={handleChange}
               placeholder="Jr. Los Ferreros 123, Lima"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
             />
           </div>
 
@@ -380,7 +380,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
               value={form.telefono_whatsapp}
               onChange={handleChange}
               placeholder="51987654321"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
             />
             <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
           </div>
@@ -395,7 +395,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 onChange={(e) => setNuevaFormaPago(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), agregarFormaPago())}
                 placeholder="Ej: Yape, Efectivo, Transferencia..."
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
               <button
                 type="button"
@@ -432,7 +432,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 value={form.telefono_dueno}
                 onChange={handleChange}
                 placeholder="51987654321"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
               <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
             </div>
@@ -492,7 +492,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 name="horario_apertura"
                 value={form.horario_apertura}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
             </div>
             <div>
@@ -502,7 +502,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 name="horario_cierre"
                 value={form.horario_cierre}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
             </div>
           </div>
@@ -519,7 +519,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 onChange={handleChange}
                 min={1}
                 max={1440}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
               <span className="text-sm text-gray-600">minutos sin respuesta del dueño</span>
             </div>
@@ -556,7 +556,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     value={zona.tiempo_estimado_min}
                     onChange={(e) => actualizarZona(zona.id, 'tiempo_estimado_min', parseInt(e.target.value) || 60)}
                     min={1}
-                    className="w-16 px-2 py-1 border border-gray-200 rounded text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    className="w-16 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 text-center bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
                   />
                   <span className="text-xs text-gray-400">min</span>
                 </div>
@@ -579,7 +579,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 onChange={(e) => setNuevaZona((p) => ({ ...p, nombre: e.target.value }))}
                 onKeyDown={(e) => e.key === 'Enter' && agregarZona()}
                 placeholder="Nombre del distrito o zona"
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
               <div className="flex items-center gap-1.5 shrink-0">
                 <input
@@ -648,7 +648,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                 min={0}
                 max={100}
                 step={1}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
               />
               <span className="text-sm text-gray-600">% de margen mínimo</span>
             </div>
@@ -842,7 +842,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     value={datosYape.numero}
                     onChange={(e) => setDatosYape((p) => ({ ...p, numero: e.target.value }))}
                     placeholder="51987654321"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                   <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
                 </div>
@@ -905,7 +905,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     value={datosTransferencia.banco}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, banco: e.target.value }))}
                     placeholder="BCP, Interbank, BBVA…"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
                 <div>
@@ -914,7 +914,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     value={datosTransferencia.titular}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, titular: e.target.value }))}
                     placeholder="Nombre del titular"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
                 <div>
@@ -923,7 +923,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     value={datosTransferencia.cuenta}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, cuenta: e.target.value }))}
                     placeholder="000-00000000-0-00"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
                 <div>
@@ -934,7 +934,7 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
                     value={datosTransferencia.cci ?? ''}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, cci: e.target.value || null }))}
                     placeholder="00200000000000000000"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
                   />
                 </div>
               </div>

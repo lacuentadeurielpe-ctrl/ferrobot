@@ -297,7 +297,7 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
                         value={item.cantidad}
                         onChange={(e) => actualizarItem(idx, 'cantidad', parseInt(e.target.value) || 1)}
                         min={1}
-                        className="w-14 px-2 py-1 border border-gray-200 rounded text-sm text-center bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        className="w-14 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 text-center bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
                       />
                       <span className="text-gray-400 text-xs">×</span>
                       <div className="relative">
@@ -308,7 +308,7 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
                           onChange={(e) => actualizarItem(idx, 'precio_unitario', parseFloat(e.target.value) || 0)}
                           min={0}
                           step={0.01}
-                          className="w-20 pl-6 pr-2 py-1 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
+                          className="w-20 pl-6 pr-2 py-1 border border-gray-200 rounded text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
                         />
                       </div>
                       <span className="text-sm font-medium text-gray-700 w-16 text-right">
