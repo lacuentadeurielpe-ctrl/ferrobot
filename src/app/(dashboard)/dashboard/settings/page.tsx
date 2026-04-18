@@ -1,12 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
+import { getEstadoMP, mpConfigurado } from '@/lib/mercadopago'
 import SettingsForm from '@/components/settings/SettingsForm'
 import EmpleadosSection from '@/components/settings/EmpleadosSection'
 import RepartidoresSection from '@/components/settings/RepartidoresSection'
+import MercadoPagoConnect from '@/components/settings/MercadoPagoConnect'
 import { Settings } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mp_ok?: string; mp_error?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -19,7 +25,9 @@ export default async function SettingsPage() {
 
   if (!ferreteria) return null
 
-  const [{ data: zonas }, { data: configBot }] = await Promise.all([
+  const params = await searchParams
+
+  const [{ data: zonas }, { data: configBot }, estadoMP] = await Promise.all([
     supabase
       .from('zonas_delivery')
       .select('id, nombre, tiempo_estimado_min')
@@ -30,6 +38,7 @@ export default async function SettingsPage() {
       .select('margen_minimo_porcentaje')
       .eq('ferreteria_id', ferreteria.id)
       .single(),
+    getEstadoMP(ferreteria.id),
   ])
 
   return (
@@ -68,6 +77,20 @@ export default async function SettingsPage() {
         zonas={zonas ?? []}
         margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
       />
+
+      {/* Sección: Pagos con Mercado Pago */}
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Pagos online</h2>
+        <MercadoPagoConnect
+          estado={estadoMP.estado}
+          mpEmail={estadoMP.mp_email}
+          mpUserId={estadoMP.mp_user_id}
+          conectadoAt={estadoMP.conectado_at}
+          mpConfigurado={mpConfigurado()}
+          mpOk={params.mp_ok === '1'}
+          mpError={params.mp_error ?? null}
+        />
+      </div>
 
       <div className="mt-6">
         <EmpleadosSection />
