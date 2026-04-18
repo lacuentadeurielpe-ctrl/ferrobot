@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEstadoMP, mpConfigurado } from '@/lib/mercadopago'
 import SettingsForm from '@/components/settings/SettingsForm'
 import EmpleadosSection from '@/components/settings/EmpleadosSection'
 import RepartidoresSection from '@/components/settings/RepartidoresSection'
 import MercadoPagoConnect from '@/components/settings/MercadoPagoConnect'
+import YCloudConnect from '@/components/settings/YCloudConnect'
 import { Settings } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +29,8 @@ export default async function SettingsPage({
 
   const params = await searchParams
 
-  const [{ data: zonas }, { data: configBot }, estadoMP] = await Promise.all([
+  const admin = createAdminClient()
+  const [{ data: zonas }, { data: configBot }, estadoMP, { data: ycloudConfig }] = await Promise.all([
     supabase
       .from('zonas_delivery')
       .select('id, nombre, tiempo_estimado_min')
@@ -39,6 +42,11 @@ export default async function SettingsPage({
       .eq('ferreteria_id', ferreteria.id)
       .single(),
     getEstadoMP(ferreteria.id),
+    admin
+      .from('configuracion_ycloud')
+      .select('numero_whatsapp, estado_conexion, ultimo_mensaje_at, ultimo_error')
+      .eq('ferreteria_id', ferreteria.id)
+      .single(),
   ])
 
   return (
@@ -77,6 +85,18 @@ export default async function SettingsPage({
         zonas={zonas ?? []}
         margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
       />
+
+      {/* Sección: WhatsApp / YCloud */}
+      <div className="mt-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Conexión WhatsApp</h2>
+        <YCloudConnect
+          configurado={!!ycloudConfig}
+          numeroWhatsapp={ycloudConfig?.numero_whatsapp ?? null}
+          estadoConexion={ycloudConfig?.estado_conexion ?? null}
+          ultimoMensajeAt={ycloudConfig?.ultimo_mensaje_at ?? null}
+          ultimoError={ycloudConfig?.ultimo_error ?? null}
+        />
+      </div>
 
       {/* Sección: Pagos con Mercado Pago */}
       <div className="mt-6">
