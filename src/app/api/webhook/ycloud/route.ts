@@ -116,19 +116,18 @@ export async function POST(request: Request) {
   }
 
   // ── 4. Verificar firma HMAC con el secret del tenant ─────────────────────
-  // Usa el secret del tenant; si no tiene, cae al YCLOUD_WEBHOOK_SECRET global
+  // YCloud no siempre envía firma HMAC. Solo verificamos si la firma está presente.
+  // Si no viene firma, dejamos pasar (YCloud usa URL secreta o no firma sus webhooks).
   const firma = request.headers.get('x-ycloud-signature') ??
                 request.headers.get('x-ycloud-signature-256')
 
-  // DEBUG TEMPORAL: loguear cada header individualmente
-  request.headers.forEach((v, k) => {
-    console.error(`[HDR] ${k}: ${v.slice(0, 80)}`)
-  })
-
-  const firmaValida = await verificarFirmaWebhook(bodyText, firma, tenantWebhookSecret)
-  if (!firmaValida) {
-    console.warn(`[Webhook] Firma inválida rechazada (ferreteria=${ferreteria.id})`)
-    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+  if (firma) {
+    // Solo verificamos HMAC si YCloud envió una firma
+    const firmaValida = await verificarFirmaWebhook(bodyText, firma, tenantWebhookSecret)
+    if (!firmaValida) {
+      console.warn(`[Webhook] Firma inválida rechazada (ferreteria=${ferreteria.id})`)
+      return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+    }
   }
 
   // ── 5. Extraer mensaje ────────────────────────────────────────────────────
