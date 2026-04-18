@@ -120,10 +120,10 @@ export async function POST(request: Request) {
   const firma = request.headers.get('x-ycloud-signature') ??
                 request.headers.get('x-ycloud-signature-256')
 
-  // DEBUG TEMPORAL: loguear TODOS los headers para diagnosticar firma
-  const allHeaders: Record<string, string> = {}
-  request.headers.forEach((v, k) => { allHeaders[k] = v.slice(0, 60) })
-  console.error(`[DEBUG-HEADERS] ${JSON.stringify(allHeaders)}`)
+  // DEBUG TEMPORAL: loguear cada header individualmente
+  request.headers.forEach((v, k) => {
+    console.error(`[HDR] ${k}: ${v.slice(0, 80)}`)
+  })
 
   const firmaValida = await verificarFirmaWebhook(bodyText, firma, tenantWebhookSecret)
   if (!firmaValida) {
