@@ -1,34 +1,80 @@
 // Dashboard principal — "los primeros 3 minutos del día"
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
-import { formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
+import { formatPEN, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
 import {
-  ShoppingCart, MessageSquare, TrendingUp, AlertTriangle,
-  Clock, CheckCircle2, Truck, Package, Loader, DollarSign,
+  ShoppingCart, MessageSquare, AlertTriangle,
+  Clock, CheckCircle2, Truck, Package, DollarSign,
   ChevronRight, ArrowRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import ActivityChart from '@/components/dashboard/ActivityChart'
+import PeriodSelector from '@/components/dashboard/PeriodSelector'
 import { redirect } from 'next/navigation'
+import { inicioDiaLima, finDiaLima, fechaLimaStr, fechaLocalLima, etiquetaFechaLima, ahoraLima } from '@/lib/tiempo'
 
 export const dynamic = 'force-dynamic'
 
 const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 
-function fechaLima(offsetDias = 0): { inicio: string; fin: string } {
-  // Lima = UTC-5. Medianoche Lima = 05:00 UTC
-  const now = new Date()
-  const limaMs = now.getTime() - 5 * 60 * 60 * 1000
-  const limaHoy = new Date(limaMs)
-  limaHoy.setUTCDate(limaHoy.getUTCDate() + offsetDias)
-  const yyyy = limaHoy.getUTCFullYear()
-  const mm = String(limaHoy.getUTCMonth() + 1).padStart(2, '0')
-  const dd = String(limaHoy.getUTCDate()).padStart(2, '0')
-  return {
-    inicio: `${yyyy}-${mm}-${dd}T05:00:00Z`,
-    fin: `${yyyy}-${mm}-${dd}T28:59:59Z`, // siguiente medianoche Lima = T+1 05:00
+// ── Cálculo de rango para el período seleccionado ─────────────────────────────
+function calcPeriodo(p: string): {
+  inicio: string; fin: string
+  prevInicio: string; prevFin: string
+  label: string; dias: number
+} {
+  const finHoy = finDiaLima(0)
+
+  switch (p) {
+    case 'ayer': {
+      const inicio = inicioDiaLima(-1)
+      const fin    = inicioDiaLima(0)
+      return { inicio, fin, prevInicio: inicioDiaLima(-2), prevFin: inicio, label: 'Ayer', dias: 1 }
+    }
+    case 'semana': {
+      const lima = ahoraLima()
+      const dow  = lima.getUTCDay()           // 0=dom…6=sáb
+      const diasDesdeL = dow === 0 ? 6 : dow - 1
+      const inicio = inicioDiaLima(-diasDesdeL)
+      return {
+        inicio, fin: finHoy,
+        prevInicio: inicioDiaLima(-diasDesdeL - 7),
+        prevFin: inicio,
+        label: 'Esta semana',
+        dias: diasDesdeL + 1,
+      }
+    }
+    case 'mes': {
+      const lima = ahoraLima()
+      const yyyy = lima.getUTCFullYear()
+      const mm   = String(lima.getUTCMonth() + 1).padStart(2, '0')
+      const dia  = lima.getUTCDate()
+      const inicio = `${yyyy}-${mm}-01T05:00:00Z`
+      // Mes anterior: mismo rango de días
+      const prevLima = ahoraLima()
+      prevLima.setUTCMonth(prevLima.getUTCMonth() - 1)
+      const pYyyy = prevLima.getUTCFullYear()
+      const pMm   = String(prevLima.getUTCMonth() + 1).padStart(2, '0')
+      const prevInicio = `${pYyyy}-${pMm}-01T05:00:00Z`
+      return { inicio, fin: finHoy, prevInicio, prevFin: inicio, label: 'Este mes', dias: dia }
+    }
+    case '30d': {
+      const inicio = inicioDiaLima(-29)
+      return { inicio, fin: finHoy, prevInicio: inicioDiaLima(-59), prevFin: inicio, label: 'Últimos 30 días', dias: 30 }
+    }
+    default: { // 'hoy'
+      const inicio = inicioDiaLima(0)
+      return { inicio, fin: finHoy, prevInicio: inicioDiaLima(-1), prevFin: inicio, label: 'Hoy', dias: 1 }
+    }
   }
+}
+
+// ── Comparativa % de cambio ───────────────────────────────────────────────────
+function cambio(actual: number, prev: number): { pct: number; sube: boolean } | null {
+  if (prev === 0) return actual > 0 ? { pct: 100, sube: true } : null
+  const pct = Math.round(((actual - prev) / prev) * 100)
+  return { pct: Math.abs(pct), sube: pct >= 0 }
 }
 
 const ESTADOS_PIPELINE: Array<{ key: string; label: string; icon: React.ElementType; color: string }> = [
@@ -39,7 +85,13 @@ const ESTADOS_PIPELINE: Array<{ key: string; label: string; icon: React.ElementT
   { key: 'entregado',      label: 'Entregado',    icon: CheckCircle2,  color: 'text-green-500'  },
 ]
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string }>
+}) {
+  const { p: periodo = 'hoy' } = await searchParams
+
   const session = await getSessionInfo()
   if (!session) redirect('/auth/login')
 
@@ -47,19 +99,14 @@ export default async function DashboardPage() {
   const fid = session.ferreteriaId
   const esVendedor = session.rol === 'vendedor'
 
-  const hoy   = fechaLima(0)
-  const ayer  = fechaLima(-1)
+  // Límites en hora Lima (UTC correcta)
+  const inicioHoy = inicioDiaLima(0)
 
-  // Hace 7 días para gráfico
-  const hace7dias = new Date()
-  hace7dias.setDate(hace7dias.getDate() - 6)
-  hace7dias.setHours(0, 0, 0, 0)
-  const hace7diasISO = hace7dias.toISOString()
+  // Período seleccionado
+  const per = calcPeriodo(periodo)
 
-  // Hace 30 días para top productos
-  const hace30dias = new Date()
-  hace30dias.setDate(hace30dias.getDate() - 30)
-  const hace30diasISO = hace30dias.toISOString()
+  // Hace 30 días para gráfico y top productos
+  const hace30diasISO = inicioDiaLima(-29)
 
   // ── Todas las queries en paralelo ───────────────────────────────────────────
   const [
@@ -67,23 +114,17 @@ export default async function DashboardPage() {
     { data: sinRepartidor },
     // ALERTAS: cotizaciones esperando confirmación del cliente (> 4h)
     { count: cotPendientesAntiguas },
-    // PIPELINE: todos los pedidos activos (no cancelados/entregados)
+    // PIPELINE: todos los pedidos activos (no cancelados)
     { data: pedidosActivos },
     // COBROS: pedidos entregados hoy con pago pendiente
     { data: cobrosPendientes },
-    // AYER: pedidos
-    { data: pedidosAyer },
-    // GRÁFICO 7 días
+    // GRÁFICO 30 días
     { data: pedidos7dias },
     { data: cotizaciones7dias },
     // TOP productos 30 días
     { data: itemsCotizacion },
-    // AYER: conversaciones
-    { count: convAyer },
     // ALERTAS: productos con stock <= stock_minimo
     { data: productosStockBajo },
-    // Ganancias ayer (solo dueño)
-    gananciasAyerRes,
   ] = await Promise.all([
     supabase
       .from('pedidos')
@@ -113,26 +154,19 @@ export default async function DashboardPage() {
       .eq('ferreteria_id', fid)
       .eq('estado', 'entregado')
       .neq('estado_pago', 'pagado')
-      .gte('created_at', hoy.inicio),
-
-    supabase
-      .from('pedidos')
-      .select('id, estado, total, costo_total')
-      .eq('ferreteria_id', fid)
-      .gte('created_at', ayer.inicio)
-      .lt('created_at', hoy.inicio),
+      .gte('created_at', inicioHoy),
 
     supabase
       .from('pedidos')
       .select('created_at')
       .eq('ferreteria_id', fid)
-      .gte('created_at', hace7diasISO),
+      .gte('created_at', hace30diasISO),
 
     supabase
       .from('cotizaciones')
       .select('created_at')
       .eq('ferreteria_id', fid)
-      .gte('created_at', hace7diasISO),
+      .gte('created_at', hace30diasISO),
 
     supabase
       .from('items_cotizacion')
@@ -141,29 +175,28 @@ export default async function DashboardPage() {
       .gte('cotizaciones.created_at', hace30diasISO),
 
     supabase
-      .from('conversaciones')
-      .select('*', { count: 'exact', head: true })
-      .eq('ferreteria_id', fid)
-      .gte('updated_at', ayer.inicio)
-      .lt('updated_at', hoy.inicio),
-
-    supabase
       .from('productos')
       .select('id, nombre, stock, stock_minimo, unidad')
       .eq('ferreteria_id', fid)
       .eq('activo', true)
       .not('stock_minimo', 'is', null),
+  ])
 
-    esVendedor
-      ? Promise.resolve({ data: null })
-      : supabase
-          .from('pedidos')
-          .select('total, costo_total')
-          .eq('ferreteria_id', fid)
-          .eq('estado', 'entregado')
-          .gte('created_at', ayer.inicio)
-          .lt('created_at', hoy.inicio)
-          .not('costo_total', 'is', null),
+  // ── Queries del período seleccionado (corren en paralelo) ─────────────────
+  const [
+    { data: pedidosPer },
+    { data: pedidosPrevPer },
+    { count: convPer },
+    { count: convPrevPer },
+  ] = await Promise.all([
+    supabase.from('pedidos').select('estado, total, costo_total')
+      .eq('ferreteria_id', fid).gte('created_at', per.inicio).lt('created_at', per.fin),
+    supabase.from('pedidos').select('estado, total, costo_total')
+      .eq('ferreteria_id', fid).gte('created_at', per.prevInicio).lt('created_at', per.prevFin),
+    supabase.from('conversaciones').select('*', { count: 'exact', head: true })
+      .eq('ferreteria_id', fid).gte('updated_at', per.inicio).lt('updated_at', per.fin),
+    supabase.from('conversaciones').select('*', { count: 'exact', head: true })
+      .eq('ferreteria_id', fid).gte('updated_at', per.prevInicio).lt('updated_at', per.prevFin),
   ])
 
   // ── Cómputos ───────────────────────────────────────────────────────────────
@@ -179,17 +212,6 @@ export default async function DashboardPage() {
     .filter(p => p.estado !== 'cancelado')
     .slice(0, 5)
 
-  // Ayer stats
-  const pedidosAyerData = pedidosAyer ?? []
-  const entregadosAyer = pedidosAyerData.filter(p => p.estado === 'entregado').length
-  const ingresosAyer = pedidosAyerData
-    .filter(p => p.estado !== 'cancelado')
-    .reduce((s, p) => s + (p.total ?? 0), 0)
-  const gananciasAyer = (gananciasAyerRes as any).data ?? []
-  const gananciaAyer = gananciasAyer.reduce(
-    (s: number, p: any) => s + (p.total ?? 0) - (p.costo_total ?? 0), 0
-  )
-
   // Top productos
   const conteoProductos: Record<string, number> = {}
   for (const item of itemsCotizacion ?? []) {
@@ -199,15 +221,38 @@ export default async function DashboardPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
 
-  // Gráfico
-  const chartData = Array.from({ length: 7 }, (_, i) => {
-    const fecha = new Date(hace7dias)
-    fecha.setDate(hace7dias.getDate() + i)
-    const fechaStr = fecha.toISOString().slice(0, 10)
+  // Estadísticas del período seleccionado
+  const pedidosPerArr    = pedidosPer ?? []
+  const pedidosPrevArr   = pedidosPrevPer ?? []
+  const totalPerPedidos  = pedidosPerArr.length
+  const prevPerPedidos   = pedidosPrevArr.length
+  const perEntregados    = pedidosPerArr.filter(p => p.estado === 'entregado').length
+  const perIngresos      = pedidosPerArr.filter(p => p.estado !== 'cancelado').reduce((s, p) => s + (p.total ?? 0), 0)
+  const prevPerIngresos  = pedidosPrevArr.filter(p => p.estado !== 'cancelado').reduce((s, p) => s + (p.total ?? 0), 0)
+  const perGanancia      = !esVendedor
+    ? pedidosPerArr.filter(p => p.estado === 'entregado').reduce((s, p) => s + (p.total ?? 0) - (p.costo_total ?? 0), 0)
+    : 0
+
+  const cmbPedidos   = cambio(totalPerPedidos, prevPerPedidos)
+  const cmbIngresos  = cambio(perIngresos, prevPerIngresos)
+  const cmbConv      = cambio(convPer ?? 0, convPrevPer ?? 0)
+
+  // Gráfico 30 días — fechas en hora Lima
+  // Renombramos las variables (ya se usan pedidos30dias/cotizaciones30dias)
+  const pedidos30dias      = pedidos7dias      // misma var, ahora contiene 30d
+  const cotizaciones30dias = cotizaciones7dias // misma var, ahora contiene 30d
+
+  const chartData = Array.from({ length: 30 }, (_, i) => {
+    const fechaStr = fechaLimaStr(-29 + i)  // "YYYY-MM-DD" en Lima
+    const diaSemana = new Date(`${fechaStr}T12:00:00Z`).getUTCDay()
+    // Para 30 días: etiqueta "dd/mm" cada 5 días, resto vacío (Recharts lo maneja)
+    const dd = fechaStr.slice(8, 10)
+    const mm = fechaStr.slice(5, 7)
     return {
-      dia: DIAS_CORTOS[fecha.getDay()],
-      pedidos: (pedidos7dias ?? []).filter(p => p.created_at.slice(0, 10) === fechaStr).length,
-      cotizaciones: (cotizaciones7dias ?? []).filter(c => c.created_at.slice(0, 10) === fechaStr).length,
+      dia: `${dd}/${mm}`,
+      diaSemana: DIAS_CORTOS[diaSemana],
+      pedidos:      (pedidos30dias      ?? []).filter(p => fechaLocalLima(p.created_at) === fechaStr).length,
+      cotizaciones: (cotizaciones30dias ?? []).filter(c => fechaLocalLima(c.created_at) === fechaStr).length,
     }
   })
 
@@ -258,13 +303,14 @@ export default async function DashboardPage() {
     <div className="p-4 sm:p-8 space-y-5 max-w-6xl mx-auto">
 
       {/* ── Encabezado ───────────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{session.nombreFerreteria}</h1>
-        <p className="text-gray-500 text-sm mt-0.5">
-          {new Date().toLocaleDateString('es-PE', {
-            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-          })}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{session.nombreFerreteria}</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{etiquetaFechaLima()}</p>
+        </div>
+        <Suspense>
+          <PeriodSelector />
+        </Suspense>
       </div>
 
       {/* ── BLOQUE 1: Alertas ─────────────────────────────────────────────── */}
@@ -284,39 +330,64 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* ── BLOQUE 2: Cómo cerró ayer ────────────────────────────────────── */}
+      {/* ── BLOQUE 2: KPIs del período seleccionado ──────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Ayer</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{per.label}</p>
         <div className={`grid gap-3 ${esVendedor ? 'grid-cols-2' : 'grid-cols-3'}`}>
+
+          {/* Pedidos */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <ShoppingCart className="w-4 h-4 text-green-500" />
-              <p className="text-xs text-gray-500">Pedidos entregados</p>
+              <p className="text-xs text-gray-500">Pedidos</p>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{entregadosAyer}</p>
-            <p className="text-xs text-gray-400 mt-0.5">de {pedidosAyerData.length} recibidos</p>
+            <p className="text-2xl font-bold text-gray-900">{totalPerPedidos}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-gray-400">{perEntregados} entregados</p>
+              {cmbPedidos && (
+                <span className={`text-xs font-medium ${cmbPedidos.sube ? 'text-green-600' : 'text-red-500'}`}>
+                  {cmbPedidos.sube ? '↑' : '↓'}{cmbPedidos.pct}%
+                </span>
+              )}
+            </div>
           </div>
 
+          {/* Ingresos — solo dueño */}
           {!esVendedor && (
             <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign className="w-4 h-4 text-orange-500" />
                 <p className="text-xs text-gray-500">Ingresos</p>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{formatPEN(ingresosAyer)}</p>
-              {gananciasAyer.length > 0 && (
-                <p className="text-xs text-gray-400 mt-0.5">Ganancia: {formatPEN(gananciaAyer)}</p>
-              )}
+              <p className="text-2xl font-bold text-gray-900">{formatPEN(perIngresos)}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {perGanancia > 0 && (
+                  <p className="text-xs text-gray-400">Gan: {formatPEN(perGanancia)}</p>
+                )}
+                {cmbIngresos && (
+                  <span className={`text-xs font-medium ${cmbIngresos.sube ? 'text-green-600' : 'text-red-500'}`}>
+                    {cmbIngresos.sube ? '↑' : '↓'}{cmbIngresos.pct}%
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
+          {/* Conversaciones */}
           <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <MessageSquare className="w-4 h-4 text-blue-500" />
               <p className="text-xs text-gray-500">Conversaciones</p>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{convAyer ?? 0}</p>
-            <p className="text-xs text-gray-400 mt-0.5">chats atendidos</p>
+            <p className="text-2xl font-bold text-gray-900">{convPer ?? 0}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-xs text-gray-400">chats activos</p>
+              {cmbConv && (
+                <span className={`text-xs font-medium ${cmbConv.sube ? 'text-green-600' : 'text-red-500'}`}>
+                  {cmbConv.sube ? '↑' : '↓'}{cmbConv.pct}%
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -416,7 +487,7 @@ export default async function DashboardPage() {
 
       {/* ── BLOQUE 4: Gráfico + Top productos ────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Últimos 7 días</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Últimos 30 días</p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <h3 className="font-semibold text-gray-900 mb-3 text-sm">Actividad</h3>

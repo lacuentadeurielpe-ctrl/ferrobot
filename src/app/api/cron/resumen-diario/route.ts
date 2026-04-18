@@ -6,32 +6,13 @@ import { NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { formatPEN } from '@/lib/utils'
+import { inicioDiaLima, etiquetaFechaLima } from '@/lib/tiempo'
 
 function adminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
-}
-
-function fechaLima(): { inicio: string; etiqueta: string } {
-  // Lima es UTC-5. "Hoy Lima" empieza a las 05:00 UTC.
-  const now = new Date()
-  const limaMs = now.getTime() - 5 * 60 * 60 * 1000
-  const limaDate = new Date(limaMs)
-  const yyyy = limaDate.getUTCFullYear()
-  const mm = String(limaDate.getUTCMonth() + 1).padStart(2, '0')
-  const dd = String(limaDate.getUTCDate()).padStart(2, '0')
-  const inicio = `${yyyy}-${mm}-${dd}T05:00:00Z` // medianoche Lima = 05:00 UTC
-
-  const etiqueta = limaDate.toLocaleDateString('es-PE', {
-    timeZone: 'America/Lima',
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
-
-  return { inicio, etiqueta }
 }
 
 export async function GET(request: Request) {
@@ -43,7 +24,8 @@ export async function GET(request: Request) {
   }
 
   const supabase = adminClient()
-  const { inicio, etiqueta } = fechaLima()
+  const inicio  = inicioDiaLima(0)
+  const etiqueta = etiquetaFechaLima()
 
   // Ferreterías con resumen diario activo y teléfono del dueño configurado
   const { data: ferreterias, error } = await supabase

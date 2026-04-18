@@ -1,7 +1,13 @@
 'use client'
 
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, ResponsiveContainer,
+} from 'recharts'
+
 interface DayData {
-  dia: string      // "lun", "mar", etc.
+  dia: string      // etiqueta del eje X
   pedidos: number
   cotizaciones: number
 }
@@ -10,91 +16,59 @@ interface ActivityChartProps {
   datos: DayData[]
 }
 
+const TOOLTIP_STYLE = {
+  fontSize: 12,
+  borderRadius: 8,
+  border: '1px solid #e5e7eb',
+  boxShadow: '0 1px 4px rgba(0,0,0,.08)',
+}
+
+const LEGEND_FORMATTER = (value: string) => (
+  <span style={{ fontSize: 12, color: '#6b7280' }}>{value}</span>
+)
+
 export default function ActivityChart({ datos }: ActivityChartProps) {
-  const maxVal = Math.max(...datos.flatMap((d) => [d.pedidos, d.cotizaciones]), 1)
-
-  const W = 480
-  const H = 140
-  const padX = 8
-  const padY = 12
-  const barW = Math.floor((W - padX * 2) / datos.length / 2 - 4)
-  const gap = 3
-
-  function barHeight(val: number) {
-    return Math.round(((H - padY * 2) * val) / maxVal)
+  // ≤7 puntos → barras verticales; más → área suavizada
+  if (datos.length <= 7) {
+    return (
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={datos} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+          <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#9ca3af' }} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f9fafb' }} />
+          <Legend iconType="square" iconSize={10} formatter={LEGEND_FORMATTER} />
+          <Bar dataKey="cotizaciones" name="Cotizaciones" fill="#93c5fd" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="pedidos"      name="Pedidos"      fill="#fb923c" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    )
   }
 
-  function xPos(i: number) {
-    const slotW = (W - padX * 2) / datos.length
-    return padX + slotW * i + slotW / 2
-  }
-
+  // Gráfico de área para períodos largos (semana, mes, 30d)
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H + 20}`} className="w-full h-auto">
-        {/* Líneas guía */}
-        {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
-          const y = padY + (H - padY * 2) * (1 - pct)
-          return (
-            <line key={pct} x1={padX} x2={W - padX} y1={y} y2={y}
-              stroke="#f3f4f6" strokeWidth={1} />
-          )
-        })}
-
-        {/* Barras */}
-        {datos.map((d, i) => {
-          const cx = xPos(i)
-          const hPed = barHeight(d.pedidos)
-          const hCot = barHeight(d.cotizaciones)
-
-          return (
-            <g key={d.dia}>
-              {/* Barra cotizaciones (azul) */}
-              <rect
-                x={cx - barW - gap / 2}
-                y={H - padY - hCot}
-                width={barW}
-                height={hCot || 1}
-                rx={2}
-                fill="#93c5fd"
-                className="hover:fill-blue-400 transition-colors"
-              />
-              {/* Barra pedidos (naranja) */}
-              <rect
-                x={cx + gap / 2}
-                y={H - padY - hPed}
-                width={barW}
-                height={hPed || 1}
-                rx={2}
-                fill="#fb923c"
-                className="hover:fill-orange-400 transition-colors"
-              />
-              {/* Etiqueta día */}
-              <text
-                x={cx}
-                y={H + 15}
-                textAnchor="middle"
-                fontSize={10}
-                fill="#9ca3af"
-              >
-                {d.dia}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-
-      {/* Leyenda */}
-      <div className="flex items-center gap-4 mt-1 px-2">
-        <span className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className="w-3 h-3 rounded-sm bg-blue-300 inline-block" />
-          Cotizaciones
-        </span>
-        <span className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className="w-3 h-3 rounded-sm bg-orange-400 inline-block" />
-          Pedidos
-        </span>
-      </div>
-    </div>
+    <ResponsiveContainer width="100%" height={180}>
+      <AreaChart data={datos} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+        <defs>
+          <linearGradient id="gCot" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#93c5fd" stopOpacity={0.4} />
+            <stop offset="95%" stopColor="#93c5fd" stopOpacity={0}   />
+          </linearGradient>
+          <linearGradient id="gPed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor="#fb923c" stopOpacity={0.4} />
+            <stop offset="95%" stopColor="#fb923c" stopOpacity={0}   />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+        <XAxis dataKey="dia" tick={{ fontSize: 10, fill: '#9ca3af' }} interval="preserveStartEnd" />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
+        <Legend iconType="square" iconSize={10} formatter={LEGEND_FORMATTER} />
+        <Area type="monotone" dataKey="cotizaciones" name="Cotizaciones"
+          stroke="#93c5fd" strokeWidth={2} fill="url(#gCot)" />
+        <Area type="monotone" dataKey="pedidos" name="Pedidos"
+          stroke="#fb923c" strokeWidth={2} fill="url(#gPed)" />
+      </AreaChart>
+    </ResponsiveContainer>
   )
 }

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { checkPermiso } from '@/lib/auth/permisos'
+import { limaDiaAUTC, fechaLimaStr } from '@/lib/tiempo'
 
 export async function GET() {
   const session = await getSessionInfo()
@@ -35,7 +36,8 @@ export async function POST(request: Request) {
   const { repartidor_id, fecha } = body
   if (!repartidor_id) return NextResponse.json({ error: 'repartidor_id requerido' }, { status: 400 })
 
-  const fechaDia = fecha ?? new Date().toISOString().slice(0, 10)
+  // fechaDia es una fecha Lima "YYYY-MM-DD" (viene del frontend)
+  const fechaDia = fecha ?? fechaLimaStr(0)
   const supabase = await createClient()
 
   // Verify repartidor belongs to this ferretería
@@ -48,6 +50,9 @@ export async function POST(request: Request) {
 
   if (!rep) return NextResponse.json({ error: 'Repartidor no encontrado' }, { status: 404 })
 
+  // Límites UTC correctos para el día Lima solicitado
+  const { inicio: inicioUtc, fin: finUtc } = limaDiaAUTC(fechaDia)
+
   // Sum up cobrado_monto from entregado pedidos for this repartidor on this day
   const { data: pedidosDia } = await supabase
     .from('pedidos')
@@ -55,8 +60,8 @@ export async function POST(request: Request) {
     .eq('ferreteria_id', session.ferreteriaId)
     .eq('repartidor_id', repartidor_id)
     .eq('estado', 'entregado')
-    .gte('created_at', `${fechaDia}T00:00:00`)
-    .lt('created_at', `${fechaDia}T23:59:59`)
+    .gte('created_at', inicioUtc)
+    .lt('created_at', finUtc)
 
   const monto_esperado = pedidosDia?.reduce((s, p) => s + (p.total ?? 0), 0) ?? 0
   const monto_recibido = pedidosDia?.reduce((s, p) => s + (p.cobrado_monto ?? 0), 0) ?? 0

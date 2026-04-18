@@ -325,7 +325,7 @@ export async function handleIncomingMessage({
         (sum: number, i: typeof itemsParaPedido[number]) => sum + i.costo_unitario * i.cantidad, 0
       )
 
-      // Crear el pedido
+      // Crear el pedido — nace directamente en 'confirmado' (el cliente ya confirmó por WhatsApp)
       const { data: pedido } = await supabase
         .from('pedidos')
         .insert({
@@ -338,7 +338,7 @@ export async function handleIncomingMessage({
           direccion_entrega: dp.direccion_entrega ?? null,
           zona_delivery_id: zonaId,
           modalidad: dp.modalidad,
-          estado: 'pendiente',
+          estado: 'confirmado',
           total: cotizacion.total,
           costo_total: costoTotal,
         })
@@ -354,6 +354,27 @@ export async function handleIncomingMessage({
           itemsParaPedido.map((i: typeof itemsParaPedido[number]) => ({ pedido_id: pedido.id, ...i }))
         )
       }
+
+      // Descontar stock (el pedido nace confirmado, no pasa por la API de dashboard)
+      supabase.rpc('reducir_stock_pedido', { p_pedido_id: pedido.id })
+        .then(({ error: e }) => {
+          if (e) console.error('[Bot] Error descontando stock:', e.message)
+          else console.log(`[Bot] Stock descontado para pedido ${pedido.id}`)
+        })
+
+      // Marcar la cotización como aprobada (limpia la alerta del dashboard)
+      await supabase
+        .from('cotizaciones')
+        .update({ estado: 'aprobada' })
+        .eq('id', cotizacion.id)
+
+      // Generar y enviar comprobante automáticamente (fire-and-forget)
+      generarYEnviarComprobante({
+        pedidoId: pedido.id,
+        ferreteriaId: ferreteria.id,
+      }).catch((err) => {
+        console.error('[Bot] Error generando comprobante:', err)
+      })
 
       // Actualizar cliente con nombre si no lo tenía
       await supabase.from('clientes')
@@ -377,11 +398,11 @@ export async function handleIncomingMessage({
         : `Recojo en tienda — ${ferreteria.direccion ?? 'consultar dirección'}`
 
       mensajeFinal =
-        `✅ *Pedido registrado — ${numeroPedido}*\n\n` +
+        `✅ *Pedido confirmado — ${numeroPedido}*\n\n` +
         `${lineasProductos}\n\n` +
         `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
         `${modalidadTexto}\n\n` +
-        `El encargado lo confirmará en breve. ¡Gracias, ${dp.nombre_cliente}! 🙏`
+        `¡Tu pedido ya está confirmado y lo estamos preparando! Gracias, ${dp.nombre_cliente} 🙏`
 
       // ── Enviar instrucciones de pago si hay métodos digitales configurados
       const metodosActivos: string[] = (ferreteria as any).metodos_pago_activos ?? []
