@@ -318,6 +318,11 @@ export async function POST(request: Request) {
     await enviarMensaje({ from: telefonoEnvio, to: telefonoCliente, texto: respuesta, apiKey: tenantApiKey })
     console.log(`[Webhook] ENVIADO OK a ${telefonoCliente} (${respuesta.length} chars)`)
 
+    // Marcar conexión YCloud como activa (fire & forget)
+    void supabase.from('configuracion_ycloud')
+      .update({ estado_conexion: 'activo', ultimo_mensaje_at: new Date().toISOString() })
+      .eq('ferreteria_id', ferreteria.id)
+
     if (mensajesExtra?.length) {
       for (const extra of mensajesExtra) {
         try {
@@ -334,7 +339,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
 
   } catch (error) {
-    console.error('[Webhook] ERROR:', error instanceof Error ? error.message : error)
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('[Webhook] ERROR:', errMsg)
+
+    // Registrar error en configuracion_ycloud (fire & forget)
+    void supabase.from('configuracion_ycloud')
+      .update({
+        estado_conexion: 'error',
+        ultimo_error: errMsg.slice(0, 500),
+        ultimo_error_at: new Date().toISOString(),
+      })
+      .eq('ferreteria_id', ferreteria.id)
+
     try {
       await enviarMensaje({
         from: telefonoEnvio, to: telefonoCliente,
