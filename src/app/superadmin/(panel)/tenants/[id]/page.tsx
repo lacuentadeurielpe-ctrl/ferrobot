@@ -84,6 +84,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           tenantId={id}
           estadoActual={ferreteria.estado_tenant ?? 'trial'}
           nombre={ferreteria.nombre}
+          ycloudConfigurado={!!ycloudConfig}
         />
       </div>
 

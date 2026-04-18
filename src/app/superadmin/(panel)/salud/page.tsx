@@ -1,6 +1,7 @@
-// /superadmin/salud — Salud del sistema: incidencias activas, estado YCloud
+// /superadmin/salud — Salud del sistema: incidencias activas, estado YCloud, APIs
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkAllApis } from '@/lib/api-health'
 import ResolverIncidencia from './ResolverIncidencia'
 
 export const revalidate = 0
@@ -16,7 +17,6 @@ async function getIncidencias() {
     `)
     .eq('resuelto', false)
     .order('created_at', { ascending: false })
-
   return data ?? []
 }
 
@@ -26,7 +26,6 @@ async function getYCloudStatus() {
     .from('configuracion_ycloud')
     .select('id, numero_whatsapp, estado_conexion, ultimo_mensaje_at, ultimo_error, ferreteria_id, ferreterias(nombre)')
     .order('estado_conexion')
-
   return data ?? []
 }
 
@@ -41,21 +40,22 @@ const TIPO_EMOJI: Record<string, string> = {
 }
 
 const CONEXION_COLORS: Record<string, string> = {
-  activo:      'text-green-400',
-  error:       'text-red-400',
+  activo:       'text-green-400',
+  error:        'text-red-400',
   desconectado: 'text-gray-400',
-  pendiente:   'text-yellow-400',
+  pendiente:    'text-yellow-400',
 }
 
 export default async function SaludPage() {
-  const [incidencias, ycloud] = await Promise.all([getIncidencias(), getYCloudStatus()])
+  const [incidencias, ycloud, apis] = await Promise.all([
+    getIncidencias(),
+    getYCloudStatus(),
+    checkAllApis(),
+  ])
 
-  const porTipo: Record<string, typeof incidencias> = {}
-  for (const inc of incidencias) {
-    const t = inc.tipo ?? 'otro'
-    if (!porTipo[t]) porTipo[t] = []
-    porTipo[t].push(inc)
-  }
+  const apisOk      = apis.filter((a) => a.status === 'ok').length
+  const apisError   = apis.filter((a) => a.status === 'error').length
+  const apisTotal   = apis.filter((a) => a.status !== 'no_configurado').length
 
   return (
     <div>
@@ -64,14 +64,60 @@ export default async function SaludPage() {
         <p className="text-gray-400 text-sm mt-1">
           {incidencias.length === 0
             ? 'Todo OK — sin incidencias activas 🎉'
-            : `${incidencias.length} incidencia${incidencias.length > 1 ? 's' : ''} sin resolver`
-          }
+            : `${incidencias.length} incidencia${incidencias.length > 1 ? 's' : ''} sin resolver`}
         </p>
       </div>
 
-      {/* Incidencias agrupadas */}
+      {/* ── Estado de APIs externas ───────────────────────────── */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-400">APIs de IA</h2>
+          <span className="text-xs text-gray-500">
+            {apisOk}/{apisTotal} operativas
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {apis.map((api) => {
+            const isOk    = api.status === 'ok'
+            const isError = api.status === 'error'
+            const isNoCfg = api.status === 'no_configurado'
+            return (
+              <div
+                key={api.nombre}
+                className={`rounded-xl border p-4 ${
+                  isOk    ? 'bg-green-950/20 border-green-900/50' :
+                  isError ? 'bg-red-950/20 border-red-900/50' :
+                            'bg-gray-900 border-gray-800'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-sm text-white">{api.nombre}</span>
+                  <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${
+                    isOk    ? 'bg-green-900/60 text-green-300' :
+                    isError ? 'bg-red-900/60 text-red-300' :
+                              'bg-gray-800 text-gray-500'
+                  }`}>
+                    {isOk ? '✓ OK' : isError ? '✗ Error' : '— Sin clave'}
+                  </span>
+                </div>
+                {api.latencia_ms !== null && (
+                  <p className="text-xs text-gray-500">{api.latencia_ms} ms</p>
+                )}
+                {api.detalle && (
+                  <p className={`text-xs mt-1 ${isError ? 'text-red-400' : 'text-gray-500'}`}>
+                    {api.detalle}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Incidencias activas ───────────────────────────────── */}
       {incidencias.length > 0 && (
         <div className="mb-8 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-400 mb-3">Incidencias sin resolver</h2>
           {incidencias.map((inc) => {
             const ferr = (inc as any).ferreterias
             return (
@@ -100,10 +146,18 @@ export default async function SaludPage() {
         </div>
       )}
 
-      {/* Estado de conexiones YCloud */}
+      {incidencias.length === 0 && (
+        <div className="mb-8 bg-green-950/10 border border-green-900/30 rounded-xl p-5 text-center">
+          <p className="text-green-400 text-sm font-medium">🎉 Sin incidencias activas</p>
+          <p className="text-gray-500 text-xs mt-1">Todos los sistemas funcionan correctamente</p>
+        </div>
+      )}
+
+      {/* ── Conexiones YCloud ─────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-800">
-          <h3 className="font-medium">Conexiones YCloud por tenant</h3>
+        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+          <h3 className="font-medium">Conexiones WhatsApp por tenant</h3>
+          <span className="text-xs text-gray-500">{ycloud.length} configuradas</span>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -123,12 +177,16 @@ export default async function SaludPage() {
               </tr>
             )}
             {ycloud.map((y) => {
-              const ferr = (y as any).ferreterias
+              const ferr  = (y as any).ferreterias
               const estado = y.estado_conexion ?? 'pendiente'
               return (
                 <tr key={y.id} className="hover:bg-gray-800/30">
-                  <td className="px-4 py-3 text-white">{ferr?.nombre ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-400 font-mono text-xs">{y.numero_whatsapp}</td>
+                  <td className="px-4 py-3">
+                    <a href={`/superadmin/tenants/${y.ferreteria_id}`} className="text-white hover:text-orange-400">
+                      {ferr?.nombre ?? '—'}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 font-mono text-xs">+{y.numero_whatsapp}</td>
                   <td className="px-4 py-3">
                     <span className={`font-medium ${CONEXION_COLORS[estado] ?? ''}`}>{estado}</span>
                     {y.ultimo_error && (
