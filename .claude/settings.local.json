@@ -41,7 +41,8 @@
       "Bash(cp \"src/app/superadmin/tenants/[id]/TenantActions.tsx\" \"src/app/superadmin/\\(panel\\)/tenants/[id]/TenantActions.tsx\")",
       "Bash(timeout 45 bash -c \"while true; do sleep 10; echo 'checking...'; done\")",
       "Bash(timeout 70 bash -c \"while true; do sleep 10; echo 'waiting...'; done\")",
-      "Bash(timeout 80 bash -c \"while true; do sleep 10; echo 'waiting...'; done\")"
+      "Bash(timeout 80 bash -c \"while true; do sleep 10; echo 'waiting...'; done\")",
+      "Bash(timeout 90 bash -c \"while true; do sleep 15; echo 'checking...'; done\")"
     ]
   }
 }

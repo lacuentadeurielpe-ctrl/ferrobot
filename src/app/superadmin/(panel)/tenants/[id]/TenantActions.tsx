@@ -4,15 +4,16 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Props {
-  tenantId:     string
-  estadoActual: string
-  nombre:       string
-  ycloudConfigurado: boolean
+  tenantId:            string
+  estadoActual:        string
+  nombre:              string
+  ycloudConfigurado:   boolean
+  creditosDisponibles: number
 }
 
 type Panel = 'none' | 'creditos' | 'ycloud'
 
-export default function TenantActions({ tenantId, estadoActual, nombre, ycloudConfigurado }: Props) {
+export default function TenantActions({ tenantId, estadoActual, nombre, ycloudConfigurado, creditosDisponibles }: Props) {
   const router   = useRouter()
   const [loading, setLoading] = useState(false)
   const [panel,   setPanel]   = useState<Panel>('none')
@@ -121,13 +122,42 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
       {/* Panel: Agregar créditos */}
       {panel === 'creditos' && (
         <div className="mt-2 p-4 bg-gray-800 border border-gray-700 rounded-xl space-y-3">
-          <p className="text-sm font-medium text-white">Agregar créditos</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-white">Agregar créditos</p>
+            <div className="text-right">
+              <p className="text-xs text-gray-500">Saldo actual</p>
+              <p className={`text-lg font-bold ${creditosDisponibles === 0 ? 'text-red-400' : creditosDisponibles < 100 ? 'text-yellow-400' : 'text-orange-400'}`}>
+                {creditosDisponibles.toLocaleString()} cr
+              </p>
+            </div>
+          </div>
+
+          {/* Atajos rápidos */}
           <div>
-            <label className="text-xs text-gray-400">Cantidad</label>
+            <label className="text-xs text-gray-400 mb-1 block">Cantidad rápida</label>
+            <div className="grid grid-cols-4 gap-1">
+              {[100, 500, 1000, 5000].map((n) => (
+                <button key={n} type="button" onClick={() => setCreditos(n)}
+                  className={`py-1 rounded text-xs border transition-colors ${creditos === n ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-600 text-gray-400 hover:border-gray-400'}`}>
+                  {n.toLocaleString()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-400">O ingresa cantidad exacta</label>
             <input type="number" value={creditos} onChange={(e) => setCreditos(Number(e.target.value))}
               min={1} max={100000}
               className="w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
           </div>
+
+          {creditos > 0 && (
+            <p className="text-xs text-gray-500">
+              Saldo resultante: <span className="text-orange-300 font-semibold">{(creditosDisponibles + creditos).toLocaleString()} cr</span>
+            </p>
+          )}
+
           <div>
             <label className="text-xs text-gray-400">Motivo</label>
             <select value={motivo} onChange={(e) => setMotivo(e.target.value)}
@@ -135,13 +165,13 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
               <option value="recarga_manual">Recarga manual</option>
               <option value="plan_mensual">Renovación plan mensual</option>
               <option value="compensacion">Compensación</option>
-              <option value="trial">Trial</option>
+              <option value="trial">Trial gratuito</option>
             </select>
           </div>
           <div className="flex gap-2">
             <button onClick={agregarCreditos} disabled={loading || creditos <= 0}
               className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm rounded-lg py-1.5 transition-colors">
-              {loading ? 'Procesando...' : 'Confirmar'}
+              {loading ? 'Procesando...' : `Agregar ${creditos.toLocaleString()} créditos`}
             </button>
             <button onClick={() => setPanel('none')} className="px-3 text-gray-400 hover:text-white text-sm">Cancelar</button>
           </div>
