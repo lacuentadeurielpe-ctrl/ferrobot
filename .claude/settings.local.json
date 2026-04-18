@@ -38,7 +38,8 @@
       "mcp__b8d22b11-8493-4a7b-83a2-22077bf04ef9__get_project",
       "Bash(node -e \"const c=require\\('crypto'\\); console.log\\('ENCRYPTION_KEY=' + c.randomBytes\\(32\\).toString\\('hex'\\)\\); console.log\\('SUPERADMIN_SECRET=' + c.randomBytes\\(32\\).toString\\('hex'\\)\\);\")",
       "Bash(cp \"src/app/superadmin/tenants/[id]/page.tsx\" \"src/app/superadmin/\\(panel\\)/tenants/[id]/page.tsx\")",
-      "Bash(cp \"src/app/superadmin/tenants/[id]/TenantActions.tsx\" \"src/app/superadmin/\\(panel\\)/tenants/[id]/TenantActions.tsx\")"
+      "Bash(cp \"src/app/superadmin/tenants/[id]/TenantActions.tsx\" \"src/app/superadmin/\\(panel\\)/tenants/[id]/TenantActions.tsx\")",
+      "Bash(timeout 45 bash -c \"while true; do sleep 10; echo 'checking...'; done\")"
     ]
   }
 }
