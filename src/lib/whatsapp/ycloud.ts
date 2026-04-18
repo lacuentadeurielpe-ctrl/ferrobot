@@ -186,9 +186,11 @@ export async function verificarFirmaWebhook(
   // YCloud puede enviar la firma con o sin el prefijo "sha256="
   const firmaLimpia = firma.replace(/^sha256=/, '')
 
-  console.log(`[YCloud] Firma esperada: ${expectedHex.slice(0, 16)}... recibida: ${firmaLimpia.slice(0, 16)}...`)
-
-  return expectedHex === firmaLimpia
+  const ok = expectedHex === firmaLimpia
+  if (!ok) {
+    console.error(`[YCloud][FIRMA] esperada=${expectedHex.slice(0, 20)} recibida=${firmaLimpia.slice(0, 20)} secret_prefix=${secretLimpio.slice(0, 6)}`)
+  }
+  return ok
 }
 
 // ── Tipos del payload de YCloud ──────────────────────────────────────────────
