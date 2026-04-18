@@ -2,8 +2,9 @@
 // Coordina: sesión → horario → AI → acciones → respuesta
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido } from '@/types/database'
-import { llamarDeepSeek } from '@/lib/ai/deepseek'
+import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, TipoTareaIA } from '@/types/database'
+import { llamarDeepSeek, type IntentBot } from '@/lib/ai/deepseek'
+import { llamarClaude, claudeDisponible, buildSystemPromptClaude } from '@/lib/ai/claude'
 import { buildSystemPrompt, buildHistorialMensajes } from '@/lib/ai/prompt'
 import { procesarItemsSolicitados, formatearCotizacion } from '@/lib/bot/catalog-search'
 import {
@@ -18,10 +19,44 @@ import { formatHora } from '@/lib/utils'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
+  tieneCreditos,
   verificarYDescontarCreditos,
   registrarMovimiento,
   respuestaModoBasico,
+  estimarCostoUsd,
 } from '@/lib/credits'
+import { MODELO_POR_TAREA } from '@/types/database'
+
+// ── Mapeo intent → tipo de tarea IA ──────────────────────────────────────────
+// Determina cuántos créditos cuesta y qué modelo corresponde usar.
+// Llamado DESPUÉS de obtener el intent de DeepSeek.
+function intentToTaskType(intent: IntentBot, mensajesEnContexto: number): TipoTareaIA {
+  switch (intent) {
+    case 'cotizacion':
+      return 'cotizacion'                         // 3 créditos — GPT-4o mini (o DS fallback)
+
+    case 'confirmar_pedido':
+    case 'recopilar_datos_pedido':
+    case 'orden_completa':
+    case 'modificar_pedido':
+      return 'pedido'                             // 3 créditos — GPT-4o mini (o DS fallback)
+
+    case 'atencion_cliente':
+      // Conversación larga sin resolución → escalar a Claude
+      return mensajesEnContexto > 8 ? 'situacion_compleja' : 'crm'   // 8 ó 1 crédito
+
+    case 'faq_horario':
+    case 'faq_direccion':
+    case 'faq_delivery':
+    case 'faq_pagos':
+    case 'solicitar_comprobante':
+    case 'estado_pedido':
+      return 'crm'                                // 1 crédito — DeepSeek
+
+    default:
+      return 'respuesta_simple'                   // 1 crédito — DeepSeek
+  }
+}
 
 interface HandleMessageParams {
   supabase: SupabaseClient
@@ -133,18 +168,18 @@ export async function handleIncomingMessage({
 
   const datosFlujo = convActual?.datos_flujo as DatosFlujoPedido | null
 
-  // ── 7. Verificar créditos IA ──────────────────────────────────────────────
-  const tareaIA = 'respuesta_simple' as const  // mayoría de mensajes = DeepSeek (1 crédito)
-  const creditosOk = await verificarYDescontarCreditos(ferreteria.id, tareaIA)
-
-  if (!creditosOk.ok) {
-    console.warn(`[Bot] Sin créditos para ferreteria=${ferreteria.id} motivo=${creditosOk.motivo}`)
+  // ── 7. Verificar créditos mínimos (1) sin descontar aún ─────────────────
+  // No sabemos el tipo de tarea hasta obtener el intent de DeepSeek.
+  // Verificamos que haya al menos 1 crédito antes de llamar al modelo.
+  const hayCreditos = await tieneCreditos(ferreteria.id, 'respuesta_simple')
+  if (!hayCreditos) {
+    console.warn(`[Bot] Sin créditos mínimos para ferreteria=${ferreteria.id}`)
     const msg = respuestaModoBasico()
     await guardarMensaje(supabase, conversacion.id, 'bot', msg)
     return { respuesta: msg, conversacionId: conversacion.id }
   }
 
-  // ── 8. Historial + llamada a DeepSeek ─────────────────────────────────────
+  // ── 8. Historial + llamada a DeepSeek (intent + respuesta) ────────────────
   const historial = await getHistorial(supabase, conversacion.id, maxContexto)
   const historialParaAI = historial.slice(0, -1)
 
@@ -160,15 +195,6 @@ export async function handleIncomingMessage({
       ...buildHistorialMensajes(historialParaAI),
       { role: 'user', content: textoMensaje },
     ])
-
-    // Registrar movimiento de créditos (fire-and-forget — no bloquea respuesta)
-    registrarMovimiento({
-      ferreteriaId: ferreteria.id,
-      tipoTarea: tareaIA,
-      conversacionId: conversacion.id,
-      origen: 'bot',
-    }).catch(() => {})
-
   } catch (error) {
     console.error('[Bot] Error DeepSeek:', error)
     const msg = 'Disculpe, tuvimos un inconveniente técnico. Por favor intente en un momento. 🙏'
@@ -176,7 +202,69 @@ export async function handleIncomingMessage({
     return { respuesta: msg, conversacionId: conversacion.id }
   }
 
-  // ── 8. Ejecutar acción según intent ───────────────────────────────────────
+  // ── 9. Routing de créditos y modelo según el intent detectado ────────────
+  const tareaIA = intentToTaskType(respuestaAI.intent, historialParaAI.length)
+  const modeloUsado = MODELO_POR_TAREA[tareaIA]
+
+  console.log(`[Bot] intent=${respuestaAI.intent} → tarea=${tareaIA} modelo=${modeloUsado}`)
+
+  // Descontar los créditos reales de la tarea (atómico)
+  const creditosOk = await verificarYDescontarCreditos(ferreteria.id, tareaIA)
+  if (!creditosOk.ok) {
+    // Ya consumimos la llamada a DeepSeek — igual respondemos, pero no descontamos más
+    console.warn(`[Bot] Créditos insuficientes para ${tareaIA} (necesitaba más de 1)`)
+    // Registrar al menos 1 crédito consumido (lo mínimo que teníamos)
+    registrarMovimiento({
+      ferreteriaId: ferreteria.id,
+      tipoTarea:    'respuesta_simple',
+      conversacionId: conversacion.id,
+      origen: 'bot',
+    }).catch(() => {})
+  } else {
+    // Registrar movimiento con datos reales (fire-and-forget)
+    registrarMovimiento({
+      ferreteriaId:   ferreteria.id,
+      tipoTarea:      tareaIA,
+      conversacionId: conversacion.id,
+      origen:         'bot',
+    }).catch(() => {})
+  }
+
+  // ── 10. Si la tarea es situacion_compleja y Claude está disponible ─────────
+  // Claude reemplaza la respuesta de DeepSeek con una más elaborada y empática.
+  if (tareaIA === 'situacion_compleja' && claudeDisponible()) {
+    try {
+      console.log(`[Bot] Escalando a Claude para situacion_compleja (${historialParaAI.length} mensajes)`)
+
+      const contextoResumen = historialParaAI
+        .slice(-6) // últimos 6 mensajes para el contexto de Claude
+        .map((m) => `${m.role === 'cliente' ? 'Cliente' : 'Bot'}: ${m.contenido}`)
+        .join('\n')
+
+      const systemPromptClaude = buildSystemPromptClaude({
+        nombreFerreteria: ferreteria.nombre,
+        nombreCliente:    nombreClienteGuardado,
+        contextoResumen,
+      })
+
+      const mensajesParaClaude = [
+        ...buildHistorialMensajes(historialParaAI.slice(-6)),
+        { role: 'user' as const, content: textoMensaje },
+      ]
+
+      const respuestaClaude = await llamarClaude(systemPromptClaude, mensajesParaClaude)
+
+      // Reemplazar la respuesta de DeepSeek con la de Claude
+      respuestaAI = { ...respuestaAI, respuesta: respuestaClaude }
+
+      console.log(`[Bot] Claude respondió (${respuestaClaude.length} chars)`)
+    } catch (e) {
+      console.error('[Bot] Error llamando a Claude — usando respuesta de DeepSeek:', e)
+      // Fallback: usar la respuesta de DeepSeek (ya está en respuestaAI)
+    }
+  }
+
+  // ── 11. Ejecutar acción según intent ─────────────────────────────────────
   let mensajeFinal = respuestaAI.respuesta
   const mensajesExtra: MensajeExtra[] = []
 
