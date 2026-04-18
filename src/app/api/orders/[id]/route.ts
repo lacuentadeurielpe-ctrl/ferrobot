@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { generarYEnviarComprobante } from '@/lib/pdf/generar-comprobante'
+import { getYCloudApiKey } from '@/lib/tenant'
 
 const ESTADOS_VALIDOS = ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado', 'cancelado']
 
@@ -103,18 +104,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       })
   }
 
-  // Enviar notificación WhatsApp al cliente si hay API key y el estado lo amerita
-  if (body.estado && process.env.YCLOUD_API_KEY && process.env.YCLOUD_API_KEY !== 'your_ycloud_api_key') {
+  // Enviar notificación WhatsApp al cliente si el estado lo amerita
+  if (body.estado) {
     const msg = mensajeEstado(data.numero_pedido, body.estado, ferreteria.nombre)
     const telefono = (data.clientes as any)?.telefono ?? data.telefono_cliente
 
     if (msg && telefono) {
       try {
-        await enviarMensaje({
-          from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
-          to: telefono,
-          texto: msg,
-        })
+        const apiKey = await getYCloudApiKey(ferreteria.id)
+        if (apiKey) {
+          await enviarMensaje({
+            from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
+            to: telefono,
+            texto: msg,
+            apiKey,
+          })
+        }
       } catch (e) {
         console.error('[API] Error enviando notificación de estado:', e)
         // No fallar — el estado ya se actualizó
@@ -123,7 +128,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   // Modo libre: notificar a todos los repartidores activos con teléfono al confirmar
-  if (body.estado === 'confirmado' && data.modalidad === 'delivery' && (ferreteria as any).modo_asignacion_delivery === 'libre' && process.env.YCLOUD_API_KEY) {
+  if (body.estado === 'confirmado' && data.modalidad === 'delivery' && (ferreteria as any).modo_asignacion_delivery === 'libre') {
     const { data: repartidores } = await supabase
       .from('repartidores')
       .select('id, nombre, telefono, token')
@@ -137,25 +142,33 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const zona = (data as any).zonas_delivery?.nombre ?? null
       const nombre = (data.clientes as any)?.nombre ?? data.nombre_cliente ?? 'Cliente'
 
-      for (const rep of repartidores) {
-        const msg = `🚚 *Nuevo pedido disponible — ${ferreteria.nombre}*\n\nPedido: *${data.numero_pedido}*\nCliente: ${nombre}${zona ? `\nZona: ${zona}` : ''}\nTotal: S/ ${data.total.toFixed(2)}\n\n👉 Entra a tu app para aceptarlo:\n${baseUrl}/delivery/${rep.token}`
-        enviarMensaje({
-          from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
-          to: rep.telefono!,
-          texto: msg,
-        }).catch((e) => console.error(`[ModoLibre] Error notificando a ${rep.nombre}:`, e))
-      }
+      // Fire-and-forget — no bloquear la respuesta
+      getYCloudApiKey(ferreteria.id).then((apiKey) => {
+        if (!apiKey) return
+        for (const rep of repartidores) {
+          const msg = `🚚 *Nuevo pedido disponible — ${ferreteria.nombre}*\n\nPedido: *${data.numero_pedido}*\nCliente: ${nombre}${zona ? `\nZona: ${zona}` : ''}\nTotal: S/ ${data.total.toFixed(2)}\n\n👉 Entra a tu app para aceptarlo:\n${baseUrl}/delivery/${rep.token}`
+          enviarMensaje({
+            from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
+            to: rep.telefono!,
+            texto: msg,
+            apiKey,
+          }).catch((e) => console.error(`[ModoLibre] Error notificando a ${rep.nombre}:`, e))
+        }
+      }).catch(() => {})
     }
   }
 
   // Generar y enviar comprobante automáticamente al confirmar el pedido
   if (body.estado === 'confirmado') {
-    generarYEnviarComprobante({
-      pedidoId: id,
-      ferreteriaId: ferreteria.id,
-    }).catch((err) => {
-      console.error('[Comprobante] Error generando automáticamente:', err)
-    })
+    getYCloudApiKey(ferreteria.id).then((ycloudApiKey) => {
+      generarYEnviarComprobante({
+        pedidoId: id,
+        ferreteriaId: ferreteria.id,
+        ycloudApiKey,
+      }).catch((err) => {
+        console.error('[Comprobante] Error generando automáticamente:', err)
+      })
+    }).catch(() => {})
   }
 
   return NextResponse.json(data)

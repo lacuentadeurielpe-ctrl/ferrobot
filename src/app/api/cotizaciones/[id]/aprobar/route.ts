@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { formatPEN } from '@/lib/utils'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { getYCloudApiKey } from '@/lib/tenant'
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionInfo()
@@ -80,13 +81,17 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
 
   // Enviar por WhatsApp si hay API key
   const telefonoCliente = (cotizacion.clientes as any)?.telefono
-  if (telefonoCliente && process.env.YCLOUD_API_KEY && process.env.YCLOUD_API_KEY !== 'your_ycloud_api_key') {
+  if (telefonoCliente) {
     try {
-      await enviarMensaje({
-        from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
-        to: telefonoCliente,
-        texto: mensaje,
-      })
+      const apiKey = await getYCloudApiKey(ferreteria.id)
+      if (apiKey) {
+        await enviarMensaje({
+          from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
+          to: telefonoCliente,
+          texto: mensaje,
+          apiKey,
+        })
+      }
     } catch (e) {
       console.error('[API] Error enviando cotización aprobada:', e)
     }

@@ -7,6 +7,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { formatPEN } from '@/lib/utils'
 import { inicioDiaLima, etiquetaFechaLima } from '@/lib/tiempo'
+import { getYCloudApiKey } from '@/lib/tenant'
 
 function adminClient() {
   return createAdminClient(
@@ -150,10 +151,12 @@ export async function GET(request: Request) {
 
       const texto = lineas.join('\n')
 
+      const apiKey = await getYCloudApiKey(ferreteria.id)
       await enviarMensaje({
         from: ferreteria.telefono_whatsapp,
         to: ferreteria.telefono_dueno!,
         texto,
+        apiKey,
       })
 
       resultados.push({ ferreteria: nombre, ok: true })

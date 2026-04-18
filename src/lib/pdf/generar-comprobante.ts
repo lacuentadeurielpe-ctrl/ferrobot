@@ -19,10 +19,13 @@ export async function generarYEnviarComprobante({
   pedidoId,
   ferreteriaId,
   esProforma = false,
+  ycloudApiKey,
 }: {
   pedidoId: string
   ferreteriaId: string
   esProforma?: boolean
+  /** api_key del tenant (desencriptada). Si no se pasa, usa YCLOUD_API_KEY del env */
+  ycloudApiKey?: string
 }): Promise<ResultadoComprobante> {
   const supabase = createAdminClient()
 
@@ -78,8 +81,9 @@ export async function generarYEnviarComprobante({
       : `📄 *${ferreteria.nombre}*\nAquí está tu comprobante N° ${existente.numero_comprobante} del pedido *${pedido.numero_pedido}*. 🙏`
 
     try {
-      if (process.env.YCLOUD_API_KEY) {
-        await enviarDocumento({ from: fromR, to: telefonoClienteR, pdfUrl: existente.pdf_url, filename: filenameR, caption: captionR })
+      const apiKeyR = ycloudApiKey ?? process.env.YCLOUD_API_KEY
+      if (apiKeyR) {
+        await enviarDocumento({ from: fromR, to: telefonoClienteR, pdfUrl: existente.pdf_url, filename: filenameR, caption: captionR, apiKey: ycloudApiKey })
         await supabase.from('comprobantes').update({ enviado_whatsapp: true, enviado_at: new Date().toISOString() }).eq('id', existente.id)
       }
     } catch (_) { /* no fallar */ }
@@ -188,15 +192,16 @@ export async function generarYEnviarComprobante({
   let enviado = false
   let errorEnvio: string | null = null
 
+  const apiKeyEnvio = ycloudApiKey ?? process.env.YCLOUD_API_KEY
   for (let intento = 0; intento < 2; intento++) {
     try {
-      if (process.env.YCLOUD_API_KEY && process.env.YCLOUD_API_KEY !== 'your_ycloud_api_key') {
-        await enviarDocumento({ from, to: telefonoCliente, pdfUrl: publicUrl, filename, caption })
+      if (apiKeyEnvio && apiKeyEnvio !== 'your_ycloud_api_key') {
+        await enviarDocumento({ from, to: telefonoCliente, pdfUrl: publicUrl, filename, caption, apiKey: ycloudApiKey })
         enviado = true
         break
       } else {
         // YCloud no configurado — registrar pero no fallar
-        errorEnvio = 'YCLOUD_API_KEY no configurado'
+        errorEnvio = 'YCloud API key no configurada'
         break
       }
     } catch (err) {

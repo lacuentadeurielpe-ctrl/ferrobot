@@ -337,3 +337,170 @@ export interface MetricasDashboard {
   ingresos_hoy: number
   productos_mas_consultados: { nombre: string; consultas: number }[]
 }
+
+// ══════════════════════════════════════════════════════════════════
+// SAAS MULTI-TENANT — nuevas interfaces
+// ══════════════════════════════════════════════════════════════════
+
+export type NivelSuperadmin = 'admin' | 'soporte'
+export type EstadoTenant = 'trial' | 'activo' | 'suspendido' | 'cancelado'
+export type EstadoSuscripcion = 'trial' | 'activo' | 'vencido' | 'suspendido'
+export type EstadoConexionYCloud = 'activo' | 'error' | 'desconectado' | 'pendiente'
+export type EstadoConexionMP = 'conectado' | 'expirado' | 'error' | 'desconectado'
+export type OrigenCredito = 'bot' | 'inventario' | 'reporte' | 'crm' | 'pago'
+export type TipoIncidencia =
+  | 'ycloud_error'
+  | 'ia_error'
+  | 'mp_error'
+  | 'webhook_caido'
+  | 'creditos_agotados'
+  | 'creditos_bajos'
+  | 'token_expirado'
+
+// Tipo de tarea IA → modelo y créditos
+export type TipoTareaIA =
+  | 'respuesta_simple'     // DeepSeek — 1 crédito
+  | 'cotizacion'           // GPT-4o mini — 3 créditos
+  | 'pedido'               // GPT-4o mini — 3 créditos
+  | 'situacion_compleja'   // Claude — 8 créditos
+  | 'audio_whisper'        // Whisper — 2 créditos
+  | 'imagen_vision'        // GPT-4o Vision — 4 créditos
+  | 'analisis_inventario'  // DeepSeek — 2 créditos
+  | 'reporte'              // GPT-4o mini — 5 créditos
+  | 'crm'                  // DeepSeek — 1 crédito
+
+export const COSTO_CREDITOS: Record<TipoTareaIA, number> = {
+  respuesta_simple:   1,
+  cotizacion:         3,
+  pedido:             3,
+  situacion_compleja: 8,
+  audio_whisper:      2,
+  imagen_vision:      4,
+  analisis_inventario: 2,
+  reporte:            5,
+  crm:                1,
+}
+
+export const MODELO_POR_TAREA: Record<TipoTareaIA, string> = {
+  respuesta_simple:    'deepseek-chat',
+  cotizacion:          'gpt-4o-mini',
+  pedido:              'gpt-4o-mini',
+  situacion_compleja:  'claude-3-5-sonnet-20241022',
+  audio_whisper:       'whisper-1',
+  imagen_vision:       'gpt-4o-mini',
+  analisis_inventario: 'deepseek-chat',
+  reporte:             'gpt-4o-mini',
+  crm:                 'deepseek-chat',
+}
+
+export interface Superadmin {
+  id: string
+  user_id: string
+  nombre: string
+  email: string
+  nivel: NivelSuperadmin
+  activo: boolean
+  created_at: string
+}
+
+export interface Plan {
+  id: string
+  nombre: string
+  creditos_mes: number
+  precio_mensual: number
+  precio_exceso: number
+  activo: boolean
+  created_at: string
+}
+
+export interface Suscripcion {
+  id: string
+  ferreteria_id: string
+  plan_id: string
+  creditos_disponibles: number
+  creditos_del_mes: number
+  creditos_extra: number
+  ciclo_inicio: string | null      // DATE
+  ciclo_fin: string | null         // DATE
+  proximo_cobro: string | null     // DATE
+  estado: EstadoSuscripcion
+  created_at: string
+  updated_at: string
+  // joins
+  planes?: Plan
+}
+
+export interface MovimientoCredito {
+  id: string
+  ferreteria_id: string
+  tipo_tarea: TipoTareaIA
+  modelo_usado: string
+  creditos_usados: number
+  tokens_entrada: number | null
+  tokens_salida: number | null
+  costo_usd: number | null
+  conversacion_id: string | null
+  origen: OrigenCredito
+  created_at: string
+}
+
+export interface RecargaCreditos {
+  id: string
+  ferreteria_id: string
+  creditos: number
+  motivo: string
+  monto_cobrado: number
+  agregado_por: string | null
+  created_at: string
+}
+
+export interface ConfiguracionYCloud {
+  id: string
+  ferreteria_id: string
+  api_key_enc: string              // encriptado en BD, desencriptado en memoria
+  webhook_secret_enc: string | null
+  numero_whatsapp: string
+  estado_conexion: EstadoConexionYCloud
+  ultimo_mensaje_at: string | null
+  ultimo_error: string | null
+  ultimo_error_at: string | null
+  configurado_por: string | null
+  configurado_at: string
+  updated_at: string
+}
+
+export interface ConfiguracionMercadoPago {
+  id: string
+  ferreteria_id: string
+  access_token_enc: string | null
+  refresh_token_enc: string | null
+  mp_user_id: string | null
+  mp_email: string | null
+  expira_at: string | null
+  estado: EstadoConexionMP
+  conectado_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IncidenciaSistema {
+  id: string
+  ferreteria_id: string | null
+  tipo: TipoIncidencia
+  detalle: string | null
+  resuelto: boolean
+  resuelto_at: string | null
+  created_at: string
+}
+
+// Ferreteria extendida con campos SaaS
+export interface FerreteriaSaaS extends Ferreteria {
+  plan_id: string | null
+  estado_tenant: EstadoTenant
+  trial_hasta: string | null
+  suspendido_motivo: string | null
+  suspendido_at: string | null
+  // joins
+  planes?: Plan
+  suscripciones?: Suscripcion
+}

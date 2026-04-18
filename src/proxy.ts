@@ -2,7 +2,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Rutas que NO requieren autenticación
+// Rutas que NO requieren autenticación de ferretería
 const RUTAS_PUBLICAS = [
   '/auth/login',
   '/auth/register',
@@ -12,6 +12,10 @@ const RUTAS_PUBLICAS = [
   '/api/delivery', // API del repartidor — autenticación por token en URL
   '/invite',      // Página de aceptar invitación de equipo (token público)
   '/delivery',    // Interfaz del repartidor en su celular (token público)
+  // Panel de superadmin — tiene su propio sistema de autenticación
+  // (Supabase Auth + tabla superadmins + header x-superadmin-secret)
+  '/superadmin',
+  '/api/superadmin',
 ]
 
 export async function proxy(request: NextRequest) {

@@ -17,6 +17,11 @@ import {
 import { formatHora } from '@/lib/utils'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  verificarYDescontarCreditos,
+  registrarMovimiento,
+  respuestaModoBasico,
+} from '@/lib/credits'
 
 interface HandleMessageParams {
   supabase: SupabaseClient
@@ -24,6 +29,8 @@ interface HandleMessageParams {
   telefonoCliente: string
   textoMensaje: string
   ycloudMessageId?: string
+  /** api_key del tenant para enviar WhatsApp (desencriptada) */
+  ycloudApiKey?: string
 }
 
 type MensajeExtra =
@@ -62,6 +69,7 @@ export async function handleIncomingMessage({
   telefonoCliente,
   textoMensaje,
   ycloudMessageId,
+  ycloudApiKey,
 }: HandleMessageParams): Promise<HandleMessageResult> {
 
   console.log(`[Bot] handleIncomingMessage INICIO — cliente=${telefonoCliente} texto="${textoMensaje.slice(0, 40)}"`)
@@ -125,7 +133,18 @@ export async function handleIncomingMessage({
 
   const datosFlujo = convActual?.datos_flujo as DatosFlujoPedido | null
 
-  // ── 7. Historial + llamada a DeepSeek ─────────────────────────────────────
+  // ── 7. Verificar créditos IA ──────────────────────────────────────────────
+  const tareaIA = 'respuesta_simple' as const  // mayoría de mensajes = DeepSeek (1 crédito)
+  const creditosOk = await verificarYDescontarCreditos(ferreteria.id, tareaIA)
+
+  if (!creditosOk.ok) {
+    console.warn(`[Bot] Sin créditos para ferreteria=${ferreteria.id} motivo=${creditosOk.motivo}`)
+    const msg = respuestaModoBasico()
+    await guardarMensaje(supabase, conversacion.id, 'bot', msg)
+    return { respuesta: msg, conversacionId: conversacion.id }
+  }
+
+  // ── 8. Historial + llamada a DeepSeek ─────────────────────────────────────
   const historial = await getHistorial(supabase, conversacion.id, maxContexto)
   const historialParaAI = historial.slice(0, -1)
 
@@ -141,6 +160,15 @@ export async function handleIncomingMessage({
       ...buildHistorialMensajes(historialParaAI),
       { role: 'user', content: textoMensaje },
     ])
+
+    // Registrar movimiento de créditos (fire-and-forget — no bloquea respuesta)
+    registrarMovimiento({
+      ferreteriaId: ferreteria.id,
+      tipoTarea: tareaIA,
+      conversacionId: conversacion.id,
+      origen: 'bot',
+    }).catch(() => {})
+
   } catch (error) {
     console.error('[Bot] Error DeepSeek:', error)
     const msg = 'Disculpe, tuvimos un inconveniente técnico. Por favor intente en un momento. 🙏'
@@ -372,6 +400,7 @@ export async function handleIncomingMessage({
       generarYEnviarComprobante({
         pedidoId: pedido.id,
         ferreteriaId: ferreteria.id,
+        ycloudApiKey,
       }).catch((err) => {
         console.error('[Bot] Error generando comprobante:', err)
       })
@@ -610,6 +639,7 @@ export async function handleIncomingMessage({
         pedidoId: pedidoTarget.id,
         ferreteriaId: ferreteria.id,
         esProforma,
+        ycloudApiKey,
       })
 
       if (resultado.ok) {

@@ -1,11 +1,26 @@
-// Webhook principal de YCloud
-// Recibe mensajes entrantes de WhatsApp y los procesa con el bot
+// Webhook principal de YCloud — recibe mensajes entrantes de WhatsApp
+//
+// Flujo multi-tenant (ETAPA 1):
+// 1. Leer body text
+// 2. Parsear JSON para extraer el campo `to` (número de la ferretería)
+// 3. Identificar ferretería + cargar su configuracion_ycloud (api_key encriptada)
+// 4. Desencriptar api_key y webhook_secret
+// 5. Verificar firma HMAC con el webhook_secret del tenant
+// 6. Procesar mensaje con el bot usando la api_key del tenant
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { verificarFirmaWebhook, extraerMensaje, descargarMedia, type YCloudWebhookPayload, enviarMensaje, enviarImagen } from '@/lib/whatsapp/ycloud'
+import {
+  verificarFirmaWebhook,
+  extraerMensaje,
+  descargarMedia,
+  type YCloudWebhookPayload,
+  enviarMensaje,
+  enviarImagen,
+} from '@/lib/whatsapp/ycloud'
 import { handleIncomingMessage } from '@/lib/bot/message-handler'
 import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
+import { desencriptar } from '@/lib/encryption'
 
 // Vercel: máximo 30s de ejecución para esta ruta
 export const maxDuration = 30
@@ -18,6 +33,19 @@ export async function GET(request: Request) {
   return new Response('Webhook activo', { status: 200 })
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Extrae el número de la ferretería del payload sin necesitar la estructura completa */
+function extraerTelefonoFerreteria(payload: YCloudWebhookPayload): string | null {
+  const msg =
+    payload.data?.whatsappInboundMessage ??
+    payload.data?.whatsappMessage ??
+    payload.whatsappInboundMessage ??
+    payload.whatsappMessage ??
+    null
+  return msg?.to ?? null
+}
+
 export async function POST(request: Request) {
   let bodyText: string
 
@@ -27,17 +55,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Error leyendo body' }, { status: 400 })
   }
 
-  // ── 1. Verificar firma HMAC ────────────────────────────────────────────────
-  const firma = request.headers.get('x-ycloud-signature') ??
-                request.headers.get('x-ycloud-signature-256')
-
-  const firmaValida = await verificarFirmaWebhook(bodyText, firma)
-  if (!firmaValida) {
-    console.warn('[Webhook] Firma inválida rechazada')
-    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
-  }
-
-  // ── 2. Parsear payload ─────────────────────────────────────────────────────
+  // ── 1. Parsear payload para identificar tenant ────────────────────────────
   let payload: YCloudWebhookPayload
   try {
     payload = JSON.parse(bodyText)
@@ -51,7 +69,64 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  // ── 3. Extraer mensaje ─────────────────────────────────────────────────────
+  // ── 2. Identificar tenant por número receptor ─────────────────────────────
+  const telefonoRaw = extraerTelefonoFerreteria(payload)
+  const telefonoNorm = telefonoRaw?.replace(/^\+/, '') ?? ''
+
+  const supabase = createAdminClient()
+
+  const { data: ferreteria } = await supabase
+    .from('ferreterias')
+    .select('*')
+    .or(`telefono_whatsapp.eq.${telefonoNorm},telefono_whatsapp.eq.+${telefonoNorm}`)
+    .eq('activo', true)
+    .single()
+
+  if (!ferreteria) {
+    console.warn(`[Webhook] FERRETERIA_NO_ENCONTRADA numero=${telefonoRaw ?? 'desconocido'}`)
+    // Devolver 200 para que YCloud no reintente indefinidamente
+    return NextResponse.json({ ok: true })
+  }
+
+  // ── 3. Cargar credenciales YCloud del tenant ──────────────────────────────
+  const { data: ycloudConfig } = await supabase
+    .from('configuracion_ycloud')
+    .select('api_key_enc, webhook_secret_enc')
+    .eq('ferreteria_id', ferreteria.id)
+    .single()
+
+  // Desencriptar api_key del tenant (fallback al env var para compatibilidad)
+  let tenantApiKey: string | undefined
+  let tenantWebhookSecret: string | undefined
+
+  if (ycloudConfig?.api_key_enc) {
+    try {
+      tenantApiKey = await desencriptar(ycloudConfig.api_key_enc)
+    } catch (e) {
+      console.error(`[Webhook] Error desencriptando api_key para ferreteria ${ferreteria.id}:`, e)
+    }
+  }
+
+  if (ycloudConfig?.webhook_secret_enc) {
+    try {
+      tenantWebhookSecret = await desencriptar(ycloudConfig.webhook_secret_enc)
+    } catch (e) {
+      console.error(`[Webhook] Error desencriptando webhook_secret para ferreteria ${ferreteria.id}:`, e)
+    }
+  }
+
+  // ── 4. Verificar firma HMAC con el secret del tenant ─────────────────────
+  // Usa el secret del tenant; si no tiene, cae al YCLOUD_WEBHOOK_SECRET global
+  const firma = request.headers.get('x-ycloud-signature') ??
+                request.headers.get('x-ycloud-signature-256')
+
+  const firmaValida = await verificarFirmaWebhook(bodyText, firma, tenantWebhookSecret)
+  if (!firmaValida) {
+    console.warn(`[Webhook] Firma inválida rechazada (ferreteria=${ferreteria.id})`)
+    return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+  }
+
+  // ── 5. Extraer mensaje ────────────────────────────────────────────────────
   const mensaje = extraerMensaje(payload)
   if (!mensaje) {
     console.log('[Webhook] No se pudo extraer mensaje del payload')
@@ -61,21 +136,21 @@ export async function POST(request: Request) {
   const telefonoCliente = mensaje.from
   const telefonoFerreteria = mensaje.to
   const ycloudMessageId = mensaje.id
-  const telefonoNorm = telefonoFerreteria.replace(/^\+/, '')
+  const telefonoEnvio = telefonoFerreteria.replace(/^\+/, '')
 
-  // ── 4. Procesar según tipo de mensaje ────────────────────────────────────
+  // ── 6. Procesar según tipo de mensaje ─────────────────────────────────────
   let textoMensaje: string | null = null
-  let notaParaBot: string | null = null  // contexto adicional para el bot
+  let notaParaBot: string | null = null
 
   if (mensaje.type === 'text' && mensaje.text?.body?.trim()) {
     textoMensaje = mensaje.text.body.trim()
 
   } else if (mensaje.type === 'audio' && mensaje.audio?.id) {
-    // ── Audio: transcribir con Whisper ────────────────────────────────────
+    // Audio: transcribir con Whisper
     if (openAIDisponible()) {
       console.log(`[Webhook] Procesando audio ${mensaje.audio.id} con Whisper`)
       try {
-        const media = await descargarMedia(mensaje.audio.id)
+        const media = await descargarMedia(mensaje.audio.id, tenantApiKey)
         if (media) {
           const transcripcion = await transcribirAudio(media.buffer, media.mimeType)
           if (transcripcion) {
@@ -90,49 +165,36 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      // Sin OpenAI: pausar bot, avisar al cliente, notificar al dueño
+      // Sin transcripción: pausar bot y notificar
       try {
-        const supabaseAudio = createAdminClient()
-
-        // Identificar la ferretería por el número receptor
-        const { data: ferreteriaAudio } = await supabaseAudio
-          .from('ferreterias')
-          .select('id, telefono_dueno')
-          .or(`telefono_whatsapp.eq.${telefonoNorm},telefono_whatsapp.eq.+${telefonoNorm}`)
-          .eq('activo', true)
+        const { data: conv } = await supabase
+          .from('conversaciones')
+          .select('id')
+          .eq('ferreteria_id', ferreteria.id)
+          .eq('telefono_cliente', telefonoCliente)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .single()
 
-        if (ferreteriaAudio) {
-          // Pausar la conversación
-          const { data: conv } = await supabaseAudio
+        if (conv) {
+          await supabase
             .from('conversaciones')
-            .select('id')
-            .eq('ferreteria_id', ferreteriaAudio.id)
-            .eq('telefono_cliente', telefonoCliente)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-
-          if (conv) {
-            await supabaseAudio
-              .from('conversaciones')
-              .update({ bot_pausado: true, bot_pausado_at: new Date().toISOString() })
-              .eq('id', conv.id)
-          }
-
-          // Notificar al dueño si tiene teléfono configurado
-          if (ferreteriaAudio.telefono_dueno) {
-            await enviarMensaje({
-              from: telefonoNorm, to: ferreteriaAudio.telefono_dueno,
-              texto: `🎧 *Nota de voz sin procesar*\nEl cliente ${telefonoCliente} envió una nota de voz. Respóndele desde el panel o WhatsApp.\n\nEl bot está pausado para esta conversación.`,
-            }).catch(() => {})
-          }
+            .update({ bot_pausado: true, bot_pausado_at: new Date().toISOString() })
+            .eq('id', conv.id)
         }
 
-        // Avisar al cliente
+        if (ferreteria.telefono_dueno) {
+          await enviarMensaje({
+            from: telefonoEnvio, to: ferreteria.telefono_dueno,
+            texto: `🎧 *Nota de voz sin procesar*\nEl cliente ${telefonoCliente} envió una nota de voz. Respóndele desde el panel.\n\nEl bot está pausado.`,
+            apiKey: tenantApiKey,
+          }).catch(() => {})
+        }
+
         await enviarMensaje({
-          from: telefonoNorm, to: telefonoCliente,
+          from: telefonoEnvio, to: telefonoCliente,
           texto: '🎧 Recibí tu nota de voz. Un encargado te responde en breve 🙌',
+          apiKey: tenantApiKey,
         }).catch(() => {})
       } catch (e) {
         console.error('[Webhook] Error en fallback de audio:', e)
@@ -141,25 +203,22 @@ export async function POST(request: Request) {
     }
 
   } else if (mensaje.type === 'image' && mensaje.image?.id) {
-    // ── Imagen: analizar con GPT-4o Vision ────────────────────────────────
+    // Imagen: analizar con GPT-4o Vision
     if (openAIDisponible()) {
       console.log(`[Webhook] Procesando imagen ${mensaje.image.id} con Vision`)
       try {
-        const media = await descargarMedia(mensaje.image.id)
+        const media = await descargarMedia(mensaje.image.id, tenantApiKey)
         if (media) {
           const analisis = await analizarImagen(media.buffer, media.mimeType)
           if (analisis) {
             console.log(`[Webhook] Imagen tipo: ${analisis.tipo}`)
-
             if (analisis.tipo === 'lista_productos' && analisis.productosDetectados?.length) {
-              // Convertir lista detectada en texto de cotización
               const listaTexto = analisis.productosDetectados
                 .map((p) => `${p.cantidad ? p.cantidad + 'x ' : ''}${p.nombre}`)
                 .join(', ')
               textoMensaje = `Quiero cotizar: ${listaTexto}`
               notaParaBot = `[El cliente envió una imagen con una lista de productos. Vision detectó: ${listaTexto}]`
             } else {
-              // Para producto individual, consulta, etc — usar la descripción del análisis como texto
               textoMensaje = mensaje.image.caption || analisis.descripcion
               notaParaBot = `[El cliente envió una imagen. Análisis Vision: tipo=${analisis.tipo}, descripción="${analisis.descripcion}"]`
             }
@@ -171,27 +230,26 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      // Usar caption si lo hay, o fallback
       if (mensaje.image.caption?.trim()) {
         textoMensaje = mensaje.image.caption.trim()
       } else {
         await enviarMensaje({
-          from: telefonoNorm, to: telefonoCliente,
+          from: telefonoEnvio, to: telefonoCliente,
           texto: '📷 Vi tu foto! Cuéntame qué necesitas y te ayudo con precios o consultas 🙌',
+          apiKey: tenantApiKey,
         }).catch(() => {})
         return NextResponse.json({ ok: true })
       }
     }
 
   } else if (mensaje.type === 'document' && mensaje.document?.id) {
-    // ── Documento: intentar analizar con Vision (si es imagen-like) ──────
     const caption = mensaje.document.caption?.trim()
     const nombre = mensaje.document.filename ?? ''
     const esImagen = /\.(jpg|jpeg|png|webp)$/i.test(nombre)
 
     if (openAIDisponible() && esImagen) {
       try {
-        const media = await descargarMedia(mensaje.document.id)
+        const media = await descargarMedia(mensaje.document.id, tenantApiKey)
         if (media) {
           const analisis = await analizarImagen(media.buffer, media.mimeType)
           if (analisis) {
@@ -207,24 +265,22 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      // Usar caption si hay, o respuesta amable
       if (caption) {
         textoMensaje = caption
       } else {
         await enviarMensaje({
-          from: telefonoNorm, to: telefonoCliente,
+          from: telefonoEnvio, to: telefonoCliente,
           texto: `📄 Recibí tu ${nombre ? `archivo "${nombre}"` : 'documento'}. Para ayudarte mejor, cuéntame por texto qué necesitas 🙌`,
+          apiKey: tenantApiKey,
         }).catch(() => {})
         return NextResponse.json({ ok: true })
       }
     }
 
   } else if (mensaje.type === 'sticker') {
-    // Stickers: ignorar silenciosamente
     return NextResponse.json({ ok: true })
 
   } else {
-    // Tipo no soportado
     const tipos: Partial<Record<string, string>> = {
       video: '🎥 Recibí tu video, pero por ahora solo proceso texto e imágenes. Escríbeme qué necesitas 🙌',
       location: '📍 Vi tu ubicación. Si tienes consultas, escríbeme y te atiendo de inmediato 🙌',
@@ -232,7 +288,7 @@ export async function POST(request: Request) {
     }
     const respuesta = tipos[mensaje.type]
     if (respuesta) {
-      await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta }).catch(() => {})
+      await enviarMensaje({ from: telefonoEnvio, to: telefonoCliente, texto: respuesta, apiKey: tenantApiKey }).catch(() => {})
     }
     return NextResponse.json({ ok: true })
   }
@@ -241,22 +297,7 @@ export async function POST(request: Request) {
 
   console.log(`[Webhook] Mensaje de ${telefonoCliente}: "${textoMensaje.slice(0, 60)}"`)
 
-  // ── 5. Identificar la ferretería ─────────────────────────────────────────
-  const supabase = createAdminClient()
-
-  const { data: ferreteria } = await supabase
-    .from('ferreterias')
-    .select('*')
-    .or(`telefono_whatsapp.eq.${telefonoNorm},telefono_whatsapp.eq.+${telefonoNorm}`)
-    .eq('activo', true)
-    .single()
-
-  if (!ferreteria) {
-    console.warn(`[Webhook] FERRETERIA_NO_ENCONTRADA numero=${telefonoFerreteria}`)
-    return NextResponse.json({ ok: true })
-  }
-
-  // ── 6. Procesar con el bot ────────────────────────────────────────────────
+  // ── 7. Procesar con el bot ─────────────────────────────────────────────────
   const textoCompleto = notaParaBot ? `${textoMensaje}\n\n${notaParaBot}` : textoMensaje
 
   try {
@@ -266,6 +307,7 @@ export async function POST(request: Request) {
       telefonoCliente,
       textoMensaje: textoCompleto,
       ycloudMessageId,
+      ycloudApiKey: tenantApiKey,
     })
 
     if (!respuesta) {
@@ -273,17 +315,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
-    await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: respuesta })
+    await enviarMensaje({ from: telefonoEnvio, to: telefonoCliente, texto: respuesta, apiKey: tenantApiKey })
     console.log(`[Webhook] ENVIADO OK a ${telefonoCliente} (${respuesta.length} chars)`)
 
-    // Enviar mensajes adicionales (ej: datos de pago + QR Yape)
     if (mensajesExtra?.length) {
       for (const extra of mensajesExtra) {
         try {
           if (extra.tipo === 'texto') {
-            await enviarMensaje({ from: telefonoNorm, to: telefonoCliente, texto: extra.texto })
+            await enviarMensaje({ from: telefonoEnvio, to: telefonoCliente, texto: extra.texto, apiKey: tenantApiKey })
           } else if (extra.tipo === 'imagen') {
-            await enviarImagen({ from: telefonoNorm, to: telefonoCliente, imageUrl: extra.url, caption: extra.caption })
+            await enviarImagen({ from: telefonoEnvio, to: telefonoCliente, imageUrl: extra.url, caption: extra.caption, apiKey: tenantApiKey })
           }
         } catch (e) {
           console.error('[Webhook] Error enviando mensaje extra:', e instanceof Error ? e.message : e)
@@ -296,8 +337,9 @@ export async function POST(request: Request) {
     console.error('[Webhook] ERROR:', error instanceof Error ? error.message : error)
     try {
       await enviarMensaje({
-        from: telefonoNorm, to: telefonoCliente,
+        from: telefonoEnvio, to: telefonoCliente,
         texto: 'Disculpe, tuvimos un inconveniente. Por favor intente nuevamente en un momento. 🙏',
+        apiKey: tenantApiKey,
       })
     } catch { /* nada más que hacer */ }
     return NextResponse.json({ ok: true })

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
+import { getYCloudApiKey } from '@/lib/tenant'
 
 function adminClient() {
   return createClient(
@@ -47,13 +48,14 @@ export async function PATCH(
 
   // Emergencia: solo notifica al dueño, no cambia el estado del pedido
   if (accion === 'emergencia') {
-    if (process.env.YCLOUD_API_KEY && ferr?.telefono_whatsapp && ferr?.telefono_dueno) {
+    if (ferr?.telefono_whatsapp && ferr?.telefono_dueno) {
       const msg = `🚨 *EMERGENCIA — ${ferr.nombre}*\n\nRepartidor: *${repartidor.nombre}*\nPedido: *${pedidoActual.numero_pedido}*\n\n${mensaje_emergencia ?? 'Sin detalles adicionales.'}`
-      enviarMensaje({
-        from: ferr.telefono_whatsapp.replace(/^\+/, ''),
-        to: ferr.telefono_dueno,
-        texto: msg,
-      }).catch((e) => console.error('[Delivery] Error enviando emergencia:', e))
+      getYCloudApiKey(repartidor.ferreteria_id).then((apiKey) => {
+        if (apiKey) {
+          enviarMensaje({ from: ferr.telefono_whatsapp.replace(/^\+/, ''), to: ferr.telefono_dueno, texto: msg, apiKey })
+            .catch((e) => console.error('[Delivery] Error enviando emergencia:', e))
+        }
+      }).catch(() => {})
     }
     return NextResponse.json({ ok: true, mensaje: 'Emergencia reportada al dueño' })
   }
@@ -84,36 +86,40 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Notificar cliente si entregado
-  if (accion === 'entregado' && process.env.YCLOUD_API_KEY && ferr?.telefono_whatsapp) {
-    const telefono = (pedidoActual.clientes as any)?.telefono ?? pedidoActual.telefono_cliente
-    if (telefono) {
-      const msg = `🎉 *${ferr.nombre}*\n\nSu pedido *${pedidoActual.numero_pedido}* ha sido *entregado*. ¡Esperamos que todo sea de su agrado! 🙏`
-      enviarMensaje({
-        from: ferr.telefono_whatsapp.replace(/^\+/, ''),
-        to: telefono,
-        texto: msg,
-      }).catch((e) => console.error('[Delivery] Error notificando entrega:', e))
-    }
-  }
+  // Notificar cliente si entregado + dueño en incidencias/retornos (fire-and-forget)
+  if (ferr?.telefono_whatsapp && (accion === 'entregado' || accion === 'incidencia' || accion === 'retorno')) {
+    getYCloudApiKey(repartidor.ferreteria_id).then((apiKey) => {
+      if (!apiKey) return
+      const from = ferr.telefono_whatsapp.replace(/^\+/, '')
 
-  // Notificar dueño en incidencias y retornos
-  if ((accion === 'incidencia' || accion === 'retorno') && process.env.YCLOUD_API_KEY && ferr?.telefono_whatsapp && ferr?.telefono_dueno) {
-    const labelInc: Record<string, string> = {
-      cliente_ausente: 'Cliente no estaba',
-      pedido_incorrecto: 'Pedido incorrecto',
-      pago_rechazado: 'No pudo pagar',
-      otro: 'Otro problema',
-    }
-    const tipoLabel = labelInc[incidencia_tipo ?? 'otro'] ?? incidencia_tipo ?? 'Problema'
-    const emoji = accion === 'retorno' ? '🔄' : '⚠️'
-    const titulo = accion === 'retorno' ? 'RETORNO' : 'INCIDENCIA'
-    const msg = `${emoji} *${titulo} — ${ferr.nombre}*\n\nRepartidor: *${repartidor.nombre}*\nPedido: *${pedidoActual.numero_pedido}*\nProblema: ${tipoLabel}${incidencia_desc ? `\nDetalle: ${incidencia_desc}` : ''}`
-    enviarMensaje({
-      from: ferr.telefono_whatsapp.replace(/^\+/, ''),
-      to: ferr.telefono_dueno,
-      texto: msg,
-    }).catch((e) => console.error('[Delivery] Error notificando incidencia al dueño:', e))
+      if (accion === 'entregado') {
+        const telefono = (pedidoActual.clientes as any)?.telefono ?? pedidoActual.telefono_cliente
+        if (telefono) {
+          enviarMensaje({
+            from, to: telefono,
+            texto: `🎉 *${ferr.nombre}*\n\nSu pedido *${pedidoActual.numero_pedido}* ha sido *entregado*. ¡Esperamos que todo sea de su agrado! 🙏`,
+            apiKey,
+          }).catch((e) => console.error('[Delivery] Error notificando entrega:', e))
+        }
+      }
+
+      if ((accion === 'incidencia' || accion === 'retorno') && ferr?.telefono_dueno) {
+        const labelInc: Record<string, string> = {
+          cliente_ausente: 'Cliente no estaba',
+          pedido_incorrecto: 'Pedido incorrecto',
+          pago_rechazado: 'No pudo pagar',
+          otro: 'Otro problema',
+        }
+        const tipoLabel = labelInc[incidencia_tipo ?? 'otro'] ?? incidencia_tipo ?? 'Problema'
+        const emoji = accion === 'retorno' ? '🔄' : '⚠️'
+        const titulo = accion === 'retorno' ? 'RETORNO' : 'INCIDENCIA'
+        enviarMensaje({
+          from, to: ferr.telefono_dueno,
+          texto: `${emoji} *${titulo} — ${ferr.nombre}*\n\nRepartidor: *${repartidor.nombre}*\nPedido: *${pedidoActual.numero_pedido}*\nProblema: ${tipoLabel}${incidencia_desc ? `\nDetalle: ${incidencia_desc}` : ''}`,
+          apiKey,
+        }).catch((e) => console.error('[Delivery] Error notificando incidencia al dueño:', e))
+      }
+    }).catch(() => {})
   }
 
   return NextResponse.json(data)

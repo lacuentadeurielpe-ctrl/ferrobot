@@ -1,12 +1,25 @@
 // Cliente para la API de YCloud — envío de mensajes WhatsApp
 // Documentación: https://www.ycloud.com/docs
+//
+// A partir de ETAPA 1 (SaaS multi-tenant) cada ferretería tiene su propia
+// api_key en `configuracion_ycloud`. Las funciones aceptan `apiKey` como
+// parámetro opcional; si no se pasa, se usa la variable de entorno global
+// (útil en desarrollo local o para migraciones).
 
 const YCLOUD_BASE_URL = 'https://api.ycloud.com/v2'
 
+/** Resuelve la API key a usar: parámetro > variable de entorno */
+function resolverApiKey(apiKeyParam?: string): string {
+  const key = apiKeyParam ?? process.env.YCLOUD_API_KEY
+  if (!key) throw new Error('YCloud API key no configurada')
+  return key
+}
+
 interface EnviarMensajeParams {
-  from: string   // número WhatsApp de la ferretería
-  to: string     // número WhatsApp del cliente
+  from: string      // número WhatsApp de la ferretería (sin +)
+  to: string        // número WhatsApp del cliente (sin +)
   texto: string
+  apiKey?: string   // api_key del tenant — si no se pasa, usa env var
 }
 
 interface YCloudMensaje {
@@ -24,9 +37,13 @@ function e164(num: string): string {
 }
 
 // Envía un mensaje de texto por WhatsApp vía YCloud
-export async function enviarMensaje({ from, to, texto }: EnviarMensajeParams): Promise<YCloudMensaje> {
-  const apiKey = process.env.YCLOUD_API_KEY
-  if (!apiKey) throw new Error('YCLOUD_API_KEY no configurado')
+export async function enviarMensaje({
+  from,
+  to,
+  texto,
+  apiKey: apiKeyParam,
+}: EnviarMensajeParams): Promise<YCloudMensaje> {
+  const apiKey = resolverApiKey(apiKeyParam)
 
   const body = {
     from: e164(from),
@@ -59,14 +76,14 @@ interface EnviarDocumentoParams {
   pdfUrl: string    // URL pública del PDF en Supabase Storage
   filename: string  // nombre del archivo, ej: CP-000001.pdf
   caption?: string  // texto opcional junto al documento
+  apiKey?: string
 }
 
 // Envía un archivo PDF por WhatsApp vía YCloud
 export async function enviarDocumento({
-  from, to, pdfUrl, filename, caption,
+  from, to, pdfUrl, filename, caption, apiKey: apiKeyParam,
 }: EnviarDocumentoParams): Promise<YCloudMensaje> {
-  const apiKey = process.env.YCLOUD_API_KEY
-  if (!apiKey) throw new Error('YCLOUD_API_KEY no configurado')
+  const apiKey = resolverApiKey(apiKeyParam)
 
   const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages/sendDirectly`, {
     method: 'POST',
@@ -99,12 +116,14 @@ interface EnviarImagenParams {
   to: string
   imageUrl: string   // URL pública de la imagen
   caption?: string
+  apiKey?: string
 }
 
 // Envía una imagen por WhatsApp vía YCloud
-export async function enviarImagen({ from, to, imageUrl, caption }: EnviarImagenParams): Promise<YCloudMensaje> {
-  const apiKey = process.env.YCLOUD_API_KEY
-  if (!apiKey) throw new Error('YCLOUD_API_KEY no configurado')
+export async function enviarImagen({
+  from, to, imageUrl, caption, apiKey: apiKeyParam,
+}: EnviarImagenParams): Promise<YCloudMensaje> {
+  const apiKey = resolverApiKey(apiKeyParam)
 
   const response = await fetch(`${YCLOUD_BASE_URL}/whatsapp/messages/sendDirectly`, {
     method: 'POST',
@@ -133,14 +152,16 @@ export async function enviarImagen({ from, to, imageUrl, caption }: EnviarImagen
 
 // Verifica la firma HMAC-SHA256 del webhook de YCloud
 // Header: x-ycloud-signature
+// webhookSecret: si se pasa, usa ese; si no, busca YCLOUD_WEBHOOK_SECRET del env
 export async function verificarFirmaWebhook(
   body: string,
-  firma: string | null
+  firma: string | null,
+  webhookSecret?: string
 ): Promise<boolean> {
-  const secret = process.env.YCLOUD_WEBHOOK_SECRET
+  const secret = webhookSecret ?? process.env.YCLOUD_WEBHOOK_SECRET
   // Si no hay secret configurado, omitir verificación en desarrollo
   if (!secret) {
-    console.warn('[YCloud] YCLOUD_WEBHOOK_SECRET no configurado — saltando verificación de firma')
+    console.warn('[YCloud] webhook secret no configurado — saltando verificación de firma')
     return true
   }
   if (!firma) return false
@@ -215,8 +236,11 @@ interface YCloudMediaInfo {
  * Obtiene la URL de descarga de un archivo de media de YCloud.
  * YCloud expone: GET /v2/whatsapp/media/{mediaId}
  */
-export async function obtenerUrlMedia(mediaId: string): Promise<YCloudMediaInfo | null> {
-  const apiKey = process.env.YCLOUD_API_KEY
+export async function obtenerUrlMedia(
+  mediaId: string,
+  apiKeyParam?: string
+): Promise<YCloudMediaInfo | null> {
+  const apiKey = apiKeyParam ?? process.env.YCLOUD_API_KEY
   if (!apiKey) return null
 
   try {
@@ -228,7 +252,6 @@ export async function obtenerUrlMedia(mediaId: string): Promise<YCloudMediaInfo 
       return null
     }
     const data = await res.json()
-    // La respuesta puede tener url directa o una URL firmada
     return {
       url: data.url ?? data.link,
       mimeType: data.mimeType ?? data.mime_type ?? 'application/octet-stream',
@@ -244,11 +267,14 @@ export async function obtenerUrlMedia(mediaId: string): Promise<YCloudMediaInfo 
  * Descarga el contenido binario de un archivo de media.
  * Primero obtiene la URL de YCloud, luego descarga el archivo.
  */
-export async function descargarMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
-  const apiKey = process.env.YCLOUD_API_KEY
+export async function descargarMedia(
+  mediaId: string,
+  apiKeyParam?: string
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const apiKey = apiKeyParam ?? process.env.YCLOUD_API_KEY
   if (!apiKey) return null
 
-  const info = await obtenerUrlMedia(mediaId)
+  const info = await obtenerUrlMedia(mediaId, apiKey)
   if (!info?.url) return null
 
   try {

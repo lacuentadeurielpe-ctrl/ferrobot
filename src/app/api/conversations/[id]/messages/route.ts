@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { getYCloudApiKey } from '@/lib/tenant'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSessionInfo()
@@ -45,13 +46,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Enviar por WhatsApp vía YCloud
   const telefonoCliente = (conversacion.clientes as any)?.telefono
-  if (telefonoCliente && process.env.YCLOUD_API_KEY && process.env.YCLOUD_API_KEY !== 'your_ycloud_api_key') {
+  if (telefonoCliente) {
     try {
-      await enviarMensaje({
-        from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
-        to: telefonoCliente,
-        texto: texto.trim(),
-      })
+      const apiKey = await getYCloudApiKey(ferreteria.id)
+      if (apiKey) {
+        await enviarMensaje({
+          from: ferreteria.telefono_whatsapp.replace(/^\+/, ''),
+          to: telefonoCliente,
+          texto: texto.trim(),
+          apiKey,
+        })
+      }
     } catch (e) {
       console.error('[API] Error enviando mensaje del dueño por YCloud:', e)
       // No fallar — el mensaje ya quedó guardado en la BD
