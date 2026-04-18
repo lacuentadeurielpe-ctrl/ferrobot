@@ -10,10 +10,11 @@ interface Props {
 }
 
 const NAV_ITEMS = [
-  { href: '/superadmin',         label: 'Dashboard',  icon: '📊' },
-  { href: '/superadmin/tenants', label: 'Clientes',   icon: '🏪' },
-  { href: '/superadmin/ia',      label: 'IA',         icon: '🤖' },
-  { href: '/superadmin/salud',   label: 'Salud',      icon: '🔔' },
+  { href: '/superadmin',              label: 'Dashboard',    icon: '📊' },
+  { href: '/superadmin/tenants',      label: 'Clientes',     icon: '🏪' },
+  { href: '/superadmin/facturacion',  label: 'Facturación',  icon: '💰' },
+  { href: '/superadmin/ia',           label: 'IA',           icon: '🤖' },
+  { href: '/superadmin/salud',        label: 'Salud',        icon: '🔔' },
 ]
 
 export default function SuperadminNav({ session }: Props) {

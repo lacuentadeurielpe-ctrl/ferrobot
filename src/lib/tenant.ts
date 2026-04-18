@@ -23,9 +23,17 @@ export async function getYCloudApiKey(ferreteriaId: string): Promise<string | un
       return await desencriptar(data.api_key_enc)
     }
   } catch {
-    // Si no hay configuración o falla la desencriptación → usar env var
+    // Si no hay configuración o falla la desencriptación → usar env var global
   }
-  return process.env.YCLOUD_API_KEY
+
+  const globalKey = process.env.YCLOUD_API_KEY
+  if (globalKey) {
+    // DEPRECADO: La API key global de YCloud está siendo reemplazada por
+    // configuración por-tenant (configuracion_ycloud). Migrar usando
+    // Settings → Conexión WhatsApp en el panel de la ferretería.
+    console.warn(`[tenant] Usando YCLOUD_API_KEY global (fallback) para ferretería ${ferreteriaId}. Migrar a configuración por-tenant.`)
+  }
+  return globalKey
 }
 
 /**
@@ -46,5 +54,12 @@ export async function getYCloudWebhookSecret(ferreteriaId: string): Promise<stri
   } catch {
     // Si no hay configuración → usar env var global
   }
-  return process.env.YCLOUD_WEBHOOK_SECRET
+
+  const globalSecret = process.env.YCLOUD_WEBHOOK_SECRET
+  if (globalSecret) {
+    // DEPRECADO: El webhook secret global está siendo reemplazado por
+    // configuración por-tenant. Migrar usando Settings → Conexión WhatsApp.
+    console.warn(`[tenant] Usando YCLOUD_WEBHOOK_SECRET global (fallback) para ferretería ${ferreteriaId}. Migrar a configuración por-tenant.`)
+  }
+  return globalSecret
 }
