@@ -89,7 +89,12 @@ export default function OnboardingPage() {
         })
         const data = await res.json()
         if (!res.ok) {
-          setRucError(data.error ?? 'RUC no encontrado')
+          if (data.sinToken) {
+            // Token no configurado — no bloquear el flujo, solo informar
+            setRucError('Verificación SUNAT no disponible (configura APIS_NET_PE_TOKEN). Puedes continuar ingresando la razón social manualmente.')
+          } else {
+            setRucError(data.error ?? 'RUC no encontrado')
+          }
         } else {
           setRucVerificado(data)
           // Autocompletar razón social si el campo está vacío

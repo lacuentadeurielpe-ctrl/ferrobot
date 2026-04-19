@@ -1,20 +1,28 @@
-// POST /api/sunat/ruc — consulta datos de un RUC en la API pública de SUNAT
+// POST /api/sunat/ruc — consulta datos de un RUC en la API de SUNAT
 //
-// Seguridad:
-// - Requiere sesión autenticada (evita uso como proxy público abierto)
-// - No filtra por ferreteria_id porque SUNAT es datos públicos (cualquier RUC)
-// - El GUARDADO del ruc_cliente en BD siempre se hace filtrando por ferreteriaId
-//   en el punto de uso (bot, settings), no aquí
+// Requiere: sesión autenticada + variable APIS_NET_PE_TOKEN en Vercel
+// SUNAT es datos públicos; el guardado del ruc_cliente siempre usa ferreteriaId.
 
 import { NextResponse } from 'next/server'
 import { getSessionInfo } from '@/lib/auth/roles'
-import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
+import { consultarRuc, validarFormatoRuc, sunatDisponible } from '@/lib/sunat/ruc'
 
 export async function POST(request: Request) {
-  // Requiere sesión — evita proxy público
   const session = await getSessionInfo()
   if (!session) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  // Informar rápido si el token no está configurado
+  if (!sunatDisponible()) {
+    return NextResponse.json(
+      {
+        error:    'Verificación SUNAT no configurada',
+        sinToken: true,
+        ayuda:    'Registra en apis.net.pe (gratis), obtén tu token y agrégalo como APIS_NET_PE_TOKEN en Vercel → Settings → Environment Variables',
+      },
+      { status: 503 }
+    )
   }
 
   let body: { ruc?: string }
@@ -40,7 +48,11 @@ export async function POST(request: Request) {
   const resultado = await consultarRuc(ruc)
 
   if (!resultado.ok) {
-    return NextResponse.json({ error: resultado.error }, { status: 422 })
+    const status = resultado.sinToken ? 503 : 422
+    return NextResponse.json(
+      { error: resultado.error, sinToken: resultado.sinToken ?? false },
+      { status }
+    )
   }
 
   return NextResponse.json(resultado.data)

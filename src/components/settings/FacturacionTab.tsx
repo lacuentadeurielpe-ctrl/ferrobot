@@ -60,10 +60,13 @@ export default function FacturacionTab({ inicial }: Props) {
       })
       const d = await res.json()
       if (!res.ok) {
-        setRucError(d.error ?? 'RUC no encontrado en SUNAT')
+        if (d.sinToken) {
+          setRucError('⚙️ Verificación SUNAT no configurada. Registra gratis en apis.net.pe y agrega APIS_NET_PE_TOKEN en Vercel.')
+        } else {
+          setRucError(d.error ?? 'RUC no encontrado en SUNAT')
+        }
       } else {
         setRucInfo(d)
-        // Autocompletar razón social si el campo está vacío
         if (!data.razon_social?.trim()) {
           setData((prev) => ({ ...prev, razon_social: d.razonSocial }))
         }
