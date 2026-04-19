@@ -296,7 +296,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
         <p>En Nubefact → menú superior → <strong>Configuración → API - Integración</strong></p>
         <p>Verás una tabla con <strong>RUTA</strong> y <strong>TOKEN</strong> — copia ambos aquí.</p>
         <a
-          href="https://app.nubefact.com/api_tokens"
+          href="https://www.nubefact.com/api_tokens"
           target="_blank"
           rel="noopener noreferrer"
           className="text-blue-500 hover:underline inline-block pt-0.5"
