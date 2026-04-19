@@ -24,8 +24,8 @@ import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/ope
 import { desencriptar } from '@/lib/encryption'
 import { pausarBotPorDueno } from '@/lib/bot/session'
 
-// Vercel: máximo 30s de ejecución para esta ruta
-export const maxDuration = 30
+// Vercel: hasta 60s para poder hacer download + Whisper + DeepSeek en secuencia
+export const maxDuration = 60
 
 // YCloud hace un GET para verificar el webhook al configurarlo
 export async function GET(request: Request) {
@@ -188,17 +188,22 @@ export async function POST(request: Request) {
 
   } else if (mensaje.type === 'audio' && mensaje.audio?.id) {
     // Audio: transcribir con Whisper
+    console.log(`[Webhook] Audio recibido — openAI disponible: ${openAIDisponible()}, mediaId: ${mensaje.audio.id}`)
     if (openAIDisponible()) {
-      console.log(`[Webhook] Procesando audio ${mensaje.audio.id} con Whisper`)
       try {
         const media = await descargarMedia(mensaje.audio.id, tenantApiKey)
         if (media) {
+          console.log(`[Webhook] Audio descargado ${media.buffer.length}b mimeType=${media.mimeType} — enviando a Whisper`)
           const transcripcion = await transcribirAudio(media.buffer, media.mimeType)
           if (transcripcion) {
-            console.log(`[Webhook] Transcripción: "${transcripcion.slice(0, 80)}"`)
+            console.log(`[Webhook] Transcripción OK: "${transcripcion.slice(0, 80)}"`)
             textoMensaje = transcripcion
             notaParaBot = '[El cliente envió un audio de voz — este es el texto transcrito]'
+          } else {
+            console.warn('[Webhook] Whisper devolvió null — sin transcripción')
           }
+        } else {
+          console.warn('[Webhook] descargarMedia devolvió null para el audio')
         }
       } catch (e) {
         console.error('[Webhook] Error procesando audio:', e)
@@ -206,23 +211,9 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      // Sin transcripción: pausar bot y notificar
+      // Sin transcripción: pausar bot (via pausarBotPorDueno que busca por cliente) y notificar
       try {
-        const { data: conv } = await supabase
-          .from('conversaciones')
-          .select('id')
-          .eq('ferreteria_id', ferreteria.id)
-          .eq('telefono_cliente', telefonoCliente)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        if (conv) {
-          await supabase
-            .from('conversaciones')
-            .update({ bot_pausado: true, bot_pausado_at: new Date().toISOString() })
-            .eq('id', conv.id)
-        }
+        await pausarBotPorDueno(supabase, ferreteria.id, telefonoCliente)
 
         if (ferreteria.telefono_dueno) {
           await enviarMensaje({
@@ -244,9 +235,9 @@ export async function POST(request: Request) {
     }
 
   } else if (mensaje.type === 'image' && mensaje.image?.id) {
-    // Imagen: analizar con GPT-4o Vision
+    // Imagen: analizar con GPT-4o-mini Vision
+    console.log(`[Webhook] Imagen recibida — openAI disponible: ${openAIDisponible()}, mediaId: ${mensaje.image.id}`)
     if (openAIDisponible()) {
-      console.log(`[Webhook] Procesando imagen ${mensaje.image.id} con Vision`)
       try {
         const media = await descargarMedia(mensaje.image.id, tenantApiKey)
         if (media) {

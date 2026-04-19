@@ -268,6 +268,8 @@ export async function obtenerUrlMedia(
 /**
  * Descarga el contenido binario de un archivo de media.
  * Primero obtiene la URL de YCloud, luego descarga el archivo.
+ * La URL puede ser un pre-signed URL (S3) o una URL autenticada —
+ * intentamos sin API key primero, y si falla, con API key.
  */
 export async function descargarMedia(
   mediaId: string,
@@ -277,21 +279,40 @@ export async function descargarMedia(
   if (!apiKey) return null
 
   const info = await obtenerUrlMedia(mediaId, apiKey)
-  if (!info?.url) return null
+  if (!info?.url) {
+    console.error(`[YCloud] No se obtuvo URL para media ${mediaId}`)
+    return null
+  }
 
+  console.log(`[YCloud] Descargando media desde ${info.url.slice(0, 60)}... mimeType=${info.mimeType}`)
+
+  // Intentar sin API key primero (para pre-signed URLs tipo S3)
+  try {
+    const res = await fetch(info.url)
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      console.log(`[YCloud] Media descargada OK: ${buffer.length} bytes`)
+      return { buffer, mimeType: info.mimeType }
+    }
+    console.warn(`[YCloud] Descarga sin auth falló (${res.status}), reintentando con API key...`)
+  } catch (e) {
+    console.warn('[YCloud] Descarga sin auth lanzó error, reintentando con API key:', e)
+  }
+
+  // Fallback: intentar con X-API-Key (para URLs que requieren autenticación)
   try {
     const res = await fetch(info.url, {
       headers: { 'X-API-Key': apiKey },
     })
     if (!res.ok) {
-      console.error(`[YCloud] Error descargando media: ${res.status}`)
+      console.error(`[YCloud] Error descargando media con auth: ${res.status}`)
       return null
     }
     const arrayBuffer = await res.arrayBuffer()
-    return {
-      buffer: Buffer.from(arrayBuffer),
-      mimeType: info.mimeType,
-    }
+    const buffer = Buffer.from(arrayBuffer)
+    console.log(`[YCloud] Media descargada con auth OK: ${buffer.length} bytes`)
+    return { buffer, mimeType: info.mimeType }
   } catch (e) {
     console.error('[YCloud] Error descargando buffer de media:', e)
     return null
