@@ -183,16 +183,13 @@ export async function POST(request: Request) {
   let textoMensaje: string | null = null
   let notaParaBot: string | null = null
 
-  // Diagnóstico de campos de media (corto para ser visible en Vercel logs)
+  // Diagnóstico de campos de media — valores al inicio para ser visibles en Vercel
   if (mensaje.type !== 'text') {
     const mo = (mensaje as any)[mensaje.type] ?? {}
-    const keys = Object.keys(mo).join(',') || 'VACIO'
-    const id = mo.id ?? 'N'
-    const link = mo.link ?? 'N'
-    const url = mo.url ?? 'N'
-    const mediaUrl = mo.mediaUrl ?? mo.media_url ?? 'N'
-    const fileId = mo.fileId ?? mo.file_id ?? 'N'
-    console.log(`[MF] t=${mensaje.type} keys=${keys} id=${id} link=${link} url=${url} murl=${mediaUrl} fid=${fileId} wamid=${mensaje.wamid ?? 'N'} mid=${mensaje.id ?? 'N'}`)
+    const idVal = String(mo.id ?? '')
+    const linkVal = String(mo.link ?? '')
+    console.log(`[MF] ${mensaje.type} id=${idVal || 'EMPTY'} link=${linkVal.slice(0, 40) || 'EMPTY'}`)
+    console.log(`[MF2] mid=${mensaje.id ?? 'N'} wamid=${mensaje.wamid ?? 'N'} keys=${Object.keys(mo).join(',')}`)
   } else {
     console.log(`[Webhook] tipo=text from=${telefonoCliente}`)
   }
