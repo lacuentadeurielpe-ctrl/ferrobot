@@ -250,13 +250,19 @@ export async function obtenerUrlMedia(
       headers: { 'X-API-Key': apiKey },
     })
     if (!res.ok) {
-      console.error(`[YCloud] Error obteniendo media ${mediaId}: ${res.status}`)
+      const body = await res.text().catch(() => '')
+      console.error(`[YCloud] Error obteniendo media ${mediaId}: HTTP ${res.status} — ${body.slice(0, 200)}`)
       return null
     }
     const data = await res.json()
+    console.log(`[YCloud] obtenerUrlMedia respuesta keys: ${Object.keys(data).join(', ')}`)
+    const url = data.url ?? data.link ?? data.downloadUrl ?? data.download_url ?? null
+    if (!url) {
+      console.error(`[YCloud] URL no encontrada en respuesta: ${JSON.stringify(data).slice(0, 300)}`)
+    }
     return {
-      url: data.url ?? data.link,
-      mimeType: data.mimeType ?? data.mime_type ?? 'application/octet-stream',
+      url,
+      mimeType: data.mimeType ?? data.mime_type ?? data.contentType ?? 'application/octet-stream',
       fileSize: data.fileSize ?? data.file_size,
     }
   } catch (e) {

@@ -183,15 +183,20 @@ export async function POST(request: Request) {
   let textoMensaje: string | null = null
   let notaParaBot: string | null = null
 
+  // Diagnóstico completo del mensaje recibido
+  console.log(`[Webhook] tipo=${mensaje.type} from=${telefonoCliente} openAI=${openAIDisponible()} keys=${Object.keys(mensaje).join(',')}`)
+
   if (mensaje.type === 'text' && mensaje.text?.body?.trim()) {
     textoMensaje = mensaje.text.body.trim()
 
-  } else if (mensaje.type === 'audio' && mensaje.audio?.id) {
-    // Audio: transcribir con Whisper
-    console.log(`[Webhook] Audio recibido — openAI disponible: ${openAIDisponible()}, mediaId: ${mensaje.audio.id}`)
+  } else if ((mensaje.type === 'audio' || mensaje.type === ('voice' as string)) && (mensaje.audio?.id || (mensaje as any).voice?.id)) {
+    // Audio: transcribir con Whisper (type puede ser 'audio' o 'voice' según YCloud)
+    const audioId = mensaje.audio?.id ?? (mensaje as any).voice?.id
+    const audioMime = mensaje.audio?.mimeType ?? (mensaje as any).voice?.mimeType ?? 'audio/ogg'
+    console.log(`[Webhook] Audio/Voice recibido — openAI: ${openAIDisponible()}, mediaId: ${audioId}, mime: ${audioMime}`)
     if (openAIDisponible()) {
       try {
-        const media = await descargarMedia(mensaje.audio.id, tenantApiKey)
+        const media = await descargarMedia(audioId, tenantApiKey)
         if (media) {
           console.log(`[Webhook] Audio descargado ${media.buffer.length}b mimeType=${media.mimeType} — enviando a Whisper`)
           const transcripcion = await transcribirAudio(media.buffer, media.mimeType)
@@ -203,11 +208,13 @@ export async function POST(request: Request) {
             console.warn('[Webhook] Whisper devolvió null — sin transcripción')
           }
         } else {
-          console.warn('[Webhook] descargarMedia devolvió null para el audio')
+          console.warn(`[Webhook] descargarMedia devolvió null para audioId=${audioId}`)
         }
       } catch (e) {
         console.error('[Webhook] Error procesando audio:', e)
       }
+    } else {
+      console.warn('[Webhook] OpenAI no disponible — OPENAI_API_KEY no configurada en este entorno')
     }
 
     if (!textoMensaje) {
@@ -236,7 +243,7 @@ export async function POST(request: Request) {
 
   } else if (mensaje.type === 'image' && mensaje.image?.id) {
     // Imagen: analizar con GPT-4o-mini Vision
-    console.log(`[Webhook] Imagen recibida — openAI disponible: ${openAIDisponible()}, mediaId: ${mensaje.image.id}`)
+    console.log(`[Webhook] Imagen recibida — openAI: ${openAIDisponible()}, mediaId: ${mensaje.image.id}, mime: ${mensaje.image.mimeType}`)
     if (openAIDisponible()) {
       try {
         const media = await descargarMedia(mensaje.image.id, tenantApiKey)
