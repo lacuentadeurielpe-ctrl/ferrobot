@@ -237,16 +237,43 @@ interface YCloudMediaInfo {
 /**
  * Descarga el contenido binario de un archivo de media de YCloud.
  *
- * YCloud puede responder de dos formas al GET /v2/whatsapp/media/{id}:
+ * Acepta:
+ *  - Un media ID de YCloud/WhatsApp → GET /v2/whatsapp/media/{id}
+ *  - Una URL directa (https://...) → descarga directa sin pasar por la API
+ *  - null / undefined → retorna null inmediatamente
+ *
+ * YCloud puede responder de dos formas al GET media/{id}:
  *   A) JSON con { url, mimeType } → hay que descargar de esa URL
  *   B) Binario directo (Content-Type: audio/*, image/*, etc.)
- *
- * Manejamos ambos casos.
  */
 export async function descargarMedia(
-  mediaId: string,
+  mediaId: string | null | undefined,
   apiKeyParam?: string
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  if (!mediaId) {
+    console.warn('[YCloud] descargarMedia: mediaId es null/undefined — abortando')
+    return null
+  }
+
+  // Si YCloud envía una URL directa de descarga (en lugar de un media ID)
+  if (mediaId.startsWith('https://') || mediaId.startsWith('http://')) {
+    console.log(`[YCloud] descargarMedia: URL directa — ${mediaId.slice(0, 80)}`)
+    try {
+      const res = await fetch(mediaId)
+      if (!res.ok) {
+        console.error(`[YCloud] Error descargando URL directa: HTTP ${res.status}`)
+        return null
+      }
+      const contentType = res.headers.get('content-type') ?? 'application/octet-stream'
+      const buffer = Buffer.from(await res.arrayBuffer())
+      console.log(`[YCloud] URL directa OK: ${buffer.length} bytes, mime=${contentType}`)
+      return { buffer, mimeType: contentType.split(';')[0].trim() }
+    } catch (e) {
+      console.error('[YCloud] Excepción descargando URL directa:', e)
+      return null
+    }
+  }
+
   const apiKey = apiKeyParam ?? process.env.YCLOUD_API_KEY
   if (!apiKey) {
     console.error('[YCloud] descargarMedia: no hay API key disponible')

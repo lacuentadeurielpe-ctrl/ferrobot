@@ -184,17 +184,27 @@ export async function POST(request: Request) {
   let notaParaBot: string | null = null
 
   // Diagnóstico completo del mensaje recibido
-  console.log(`[Webhook] tipo=${mensaje.type} from=${telefonoCliente} openAI=${openAIDisponible()} keys=${Object.keys(mensaje).join(',')}`)
+  console.log(`[Webhook] tipo=${mensaje.type} from=${telefonoCliente} openAI=${openAIDisponible()}`)
+  // Log de estructura de media para diagnosticar campos reales que envía YCloud
+  if (mensaje.type !== 'text') {
+    const mediaObj = (mensaje as any)[mensaje.type] ?? {}
+    console.log(`[Webhook] media obj keys=${Object.keys(mediaObj).join(',') || 'VACÍO'} wamid=${mensaje.wamid ?? 'N/A'} msgId=${mensaje.id}`)
+    console.log(`[Webhook] media raw=${JSON.stringify(mediaObj).slice(0, 200)}`)
+  }
 
   if (mensaje.type === 'text' && mensaje.text?.body?.trim()) {
     textoMensaje = mensaje.text.body.trim()
 
-  } else if ((mensaje.type === 'audio' || mensaje.type === ('voice' as string)) && (mensaje.audio?.id || (mensaje as any).voice?.id)) {
-    // Audio: transcribir con Whisper (type puede ser 'audio' o 'voice' según YCloud)
-    const audioId = mensaje.audio?.id ?? (mensaje as any).voice?.id
-    const audioMime = mensaje.audio?.mimeType ?? (mensaje as any).voice?.mimeType ?? 'audio/ogg'
-    console.log(`[Webhook] Audio/Voice recibido — openAI: ${openAIDisponible()}, mediaId: ${audioId}, mime: ${audioMime}`)
-    if (openAIDisponible()) {
+  } else if (mensaje.type === 'audio' || (mensaje as any).type === 'voice') {
+    // Audio/voz: intentar extraer el media ID desde múltiples campos posibles que YCloud puede enviar
+    const audioObj: Record<string, unknown> = mensaje.audio ?? (mensaje as any).voice ?? {}
+    // YCloud puede enviar el ID en id, link, url o a veces el wamid del mensaje es el media ID
+    const audioId: string | null =
+      (audioObj.id as string) || (audioObj.link as string) || (audioObj.url as string) ||
+      mensaje.wamid || null
+    const audioMime = (audioObj.mimeType as string) || (audioObj.mime_type as string) || 'audio/ogg'
+    console.log(`[Webhook] Audio/Voice — mediaId=${audioId ?? 'NULL'}, mime=${audioMime}, openAI=${openAIDisponible()}`)
+    if (openAIDisponible() && audioId) {
       try {
         const media = await descargarMedia(audioId, tenantApiKey)
         if (media) {
@@ -213,8 +223,10 @@ export async function POST(request: Request) {
       } catch (e) {
         console.error('[Webhook] Error procesando audio:', e)
       }
+    } else if (!openAIDisponible()) {
+      console.warn('[Webhook] OpenAI no disponible — OPENAI_API_KEY no configurada')
     } else {
-      console.warn('[Webhook] OpenAI no disponible — OPENAI_API_KEY no configurada en este entorno')
+      console.warn('[Webhook] audioId es null — YCloud no envió media ID en este mensaje')
     }
 
     if (!textoMensaje) {
@@ -241,12 +253,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true })
     }
 
-  } else if (mensaje.type === 'image' && mensaje.image?.id) {
+  } else if (mensaje.type === 'image') {
     // Imagen: analizar con GPT-4o-mini Vision
-    console.log(`[Webhook] Imagen recibida — openAI: ${openAIDisponible()}, mediaId: ${mensaje.image.id}, mime: ${mensaje.image.mimeType}`)
-    if (openAIDisponible()) {
+    const imageObj: Record<string, unknown> = mensaje.image ?? {}
+    const imageId: string | null =
+      (imageObj.id as string) || (imageObj.link as string) || (imageObj.url as string) ||
+      mensaje.wamid || null
+    const imageMime = (imageObj.mimeType as string) || 'image/jpeg'
+    console.log(`[Webhook] Imagen — mediaId=${imageId ?? 'NULL'}, mime=${imageMime}, openAI=${openAIDisponible()}`)
+    if (openAIDisponible() && imageId) {
       try {
-        const media = await descargarMedia(mensaje.image.id, tenantApiKey)
+        const media = await descargarMedia(imageId, tenantApiKey)
         if (media) {
           const analisis = await analizarImagen(media.buffer, media.mimeType)
           if (analisis) {
@@ -262,11 +279,20 @@ export async function POST(request: Request) {
               const p = analisis.pago
               console.log(`[Webhook] Comprobante de pago detectado — monto=${p.monto} dest=${p.destinatario}`)
 
-              // Buscar pedido pendiente del cliente
+              // Buscar pedido pendiente del cliente — FILTRADO por cliente_id (ferretería aislada)
+              const telefonoClienteNorm = telefonoCliente.replace(/^\+/, '')
+              const { data: clienteData } = await supabase
+                .from('clientes')
+                .select('id')
+                .eq('ferreteria_id', ferreteria.id)
+                .eq('telefono', telefonoClienteNorm)
+                .maybeSingle()
+
               const { data: pedidoPendiente } = await supabase
                 .from('pedidos')
                 .select('id, numero_pedido, total, estado_pago')
                 .eq('ferreteria_id', ferreteria.id)
+                .eq('cliente_id', clienteData?.id ?? '')
                 .in('estado', ['pendiente', 'confirmado', 'en_preparacion'])
                 .neq('estado_pago', 'pagado')
                 .order('created_at', { ascending: false })
@@ -303,11 +329,11 @@ export async function POST(request: Request) {
                 }
               } else {
                 // No hay pedido pendiente o no se pudo leer el monto
-                textoMensaje = mensaje.image.caption || `[COMPROBANTE_PAGO_SIN_PEDIDO]`
+                textoMensaje = (imageObj.caption as string) || `[COMPROBANTE_PAGO_SIN_PEDIDO]`
                 notaParaBot = `[El cliente envió lo que parece un comprobante de pago${p.monto !== null ? ` de S/${p.monto.toFixed(2)}` : ''}, pero no tiene pedido pendiente.]`
               }
             } else {
-              textoMensaje = mensaje.image.caption || analisis.descripcion
+              textoMensaje = (imageObj.caption as string) || analisis.descripcion
               notaParaBot = `[El cliente envió una imagen. Análisis Vision: tipo=${analisis.tipo}, descripción="${analisis.descripcion}"]`
             }
           }
@@ -318,8 +344,9 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      if (mensaje.image.caption?.trim()) {
-        textoMensaje = mensaje.image.caption.trim()
+      const captionImg = (imageObj.caption as string)?.trim()
+      if (captionImg) {
+        textoMensaje = captionImg
       } else {
         await enviarMensaje({
           from: telefonoEnvio, to: telefonoCliente,
@@ -330,14 +357,18 @@ export async function POST(request: Request) {
       }
     }
 
-  } else if (mensaje.type === 'document' && mensaje.document?.id) {
-    const caption = mensaje.document.caption?.trim()
-    const nombre = mensaje.document.filename ?? ''
+  } else if (mensaje.type === 'document') {
+    const docObj: Record<string, unknown> = mensaje.document ?? {}
+    const docId: string | null =
+      (docObj.id as string) || (docObj.link as string) || (docObj.url as string) ||
+      mensaje.wamid || null
+    const caption = (docObj.caption as string)?.trim()
+    const nombre = (docObj.filename as string) ?? ''
     const esImagen = /\.(jpg|jpeg|png|webp)$/i.test(nombre)
 
-    if (openAIDisponible() && esImagen) {
+    if (openAIDisponible() && esImagen && docId) {
       try {
-        const media = await descargarMedia(mensaje.document.id, tenantApiKey)
+        const media = await descargarMedia(docId, tenantApiKey)
         if (media) {
           const analisis = await analizarImagen(media.buffer, media.mimeType)
           if (analisis) {
