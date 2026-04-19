@@ -1,6 +1,8 @@
 // Módulo de IA para extracción inteligente de productos del catálogo
 // Modo texto: deepseek-chat | Modo imagen: OCR (ocr.space) → deepseek-chat
 
+import { UNIDADES_SUNAT, normalizarUnidad, CODIGOS_SUNAT } from '@/lib/constantes/unidades'
+
 const BASE_URL = process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com'
 const MODEL_TEXTO = 'deepseek-chat'
 const TIMEOUT_MS = 40_000
@@ -16,10 +18,10 @@ export interface ProductoExtraido {
   stock: number | null
 }
 
-const UNIDADES_VALIDAS = [
-  'unidad', 'bolsa', 'saco', 'metro', 'metro cuadrado',
-  'galón', 'litro', 'kilo', 'tonelada', 'rollo', 'plancha', 'caja', 'par',
-]
+/** Texto de unidades para el prompt: "NIU (Unidad), BX (Caja), ..." */
+const UNIDADES_PARA_PROMPT = UNIDADES_SUNAT
+  .map((u) => `${u.code} (${u.label})`)
+  .join(', ')
 
 const SYSTEM_PROMPT = `Eres un asistente especializado en ferreterías peruanas.
 Tu tarea es extraer información de productos desde texto o imágenes.
@@ -34,11 +36,35 @@ Responde SIEMPRE con JSON válido con esta estructura exacta:
       "categoria": "categoría sugerida o null (ej: Cemento, Pinturas, Fierro, Herramientas)",
       "precio_base": número o null,
       "precio_compra": número o null,
-      "unidad": "una de: unidad, bolsa, saco, metro, metro cuadrado, galón, litro, kilo, tonelada, rollo, plancha, caja, par — o null si no está claro",
+      "unidad": "código SUNAT de la unidad (ver lista) o null si no está claro",
       "stock": número entero o null
     }
   ]
 }
+
+UNIDADES VÁLIDAS — usa EXACTAMENTE el código SUNAT (columna izquierda):
+${UNIDADES_PARA_PROMPT}
+
+Ejemplos de mapeo:
+- "unidad", "und", "pieza", "pza", "varilla", "tubo", "balde", "plancha" → NIU
+- "caja", "cajas" → BX
+- "bolsa", "bolsas" → BG
+- "saco", "sacos" → SAC
+- "rollo", "rollos" → ROL
+- "par", "pares" → PR
+- "paquete" → PK
+- "metro", "metros", "m" → MTR
+- "metro cuadrado", "m2" → MTK
+- "metro cúbico", "m3" → MTQ
+- "kilo", "kg", "kilogramo" → KGM
+- "gramo", "gr", "g" → GRM
+- "tonelada", "tn" → TNE
+- "litro", "lt", "l" → LTR
+- "mililitro", "ml" → MLT
+- "galón", "galon" → GLL
+- "servicio", "serv" → ZZ
+- "hora", "hr" → HUR
+- "día", "dia" → DAY
 
 REGLAS:
 - Extrae TODOS los productos que identifiques
@@ -46,7 +72,7 @@ REGLAS:
 - precio_base es lo que el cliente paga; precio_compra es el costo al proveedor (si viene en factura)
 - Los precios siempre son en soles peruanos (S/)
 - Si el texto dice "actualiza" o "subió a", ese es el nuevo precio_base
-- Unidad: si dice "bolsa", "saco", "kilo" etc., mapea al valor válido más cercano
+- El campo "unidad" DEBE ser uno de los códigos SUNAT listados arriba o null
 - Responde en español`
 
 async function llamarDeepSeekCatalog(
@@ -143,14 +169,30 @@ async function extraerTextoDeImagen(base64: string, mimeType: string): Promise<s
 }
 
 function normalizarProducto(p: Partial<ProductoExtraido>): ProductoExtraido {
-  const unidad = p.unidad?.toLowerCase().trim() ?? null
+  // El modelo debería devolver códigos SUNAT directamente, pero por si acaso
+  // devuelve un nombre en español, normalizarUnidad() lo convierte al código correcto.
+  const unidadRaw = p.unidad?.trim() ?? null
+  let unidadFinal: string | null = null
+  if (unidadRaw) {
+    const normalizada = normalizarUnidad(unidadRaw)
+    // normalizarUnidad devuelve UNIDAD_DEFAULT ('NIU') si no reconoce el valor,
+    // así que solo la aceptamos si el valor original ya era un código válido o
+    // si la normalización cambió algo (i.e. no dejamos un 'NIU' de fallback silencioso
+    // para valores completamente inválidos).
+    unidadFinal = CODIGOS_SUNAT.has(unidadRaw.toUpperCase())
+      ? unidadRaw.toUpperCase()
+      : (normalizada !== 'NIU' || unidadRaw.toLowerCase().match(/^(unidad|und|pza|pieza|unid|plancha|varilla|tubo|balde|cilindro|bidon)$/)
+          ? normalizada
+          : null)
+  }
+
   return {
     nombre: p.nombre?.trim() || null,
     descripcion: p.descripcion?.trim() || null,
     categoria: p.categoria?.trim() || null,
     precio_base: typeof p.precio_base === 'number' && p.precio_base >= 0 ? p.precio_base : null,
     precio_compra: typeof p.precio_compra === 'number' && p.precio_compra >= 0 ? p.precio_compra : null,
-    unidad: unidad && UNIDADES_VALIDAS.includes(unidad) ? unidad : null,
+    unidad: unidadFinal,
     stock: typeof p.stock === 'number' && p.stock >= 0 ? Math.floor(p.stock) : null,
   }
 }

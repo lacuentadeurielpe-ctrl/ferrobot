@@ -6,8 +6,7 @@ import { Loader2, TrendingUp, AlertTriangle } from 'lucide-react'
 import { type Producto, type Categoria } from '@/types/database'
 import DiscountRulesEditor, { type ReglaForm } from './DiscountRulesEditor'
 import { cn } from '@/lib/utils'
-
-const UNIDADES = ['unidad', 'bolsa', 'saco', 'metro', 'metro cuadrado', 'galón', 'litro', 'kilo', 'tonelada', 'rollo', 'plancha', 'caja', 'par']
+import { UNIDADES_SUNAT, normalizarUnidad, labelUnidad, UNIDAD_DEFAULT } from '@/lib/constantes/unidades'
 
 interface ProductFormProps {
   producto?: Producto
@@ -26,7 +25,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
     categoria_id: producto?.categoria_id ?? '',
     precio_base: producto?.precio_base?.toString() ?? '',
     precio_compra: producto?.precio_compra?.toString() ?? '',
-    unidad: producto?.unidad ?? 'unidad',
+    unidad: normalizarUnidad(producto?.unidad) ?? UNIDAD_DEFAULT,
     stock: producto?.stock?.toString() ?? '0',
     stock_minimo: producto?.stock_minimo?.toString() ?? '',
     modo_negociacion: producto?.modo_negociacion ?? false,
@@ -188,8 +187,8 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
               >
-                {UNIDADES.map((u) => (
-                  <option key={u} value={u}>{u}</option>
+                {UNIDADES_SUNAT.map((u) => (
+                  <option key={u.code} value={u.code}>{u.label}</option>
                 ))}
               </select>
             </div>
@@ -243,7 +242,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 }
                 <div className="flex-1 min-w-0">
                   <p className={cn('text-sm font-semibold', margenBajo ? 'text-red-700' : 'text-green-700')}>
-                    Ganancia: S/{utilidad.toFixed(2)} por {form.unidad} ({margen.toFixed(1)}%)
+                    Ganancia: S/{utilidad.toFixed(2)} por {labelUnidad(form.unidad)} ({margen.toFixed(1)}%)
                   </p>
                   {margenBajo && (
                     <p className="text-xs text-red-600 mt-0.5">
@@ -311,7 +310,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
             {form.modo_negociacion && (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">
-                  A partir de cuántas {form.unidad}s activar la negociación
+                  A partir de cuántas {labelUnidad(form.unidad).toLowerCase()}s activar la negociación
                 </label>
                 <input
                   type="number"
