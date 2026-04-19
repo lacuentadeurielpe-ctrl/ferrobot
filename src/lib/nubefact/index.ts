@@ -79,9 +79,15 @@ export async function enviarANubefact(
     // ── Respuesta de error de Nubefact (400, 422, etc.) ──────────────────────
     if (!res.ok) {
       const errores = esRespuestaOk(body) ? [] : (body.errors ?? [])
-      const desc = Array.isArray(errores) && errores.length > 0
-        ? errores.map((e: { description?: string }) => e.description ?? JSON.stringify(e)).join('; ')
-        : `HTTP ${res.status}`
+      let desc: string
+      if (Array.isArray(errores) && errores.length > 0) {
+        desc = errores.map((e: { description?: string; code?: string }) =>
+          [e.code, e.description].filter(Boolean).join(': ')
+        ).join(' | ')
+      } else {
+        // Mostrar el body completo para debug
+        desc = `HTTP ${res.status} — ${JSON.stringify(body).slice(0, 300)}`
+      }
       return { ok: false, error: `Nubefact: ${desc}` }
     }
 
