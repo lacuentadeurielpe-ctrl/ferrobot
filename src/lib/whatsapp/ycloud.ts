@@ -235,94 +235,110 @@ interface YCloudMediaInfo {
 }
 
 /**
- * Obtiene la URL de descarga de un archivo de media de YCloud.
- * YCloud expone: GET /v2/whatsapp/media/{mediaId}
- */
-export async function obtenerUrlMedia(
-  mediaId: string,
-  apiKeyParam?: string
-): Promise<YCloudMediaInfo | null> {
-  const apiKey = apiKeyParam ?? process.env.YCLOUD_API_KEY
-  if (!apiKey) return null
-
-  try {
-    const res = await fetch(`${YCLOUD_BASE_URL}/whatsapp/media/${mediaId}`, {
-      headers: { 'X-API-Key': apiKey },
-    })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.error(`[YCloud] Error obteniendo media ${mediaId}: HTTP ${res.status} — ${body.slice(0, 200)}`)
-      return null
-    }
-    const data = await res.json()
-    console.log(`[YCloud] obtenerUrlMedia respuesta keys: ${Object.keys(data).join(', ')}`)
-    const url = data.url ?? data.link ?? data.downloadUrl ?? data.download_url ?? null
-    if (!url) {
-      console.error(`[YCloud] URL no encontrada en respuesta: ${JSON.stringify(data).slice(0, 300)}`)
-    }
-    return {
-      url,
-      mimeType: data.mimeType ?? data.mime_type ?? data.contentType ?? 'application/octet-stream',
-      fileSize: data.fileSize ?? data.file_size,
-    }
-  } catch (e) {
-    console.error('[YCloud] Error en obtenerUrlMedia:', e)
-    return null
-  }
-}
-
-/**
- * Descarga el contenido binario de un archivo de media.
- * Primero obtiene la URL de YCloud, luego descarga el archivo.
- * La URL puede ser un pre-signed URL (S3) o una URL autenticada —
- * intentamos sin API key primero, y si falla, con API key.
+ * Descarga el contenido binario de un archivo de media de YCloud.
+ *
+ * YCloud puede responder de dos formas al GET /v2/whatsapp/media/{id}:
+ *   A) JSON con { url, mimeType } → hay que descargar de esa URL
+ *   B) Binario directo (Content-Type: audio/*, image/*, etc.)
+ *
+ * Manejamos ambos casos.
  */
 export async function descargarMedia(
   mediaId: string,
   apiKeyParam?: string
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
   const apiKey = apiKeyParam ?? process.env.YCLOUD_API_KEY
-  if (!apiKey) return null
-
-  const info = await obtenerUrlMedia(mediaId, apiKey)
-  if (!info?.url) {
-    console.error(`[YCloud] No se obtuvo URL para media ${mediaId}`)
+  if (!apiKey) {
+    console.error('[YCloud] descargarMedia: no hay API key disponible')
     return null
   }
 
-  console.log(`[YCloud] Descargando media desde ${info.url.slice(0, 60)}... mimeType=${info.mimeType}`)
+  console.log(`[YCloud] descargarMedia inicio — mediaId=${mediaId}`)
 
-  // Intentar sin API key primero (para pre-signed URLs tipo S3)
   try {
-    const res = await fetch(info.url)
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-      console.log(`[YCloud] Media descargada OK: ${buffer.length} bytes`)
-      return { buffer, mimeType: info.mimeType }
-    }
-    console.warn(`[YCloud] Descarga sin auth falló (${res.status}), reintentando con API key...`)
-  } catch (e) {
-    console.warn('[YCloud] Descarga sin auth lanzó error, reintentando con API key:', e)
-  }
-
-  // Fallback: intentar con X-API-Key (para URLs que requieren autenticación)
-  try {
-    const res = await fetch(info.url, {
+    const res = await fetch(`${YCLOUD_BASE_URL}/whatsapp/media/${mediaId}`, {
       headers: { 'X-API-Key': apiKey },
     })
+
     if (!res.ok) {
-      console.error(`[YCloud] Error descargando media con auth: ${res.status}`)
+      const body = await res.text().catch(() => '')
+      console.error(`[YCloud] Error GET media/${mediaId}: HTTP ${res.status} — ${body.slice(0, 300)}`)
       return null
     }
-    const arrayBuffer = await res.arrayBuffer()
+
+    const contentType = res.headers.get('content-type') ?? ''
+    console.log(`[YCloud] Respuesta media content-type: ${contentType}`)
+
+    // Caso B: YCloud devuelve el binario directamente
+    if (
+      contentType.includes('audio') ||
+      contentType.includes('image') ||
+      contentType.includes('video') ||
+      contentType.includes('octet-stream')
+    ) {
+      const arrayBuffer = await res.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      const mimeType = contentType.split(';')[0].trim()
+      console.log(`[YCloud] Binario directo OK: ${buffer.length} bytes, mime=${mimeType}`)
+      return { buffer, mimeType }
+    }
+
+    // Caso A: YCloud devuelve JSON con una URL de descarga
+    const data = await res.json().catch(() => null)
+    if (!data) {
+      console.error('[YCloud] Respuesta no es ni binario ni JSON válido')
+      return null
+    }
+
+    console.log(`[YCloud] JSON keys: ${Object.keys(data).join(', ')}`)
+
+    const downloadUrl: string | null =
+      data.url ?? data.link ?? data.downloadUrl ?? data.download_url ??
+      data.mediaUrl ?? data.media_url ?? null
+
+    const mimeType: string =
+      data.mimeType ?? data.mime_type ?? data.contentType ??
+      data.content_type ?? 'application/octet-stream'
+
+    if (!downloadUrl) {
+      console.error(`[YCloud] No hay URL de descarga en JSON: ${JSON.stringify(data).slice(0, 400)}`)
+      return null
+    }
+
+    console.log(`[YCloud] Descargando desde URL: ${downloadUrl.slice(0, 80)}`)
+
+    // Intentar sin header (pre-signed URL tipo S3)
+    let dlRes = await fetch(downloadUrl)
+    if (!dlRes.ok) {
+      console.warn(`[YCloud] Descarga sin auth falló (${dlRes.status}), reintentando con API key`)
+      dlRes = await fetch(downloadUrl, { headers: { 'X-API-Key': apiKey } })
+    }
+
+    if (!dlRes.ok) {
+      console.error(`[YCloud] Error descargando archivo: HTTP ${dlRes.status}`)
+      return null
+    }
+
+    const arrayBuffer = await dlRes.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
-    console.log(`[YCloud] Media descargada con auth OK: ${buffer.length} bytes`)
-    return { buffer, mimeType: info.mimeType }
+    console.log(`[YCloud] Descarga OK: ${buffer.length} bytes`)
+    return { buffer, mimeType }
+
   } catch (e) {
-    console.error('[YCloud] Error descargando buffer de media:', e)
+    console.error('[YCloud] Excepción en descargarMedia:', e)
     return null
   }
+}
+
+// Mantener por compatibilidad (ya no se usa externamente pero evita breaking changes)
+export async function obtenerUrlMedia(
+  mediaId: string,
+  apiKeyParam?: string
+): Promise<YCloudMediaInfo | null> {
+  const result = await descargarMedia(mediaId, apiKeyParam)
+  if (!result) return null
+  // Retornamos un objeto dummy — la URL real ya no es necesaria
+  return { url: 'direct', mimeType: result.mimeType }
 }
 
 // Extrae el mensaje entrante del payload (prueba todos los campos posibles de YCloud)
