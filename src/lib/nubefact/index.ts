@@ -120,12 +120,20 @@ export async function enviarANubefact(
     const respOk = body as import('./tipos').NubefactRespuestaOk
 
     if (respOk.aceptada_por_sunat === false) {
-      return {
-        ok:             false,
-        rechazadaSunat: true,
-        error:          `SUNAT rechazó el comprobante: ${respOk.sunat_description ?? 'sin detalle'} (código ${respOk.sunat_responsecode ?? '?'})`,
-        data:           respOk,
+      // Si hay código de rechazo SUNAT → el comprobante fue revisado y rechazado
+      if (respOk.sunat_responsecode && respOk.sunat_responsecode !== '0') {
+        return {
+          ok:             false,
+          rechazadaSunat: true,
+          error:          `SUNAT rechazó el comprobante: ${respOk.sunat_description ?? 'sin detalle'} (código ${respOk.sunat_responsecode})`,
+          data:           respOk,
+        }
       }
+
+      // Sin código de rechazo = SUNAT con intermitencia o procesamiento diferido.
+      // Nubefact ya tiene el documento y lo enviará a SUNAT automáticamente.
+      // Tratamos como éxito — el PDF de Nubefact ya está disponible.
+      return { ok: true, data: respOk }
     }
 
     return { ok: true, data: respOk }
