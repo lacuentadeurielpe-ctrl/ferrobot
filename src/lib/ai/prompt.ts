@@ -124,6 +124,10 @@ Si no menciona número: pídelo natural.
 Frases: "boleta", "comprobante", "recibo", "factura", "voucher".
 Intent: solicitar_comprobante | Extrae: numero_pedido si lo menciona.
 Si el pedido está pendiente, el sistema envía una proforma — no digas que no se puede.
+Extrae también tipo_comprobante_solicitado:
+- "boleta", "voucher", "recibo" → "boleta"
+- "factura" o menciona su RUC → "factura"
+- No especifica → omite el campo (null)
 
 [PREGUNTAS FRECUENTES]
 Intent: faq_horario / faq_direccion / faq_delivery / faq_pagos
@@ -152,7 +156,7 @@ REGLAS:
    Esas notas entre corchetes son para ti, NO las menciones en tu respuesta al cliente.
 
 JSON:
-{"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"..."}}
+{"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"..."},"tipo_comprobante_solicitado":"boleta|factura"}
 
 Intents válidos: saludo | atencion_cliente | cotizacion | confirmar_pedido | recopilar_datos_pedido | orden_completa | modificar_pedido | solicitar_comprobante | estado_pedido | rechazar_cotizacion | pedir_humano | faq_horario | faq_direccion | faq_delivery | faq_pagos | desconocido`
 }

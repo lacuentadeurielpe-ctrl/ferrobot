@@ -17,6 +17,7 @@ import {
   type YCloudWebhookPayload,
   enviarMensaje,
   enviarImagen,
+  enviarDocumento,
 } from '@/lib/whatsapp/ycloud'
 import { handleIncomingMessage } from '@/lib/bot/message-handler'
 import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
@@ -334,6 +335,8 @@ export async function POST(request: Request) {
             await enviarMensaje({ from: telefonoEnvio, to: telefonoCliente, texto: extra.texto, apiKey: tenantApiKey })
           } else if (extra.tipo === 'imagen') {
             await enviarImagen({ from: telefonoEnvio, to: telefonoCliente, imageUrl: extra.url, caption: extra.caption, apiKey: tenantApiKey })
+          } else if (extra.tipo === 'documento') {
+            await enviarDocumento({ from: telefonoEnvio, to: telefonoCliente, pdfUrl: extra.url, filename: extra.filename, caption: extra.caption, apiKey: tenantApiKey })
           }
         } catch (e) {
           console.error('[Webhook] Error enviando mensaje extra:', e instanceof Error ? e.message : e)

@@ -27,6 +27,7 @@ import {
 } from '@/lib/credits'
 import { MODELO_POR_TAREA } from '@/types/database'
 import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
+import { emitirBoleta, emitirFactura } from '@/lib/comprobantes/emitir'
 
 // ── Mapeo intent → tipo de tarea IA ──────────────────────────────────────────
 // Determina cuántos créditos cuesta y qué modelo corresponde usar.
@@ -72,6 +73,7 @@ interface HandleMessageParams {
 type MensajeExtra =
   | { tipo: 'texto'; texto: string }
   | { tipo: 'imagen'; url: string; caption?: string }
+  | { tipo: 'documento'; url: string; filename: string; caption?: string }
 
 interface HandleMessageResult {
   respuesta: string | null
@@ -683,11 +685,12 @@ export async function handleIncomingMessage({
     // ─── Solicitar comprobante ────────────────────────────────────────────
     case 'solicitar_comprobante': {
       const admin = createAdminClient()
-      const tipoRucTenantComp = (ferreteria as any).tipo_ruc ?? 'sin_ruc'
+      const tipoRucTenant = (ferreteria as any).tipo_ruc ?? 'sin_ruc'
+      const nubefactConfigurado = !!(ferreteria as any).nubefact_ruta && !!(ferreteria as any).nubefact_token_enc
 
       // ── F2: Si el cliente proveyó su RUC para factura, validar y guardar ─
       // Solo aplica para tenants ruc20 (que pueden emitir facturas)
-      if (tipoRucTenantComp === 'ruc20' && respuestaAI.ruc_cliente) {
+      if (tipoRucTenant === 'ruc20' && respuestaAI.ruc_cliente) {
         const rucClienteLimpio = respuestaAI.ruc_cliente.replace(/\D/g, '')
         if (validarFormatoRuc(rucClienteLimpio)) {
           const consultaRuc = await consultarRuc(rucClienteLimpio)
@@ -722,11 +725,11 @@ export async function handleIncomingMessage({
         }
       }
 
-      // Buscar pedidos del cliente en cualquier estado activo (incluye pendiente)
+      // ── Buscar pedido del cliente — incluir estado_pago ───────────────────
       const { data: pedidosCliente } = await admin
         .from('pedidos')
-        .select('id, numero_pedido, estado, created_at')
-        .eq('ferreteria_id', ferreteria.id)
+        .select('id, numero_pedido, estado, estado_pago, nombre_cliente, created_at')
+        .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
         .eq('cliente_id', conversacion.cliente_id)
         .in('estado', ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado'])
         .order('created_at', { ascending: false })
@@ -758,39 +761,132 @@ export async function handleIncomingMessage({
         break
       }
 
-      // Determinar si el pedido aún está pendiente (proforma) o ya confirmado
-      const esProforma = pedidoTarget.estado === 'pendiente'
+      const pagado = (pedidoTarget as any).estado_pago === 'pagado'
+      const pidioFactura = respuestaAI.tipo_comprobante_solicitado === 'factura' || !!respuestaAI.ruc_cliente
+      const pidioBoletaOFactura = respuestaAI.tipo_comprobante_solicitado === 'boleta' || pidioFactura
 
-      // Generar (o recuperar existente) y enviar
-      const resultado = await generarYEnviarComprobante({
-        pedidoId: pedidoTarget.id,
-        ferreteriaId: ferreteria.id,
-        esProforma,
-        ycloudApiKey,
+      // ── Caso 1: no pagado → nota de venta siempre ─────────────────────────
+      if (!pagado) {
+        const esProforma = pedidoTarget.estado === 'pendiente'
+        const resultadoNV = await generarYEnviarComprobante({
+          pedidoId:     pedidoTarget.id,
+          ferreteriaId: ferreteria.id,
+          esProforma,
+          ycloudApiKey,
+        })
+
+        if (resultadoNV.ok) {
+          if (esProforma) {
+            mensajeFinal =
+              `📋 Te envío la proforma *${resultadoNV.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
+              `Recuerda que es un documento provisional — cuando el encargado confirme el pedido recibirás el documento final. 🙏`
+          } else {
+            mensajeFinal = `🧾 Aquí va tu *nota de venta ${resultadoNV.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.`
+            if (pidioBoletaOFactura) {
+              mensajeFinal += `\n\n⚠️ Para emitir ${pidioFactura ? 'factura' : 'boleta'} electrónica primero necesitas completar el pago. Una vez confirmado el pago, escríbeme y te la genero de inmediato 🙏`
+            }
+          }
+        } else {
+          mensajeFinal = 'Tuve un problema al generar el documento. Avísame y lo revisamos 🙏'
+          console.error('[Bot] Error generando comprobante:', resultadoNV.error)
+        }
+        break
+      }
+
+      // ── Caso 2: pagado pero sin Nubefact o sin_ruc → nota de venta ────────
+      if (!nubefactConfigurado || tipoRucTenant === 'sin_ruc') {
+        const resultadoNV = await generarYEnviarComprobante({
+          pedidoId:     pedidoTarget.id,
+          ferreteriaId: ferreteria.id,
+          esProforma:   false,
+          ycloudApiKey,
+        })
+        if (resultadoNV.ok) {
+          mensajeFinal =
+            `🧾 Aquí va tu *nota de venta ${resultadoNV.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. Si necesitas algo más avísame 🙏`
+        } else {
+          mensajeFinal = 'Tuve un problema al generar el documento. Avísame y lo revisamos 🙏'
+          console.error('[Bot] Error generando comprobante:', resultadoNV.error)
+        }
+        break
+      }
+
+      // ── Caso 3: pagado + Nubefact configurado → boleta o factura ──────────
+
+      // Si pide factura, verificar que tengamos RUC del cliente
+      if (pidioFactura) {
+        // Buscar RUC guardado del cliente
+        const { data: clienteData } = await admin
+          .from('clientes')
+          .select('ruc_cliente')
+          .eq('id', conversacion.cliente_id)
+          .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
+          .single()
+
+        const rucParaFactura = respuestaAI.ruc_cliente?.replace(/\D/g, '') || clienteData?.ruc_cliente || ''
+
+        if (!rucParaFactura || rucParaFactura.length !== 11) {
+          // No tenemos RUC → pedir y emitir boleta como fallback
+          mensajeFinal = `Para emitir factura necesito tu *RUC* (11 dígitos). ¿Me lo puedes indicar?\n\nMientras tanto te envío tu boleta electrónica 🙏`
+          // Continúa abajo a emitir boleta
+        } else {
+          // Tenemos RUC → emitir factura
+          console.log(`[Bot F6] Emitiendo factura para pedido=${pedidoTarget.id} ruc=${rucParaFactura}`)
+          const resultFact = await emitirFactura({
+            pedidoId:      pedidoTarget.id,
+            ferreteriaId:  ferreteria.id,  // FERRETERÍA AISLADA
+            clienteNombre: (pedidoTarget as any).nombre_cliente || 'CLIENTE',
+            clienteRuc:    rucParaFactura,
+            emitidoPor:    'bot',
+          })
+
+          if (resultFact.ok && resultFact.pdfUrl) {
+            mensajeFinal = `🧾 ¡Aquí está tu *factura ${resultFact.numeroCompleto}* del pedido *${pedidoTarget.numero_pedido}*! Este comprobante ya fue registrado ante SUNAT. 📋`
+            mensajesExtra.push({
+              tipo:     'documento',
+              url:      resultFact.pdfUrl,
+              filename: `${resultFact.numeroCompleto ?? 'factura'}.pdf`,
+              caption:  `Factura ${resultFact.numeroCompleto} — Pedido ${pedidoTarget.numero_pedido}`,
+            })
+          } else if (resultFact.tokenInvalido) {
+            mensajeFinal = 'Hubo un problema con la emisión electrónica. El encargado te enviará el comprobante directamente 🙏'
+          } else {
+            console.error(`[Bot F6] Error Nubefact factura: ${resultFact.error}`)
+            mensajeFinal = `Hubo un inconveniente al generar la factura (${resultFact.error ?? 'error desconocido'}). El encargado te la envía en breve 🙏`
+          }
+          break
+        }
+      }
+
+      // Emitir BOLETA (caso default o fallback de factura sin RUC)
+      console.log(`[Bot F6] Emitiendo boleta para pedido=${pedidoTarget.id}`)
+      const resultBol = await emitirBoleta({
+        pedidoId:      pedidoTarget.id,
+        ferreteriaId:  ferreteria.id,  // FERRETERÍA AISLADA
+        tipoBoleta:    'boleta',
+        clienteNombre: (pedidoTarget as any).nombre_cliente || 'CLIENTES VARIOS',
+        clienteDni:    '',
+        emitidoPor:    'bot',
       })
 
-      if (resultado.ok) {
-        // Reusar tipoRucTenantComp definido al inicio del case
-        const tipoRucTenant = tipoRucTenantComp
-        if (esProforma) {
-          mensajeFinal =
-            `📋 Te envío la proforma *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
-            `Recuerda que es un documento provisional — cuando el encargado confirme el pedido recibirás el documento final. 🙏`
-        } else if (tipoRucTenant === 'sin_ruc') {
-          // Ferretería sin RUC: solo nota de venta interna
-          mensajeFinal =
-            `🧾 Aquí va tu *nota de venta ${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
-            `Este documento es interno de nuestra ferretería. Si necesitas algo más, avísame 🙏`
-        } else {
-          // Ferretería con RUC: nota de venta por ahora; boletas/facturas electrónicas próximamente (F3)
-          mensajeFinal =
-            `🧾 Aquí va tu *nota de venta ${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
-            `Si necesitas boleta o factura electrónica, comunícate con el encargado 🙏`
-        }
+      if (resultBol.ok && resultBol.pdfUrl) {
+        mensajeFinal = `🧾 ¡Aquí está tu *boleta ${resultBol.numeroCompleto}* del pedido *${pedidoTarget.numero_pedido}*! Este comprobante ya fue registrado ante SUNAT. ✅`
+        mensajesExtra.push({
+          tipo:     'documento',
+          url:      resultBol.pdfUrl,
+          filename: `${resultBol.numeroCompleto ?? 'boleta'}.pdf`,
+          caption:  `Boleta ${resultBol.numeroCompleto} — Pedido ${pedidoTarget.numero_pedido}`,
+        })
+      } else if (resultBol.tokenInvalido) {
+        // Token Nubefact inválido — fallback a nota de venta
+        const resultNV = await generarYEnviarComprobante({ pedidoId: pedidoTarget.id, ferreteriaId: ferreteria.id, ycloudApiKey })
+        mensajeFinal = resultNV.ok
+          ? `🧾 Tu *nota de venta ${resultNV.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. (La boleta electrónica está temporalmente no disponible, el encargado te la envía 🙏)`
+          : 'Tuve un problema generando el comprobante. El encargado te lo enviará directamente 🙏'
       } else {
-        mensajeFinal =
-          `Tuve un problema al generar el documento. Escríbenos en un momento o pide al encargado que te lo envíe directamente. 🙏`
-        console.error('[Bot] Error generando comprobante:', resultado.error)
+        // Error de Nubefact (ej: serie incorrecta, SUNAT caída) — no reintentar, avisar
+        console.error(`[Bot F6] Error Nubefact boleta: ${resultBol.error}`)
+        mensajeFinal = `Tuve un inconveniente al emitir la boleta electrónica. El encargado te la enviará directamente 🙏`
       }
       break
     }

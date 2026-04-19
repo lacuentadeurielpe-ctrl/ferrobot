@@ -47,6 +47,8 @@ export interface RespuestaAI {
   datos_pedido?: DatosPedidoAI
   // F2: RUC del cliente cuando pide comprobante con datos tributarios
   ruc_cliente?: string
+  // F6: tipo de comprobante solicitado por el cliente
+  tipo_comprobante_solicitado?: 'boleta' | 'factura' | null
 }
 
 interface MensajeChat {
