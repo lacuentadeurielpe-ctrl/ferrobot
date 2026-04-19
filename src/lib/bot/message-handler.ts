@@ -26,6 +26,7 @@ import {
   estimarCostoUsd,
 } from '@/lib/credits'
 import { MODELO_POR_TAREA } from '@/types/database'
+import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
 
 // ── Mapeo intent → tipo de tarea IA ──────────────────────────────────────────
 // Determina cuántos créditos cuesta y qué modelo corresponde usar.
@@ -682,6 +683,44 @@ export async function handleIncomingMessage({
     // ─── Solicitar comprobante ────────────────────────────────────────────
     case 'solicitar_comprobante': {
       const admin = createAdminClient()
+      const tipoRucTenantComp = (ferreteria as any).tipo_ruc ?? 'sin_ruc'
+
+      // ── F2: Si el cliente proveyó su RUC para factura, validar y guardar ─
+      // Solo aplica para tenants ruc20 (que pueden emitir facturas)
+      if (tipoRucTenantComp === 'ruc20' && respuestaAI.ruc_cliente) {
+        const rucClienteLimpio = respuestaAI.ruc_cliente.replace(/\D/g, '')
+        if (validarFormatoRuc(rucClienteLimpio)) {
+          const consultaRuc = await consultarRuc(rucClienteLimpio)
+          if (consultaRuc.ok && consultaRuc.data) {
+            const info = consultaRuc.data
+            // Guardar RUC en el registro del cliente — FERRETERÍA AISLADA
+            await supabase
+              .from('clientes')
+              .update({
+                ruc_cliente:  rucClienteLimpio,
+                tipo_persona: info.tipoPersona,
+              })
+              .eq('id', conversacion.cliente_id)
+              .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
+
+            if (!info.activo) {
+              mensajeFinal =
+                `⚠️ El RUC *${rucClienteLimpio}* figura como *${info.estado} / ${info.condicion}* en SUNAT.\n\n` +
+                `¿Deseas continuar con este RUC de todos modos, o prefieres que te enviemos una nota de venta? 🙏`
+              await guardarMensaje(supabase, conversacion.id, 'bot', mensajeFinal)
+              return { respuesta: mensajeFinal, conversacionId: conversacion.id }
+            }
+            console.log(`[Bot] RUC cliente ${rucClienteLimpio} validado: ${info.razonSocial}`)
+          } else {
+            // RUC no encontrado en SUNAT — avisar pero no bloquear
+            mensajeFinal =
+              `No pude verificar el RUC *${rucClienteLimpio}* en SUNAT (${consultaRuc.error ?? 'no encontrado'}).\n\n` +
+              `¿Puedes confirmar el RUC nuevamente? También podría enviarte una nota de venta sin RUC si lo prefieres 🙏`
+            await guardarMensaje(supabase, conversacion.id, 'bot', mensajeFinal)
+            return { respuesta: mensajeFinal, conversacionId: conversacion.id }
+          }
+        }
+      }
 
       // Buscar pedidos del cliente en cualquier estado activo (incluye pendiente)
       const { data: pedidosCliente } = await admin
@@ -730,10 +769,9 @@ export async function handleIncomingMessage({
         ycloudApiKey,
       })
 
-      // ── Contexto tributario del tenant (F1) ──────────────────────────────
-      const tipoRucTenant = (ferreteria as any).tipo_ruc ?? 'sin_ruc'
-
       if (resultado.ok) {
+        // Reusar tipoRucTenantComp definido al inicio del case
+        const tipoRucTenant = tipoRucTenantComp
         if (esProforma) {
           mensajeFinal =
             `📋 Te envío la proforma *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +

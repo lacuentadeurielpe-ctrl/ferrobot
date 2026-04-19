@@ -45,6 +45,8 @@ export interface RespuestaAI {
   items_solicitados?: ItemSolicitado[]
   numero_pedido?: string
   datos_pedido?: DatosPedidoAI
+  // F2: RUC del cliente cuando pide comprobante con datos tributarios
+  ruc_cliente?: string
 }
 
 interface MensajeChat {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { TipoRuc, RegimenTributario } from '@/types/database'
+import type { RucInfo } from '@/lib/sunat/ruc'
 
 interface FacturacionData {
   tipo_ruc: TipoRuc
@@ -33,10 +34,45 @@ export default function FacturacionTab({ inicial }: Props) {
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Verificación RUC SUNAT
+  const [rucVerificando, setRucVerificando] = useState(false)
+  const [rucInfo,        setRucInfo]        = useState<RucInfo | null>(null)
+  const [rucError,       setRucError]       = useState<string | null>(null)
+
   function set<K extends keyof FacturacionData>(key: K, value: FacturacionData[K]) {
     setData((prev) => ({ ...prev, [key]: value }))
     setSuccess(null)
     setError(null)
+    if (key === 'ruc') { setRucInfo(null); setRucError(null) }
+  }
+
+  async function verificarRuc() {
+    const rucLimpio = (data.ruc ?? '').replace(/\D/g, '')
+    if (rucLimpio.length !== 11) { setRucError('RUC debe tener 11 dígitos'); return }
+    setRucVerificando(true)
+    setRucInfo(null)
+    setRucError(null)
+    try {
+      const res = await fetch('/api/sunat/ruc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ruc: rucLimpio }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setRucError(d.error ?? 'RUC no encontrado en SUNAT')
+      } else {
+        setRucInfo(d)
+        // Autocompletar razón social si el campo está vacío
+        if (!data.razon_social?.trim()) {
+          setData((prev) => ({ ...prev, razon_social: d.razonSocial }))
+        }
+      }
+    } catch {
+      setRucError('Error de conexión al verificar RUC')
+    } finally {
+      setRucVerificando(false)
+    }
   }
 
   async function guardar(e: React.FormEvent) {
@@ -123,14 +159,40 @@ export default function FacturacionTab({ inicial }: Props) {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 RUC <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={data.ruc ?? ''}
-                onChange={(e) => set('ruc', e.target.value.replace(/\D/g, '').slice(0, 11))}
-                placeholder="20123456789"
-                maxLength={11}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={data.ruc ?? ''}
+                  onChange={(e) => set('ruc', e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  placeholder="20123456789"
+                  maxLength={11}
+                  className={`flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 transition ${
+                    rucInfo
+                      ? rucInfo.activo
+                        ? 'border-green-400 focus:ring-green-300'
+                        : 'border-yellow-400 focus:ring-yellow-300'
+                      : rucError
+                      ? 'border-red-400 focus:ring-red-300'
+                      : 'border-gray-200 focus:ring-orange-400'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={verificarRuc}
+                  disabled={rucVerificando || (data.ruc ?? '').replace(/\D/g, '').length !== 11}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-lg transition whitespace-nowrap"
+                >
+                  {rucVerificando ? '...' : 'Verificar'}
+                </button>
+              </div>
+              {rucInfo && (
+                <p className={`text-xs mt-1 ${rucInfo.activo ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {rucInfo.activo
+                    ? `✓ ${rucInfo.razonSocial} — ACTIVO/HABIDO`
+                    : `⚠ ${rucInfo.razonSocial} — ${rucInfo.estado} / ${rucInfo.condicion}`}
+                </p>
+              )}
+              {rucError && <p className="text-xs text-red-500 mt-1">{rucError}</p>}
             </div>
 
             <div>

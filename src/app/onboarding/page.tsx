@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, Plus, X, CheckCircle } from 'lucide-react'
 import type { TipoRuc, RegimenTributario } from '@/types/database'
+import type { RucInfo } from '@/lib/sunat/ruc'
 
 const DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
 const DIAS_LABEL: Record<string, string> = {
@@ -60,6 +61,51 @@ export default function OnboardingPage() {
   const [regimen, setRegimen] = useState<RegimenTributario | ''>('')
   const [repLegalNombre, setRepLegalNombre] = useState('')
   const [repLegalDni, setRepLegalDni] = useState('')
+
+  // Verificación RUC SUNAT
+  const [rucVerificando, setRucVerificando]   = useState(false)
+  const [rucVerificado,  setRucVerificado]    = useState<RucInfo | null>(null)
+  const [rucError,       setRucError]         = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Consulta automática cuando RUC llega a 11 dígitos
+  useEffect(() => {
+    const rucLimpio = ruc.replace(/\D/g, '')
+    if (rucLimpio.length !== 11) {
+      setRucVerificado(null)
+      setRucError(null)
+      return
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setRucVerificando(true)
+      setRucVerificado(null)
+      setRucError(null)
+      try {
+        const res = await fetch('/api/sunat/ruc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ruc: rucLimpio }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setRucError(data.error ?? 'RUC no encontrado')
+        } else {
+          setRucVerificado(data)
+          // Autocompletar razón social si el campo está vacío
+          if (!razonSocial.trim()) setRazonSocial(data.razonSocial)
+          // Sugerir tipo RUC si aún es el default
+          if (tipoRuc === 'sin_ruc') setTipoRuc(data.tipoRucSugerido)
+        }
+      } catch {
+        setRucError('Error de conexión al verificar RUC')
+      } finally {
+        setRucVerificando(false)
+      }
+    }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ruc])
 
   // Paso 1 — datos del negocio
   const [form, setForm] = useState({
@@ -274,13 +320,46 @@ export default function OnboardingPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         RUC <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        value={ruc}
-                        onChange={(e) => setRuc(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                        placeholder="20123456789"
-                        maxLength={11}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
-                      />
+                      <div className="relative">
+                        <input
+                          value={ruc}
+                          onChange={(e) => {
+                            setRuc(e.target.value.replace(/\D/g, '').slice(0, 11))
+                            setRucVerificado(null)
+                            setRucError(null)
+                          }}
+                          placeholder="20123456789"
+                          maxLength={11}
+                          className={`w-full px-3 py-2 pr-8 rounded-lg border text-sm text-gray-900 focus:outline-none focus:ring-2 transition ${
+                            rucVerificado
+                              ? rucVerificado.activo
+                                ? 'border-green-400 focus:ring-green-300'
+                                : 'border-yellow-400 focus:ring-yellow-300'
+                              : rucError
+                              ? 'border-red-400 focus:ring-red-300'
+                              : 'border-gray-200 focus:ring-orange-400'
+                          }`}
+                        />
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                          {rucVerificando && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+                          {!rucVerificando && rucVerificado && rucVerificado.activo && (
+                            <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                          )}
+                          {!rucVerificando && rucError && (
+                            <span className="text-red-500 text-xs">✕</span>
+                          )}
+                        </div>
+                      </div>
+                      {rucVerificado && (
+                        <p className={`text-xs mt-1 ${rucVerificado.activo ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {rucVerificado.activo
+                            ? `✓ ${rucVerificado.tipoContribuyente} — ACTIVO/HABIDO`
+                            : `⚠ ${rucVerificado.estado} / ${rucVerificado.condicion}`}
+                        </p>
+                      )}
+                      {rucError && (
+                        <p className="text-xs text-red-500 mt-1">{rucError}</p>
+                      )}
                     </div>
 
                     <div className="col-span-1">
