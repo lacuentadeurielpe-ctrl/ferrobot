@@ -5,6 +5,7 @@
 //   - El token Nubefact se obtiene de la propia ferretería (nunca env global)
 //   - El correlativo usa pg_advisory_xact_lock para evitar duplicados concurrentes
 
+import { randomUUID }        from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { desencriptar }      from '@/lib/encryption'
 import { enviarANubefact }   from '@/lib/nubefact'
@@ -156,23 +157,35 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     return { ok: false, error: 'El pedido no tiene items' }
   }
 
-  // ── 3. Verificar que no existe boleta emitida para este pedido ───────────
+  // ── 3. Verificar que no existe boleta YA EMITIDA para este pedido ─────────
+  //    Solo bloqueamos si ya fue emitida con éxito.
+  //    Los comprobantes con estado='error' pueden reintentarse.
   const { data: yaEmitida } = await supabase
     .from('comprobantes')
     .select('id, numero_completo, estado')
     .eq('pedido_id', opts.pedidoId)
     .eq('ferreteria_id', opts.ferreteriaId)   // AISLADO
     .eq('tipo', 'boleta')
-    .not('estado', 'eq', 'anulado')
+    .eq('estado', 'emitido')                  // solo bloqueamos si está emitida con éxito
     .maybeSingle()
 
   if (yaEmitida) {
     return {
       ok:             false,
-      error:          `Ya existe la boleta ${yaEmitida.numero_completo} para este pedido (estado: ${yaEmitida.estado})`,
+      error:          `Ya existe la boleta ${yaEmitida.numero_completo} para este pedido.`,
       comprobanteId:  yaEmitida.id,
     }
   }
+
+  // Eliminar comprobantes en estado 'error' anteriores para este pedido
+  // (así el usuario puede reintentar luego de corregir la configuración)
+  await supabase
+    .from('comprobantes')
+    .delete()
+    .eq('pedido_id', opts.pedidoId)
+    .eq('ferreteria_id', opts.ferreteriaId)
+    .eq('tipo', 'boleta')
+    .eq('estado', 'error')
 
   // ── 4. Desencriptar token Nubefact ───────────────────────────────────────
   let tokenPlano: string
@@ -287,7 +300,7 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     tipo_de_nota_de_debito:      '',
     enviar_automaticamente_a_la_sunat:  true,
     enviar_automaticamente_al_cliente:  false,
-    codigo_unico:                `${opts.ferreteriaId}-${opts.pedidoId}-boleta`,
+    codigo_unico:                randomUUID(),   // UUID único por intento — deduplicación manejada por nuestra BD
     condiciones_de_pago:         '',
     medio_de_pago:               '',
     placa_vehiculo:              '',
