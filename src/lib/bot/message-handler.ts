@@ -730,10 +730,25 @@ export async function handleIncomingMessage({
         ycloudApiKey,
       })
 
+      // ── Contexto tributario del tenant (F1) ──────────────────────────────
+      const tipoRucTenant = (ferreteria as any).tipo_ruc ?? 'sin_ruc'
+
       if (resultado.ok) {
-        mensajeFinal = esProforma
-          ? `📋 Te envío la proforma *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\nRecuerda que es un documento provisional — cuando el encargado confirme el pedido recibirás el comprobante oficial. 🙏`
-          : `📄 Aquí va tu comprobante *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*. Si no llega o necesitas algo más, avísame 🙏`
+        if (esProforma) {
+          mensajeFinal =
+            `📋 Te envío la proforma *${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
+            `Recuerda que es un documento provisional — cuando el encargado confirme el pedido recibirás el documento final. 🙏`
+        } else if (tipoRucTenant === 'sin_ruc') {
+          // Ferretería sin RUC: solo nota de venta interna
+          mensajeFinal =
+            `🧾 Aquí va tu *nota de venta ${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
+            `Este documento es interno de nuestra ferretería. Si necesitas algo más, avísame 🙏`
+        } else {
+          // Ferretería con RUC: nota de venta por ahora; boletas/facturas electrónicas próximamente (F3)
+          mensajeFinal =
+            `🧾 Aquí va tu *nota de venta ${resultado.numero_comprobante}* del pedido *${pedidoTarget.numero_pedido}*.\n\n` +
+            `Si necesitas boleta o factura electrónica, comunícate con el encargado 🙏`
+        }
       } else {
         mensajeFinal =
           `Tuve un problema al generar el documento. Escríbenos en un momento o pide al encargado que te lo envíe directamente. 🙏`

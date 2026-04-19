@@ -2,6 +2,15 @@
 // Tipos TypeScript que reflejan el schema de Supabase
 // ══════════════════════════════════════════════════════════════════
 
+// ──────────────────────────────────────────────────────────────────
+// Tipos de facturación / RUC
+// ──────────────────────────────────────────────────────────────────
+export type TipoRuc = 'sin_ruc' | 'ruc10' | 'ruc20'
+export type RegimenTributario = 'rer' | 'rmt' | 'rus' | 'general'
+export type TipoComprobante = 'nota_venta' | 'boleta' | 'factura'
+export type EstadoComprobante = 'emitido' | 'anulado' | 'error'
+export type TipoPersona = 'natural' | 'juridica'
+
 export type DiaSemana =
   | 'lunes'
   | 'martes'
@@ -76,7 +85,7 @@ export interface Ferreteria {
   mensaje_fuera_horario: string | null
   onboarding_completo: boolean
   activo: boolean
-  // Configuración de comprobantes
+  // Configuración de comprobantes (legado)
   logo_url: string | null
   color_comprobante: string          // hex, default '#1e40af'
   mensaje_comprobante: string | null // pie personalizable
@@ -91,6 +100,19 @@ export interface Ferreteria {
   datos_yape: DatosYape | null
   datos_transferencia: DatosTransferencia | null
   metodos_pago_activos: string[] | null  // ['efectivo','yape','transferencia','tarjeta','credito']
+  // ── Facturación / RUC (F1) ──────────────────────────────────────
+  tipo_ruc: TipoRuc
+  ruc: string | null
+  razon_social: string | null
+  nombre_comercial: string | null
+  regimen_tributario: RegimenTributario | null
+  serie_boletas: string               // default 'B001'
+  serie_facturas: string              // default 'F001'
+  igv_incluido_en_precios: boolean
+  representante_legal_nombre: string | null
+  representante_legal_dni: string | null
+  representante_legal_cargo: string | null
+  // ────────────────────────────────────────────────────────────────
   created_at: string
   updated_at: string
 }
@@ -98,12 +120,28 @@ export interface Ferreteria {
 export interface Comprobante {
   id: string
   ferreteria_id: string
-  pedido_id: string
-  numero_comprobante: string         // CP-000001
-  pdf_url: string
+  pedido_id: string | null
+  // Legado (comprobantes internos pre-F1)
+  numero_comprobante: string | null  // CP-000001
+  pdf_url: string | null
   enviado_whatsapp: boolean
   enviado_at: string | null
   error_envio: string | null
+  // Nuevos campos F1
+  tipo: TipoComprobante | null
+  serie: string | null
+  numero: number | null
+  numero_completo: string | null     // NV-B001-000001
+  estado: EstadoComprobante
+  subtotal: number | null
+  igv: number
+  total: number | null
+  cliente_nombre: string | null
+  cliente_ruc_dni: string | null
+  nubefact_id: string | null         // F3
+  nubefact_hash: string | null       // F3
+  xml_url: string | null             // F3
+  emitido_por: string | null         // 'bot' | 'dashboard'
   created_at: string
 }
 
@@ -135,6 +173,7 @@ export interface Producto {
   stock_minimo: number | null   // alerta cuando stock <= este valor
   modo_negociacion: boolean
   umbral_negociacion_cantidad: number | null
+  afecto_igv: boolean            // F1: si aplica IGV al producto
   activo: boolean
   created_at: string
   updated_at: string
@@ -168,6 +207,8 @@ export interface Cliente {
   ferreteria_id: string
   telefono: string
   nombre: string | null
+  ruc_cliente: string | null     // F1: RUC del cliente (para facturas)
+  tipo_persona: TipoPersona | null
   created_at: string
   updated_at: string
 }
