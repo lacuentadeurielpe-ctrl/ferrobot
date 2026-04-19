@@ -92,24 +92,43 @@ export async function enviarANubefact(
     }
 
     // ── 2xx: puede ser aceptada o rechazada por SUNAT ────────────────────────
-    if (!esRespuestaOk(body)) {
-      const errores = body.errors ?? []
-      const desc = Array.isArray(errores) && errores.length > 0
-        ? errores.map((e: { description?: string }) => e.description ?? JSON.stringify(e)).join('; ')
-        : 'Respuesta inesperada de Nubefact'
+    // Intentamos interpretar la respuesta de forma flexible:
+    // Nubefact puede devolver campos en distintos órdenes o con variaciones menores.
+    const bodyAny = body as unknown as Record<string, unknown>
+
+    // Detectar éxito por cualquiera de estos campos indicativos
+    const tieneId       = 'nubefact_id' in bodyAny && bodyAny.nubefact_id
+    const tienePdf      = 'enlace_del_pdf' in bodyAny && bodyAny.enlace_del_pdf
+    const esExitoso     = tieneId || tienePdf
+
+    if (!esExitoso) {
+      // Si no tiene estructura de éxito, extraemos errores o mostramos el body raw
+      const errores = (bodyAny.errors as { description?: string }[] | undefined) ?? []
+      let desc: string
+      if (Array.isArray(errores) && errores.length > 0) {
+        desc = errores.map((e) => e.description ?? JSON.stringify(e)).join('; ')
+      } else if (bodyAny.errors && typeof bodyAny.errors === 'string') {
+        desc = bodyAny.errors as string
+      } else {
+        // Volcamos el body completo para diagnóstico
+        desc = `Respuesta inesperada: ${JSON.stringify(body).slice(0, 400)}`
+      }
       return { ok: false, error: `Nubefact: ${desc}` }
     }
 
-    if (!body.aceptada_por_sunat) {
+    // Construir el objeto Ok a partir del body flexible
+    const respOk = body as import('./tipos').NubefactRespuestaOk
+
+    if (respOk.aceptada_por_sunat === false) {
       return {
         ok:             false,
         rechazadaSunat: true,
-        error:          `SUNAT rechazó el comprobante: ${body.sunat_description ?? 'sin detalle'} (código ${body.sunat_responsecode ?? '?'})`,
-        data:           body,
+        error:          `SUNAT rechazó el comprobante: ${respOk.sunat_description ?? 'sin detalle'} (código ${respOk.sunat_responsecode ?? '?'})`,
+        data:           respOk,
       }
     }
 
-    return { ok: true, data: body }
+    return { ok: true, data: respOk }
 
   } catch (e) {
     clearTimeout(timer)
