@@ -112,6 +112,9 @@ export interface Ferreteria {
   representante_legal_nombre: string | null
   representante_legal_dni: string | null
   representante_legal_cargo: string | null
+  // ── Nubefact (F3) ───────────────────────────────────────────────
+  nubefact_token_enc: string | null   // cifrado en BD, nunca exponer al cliente
+  nubefact_modo: 'prueba' | 'produccion'
   // ────────────────────────────────────────────────────────────────
   created_at: string
   updated_at: string

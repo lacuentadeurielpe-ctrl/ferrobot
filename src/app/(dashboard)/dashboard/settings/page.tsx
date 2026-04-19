@@ -51,6 +51,12 @@ export default async function SettingsPage({
       .single(),
   ])
 
+  // Nubefact: solo necesitamos si está configurado y el modo (nunca el token)
+  const nubefactConfig = {
+    configurado: !!ferreteria.nubefact_token_enc,
+    modo:        ferreteria.nubefact_modo ?? 'prueba',
+  }
+
   const TABS = [
     { id: 'general',     label: 'General' },
     { id: 'facturacion', label: '🧾 Facturación' },
@@ -133,6 +139,7 @@ export default async function SettingsPage({
             representante_legal_dni:    ferreteria.representante_legal_dni ?? null,
             representante_legal_cargo:  ferreteria.representante_legal_cargo ?? null,
           }}
+          nubefactConfig={nubefactConfig}
         />
       )}
 

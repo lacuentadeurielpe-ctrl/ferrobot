@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { TipoRuc, RegimenTributario } from '@/types/database'
 import type { RucInfo } from '@/lib/sunat/ruc'
 
@@ -19,7 +19,11 @@ interface FacturacionData {
 }
 
 interface Props {
-  inicial: FacturacionData
+  inicial:           FacturacionData
+  nubefactConfig: {
+    configurado: boolean
+    modo:        string
+  }
 }
 
 const TIPO_LABEL: Record<TipoRuc, string> = {
@@ -28,7 +32,332 @@ const TIPO_LABEL: Record<TipoRuc, string> = {
   ruc20:   '🏢 RUC 20 — Empresa',
 }
 
-export default function FacturacionTab({ inicial }: Props) {
+// ── Asistente de régimen tributario ───────────────────────────────────────────
+
+type Tramo = 'nrus' | 'rer' | 'rmt' | 'general'
+
+function calcularRegimenSugerido(ingresoAnual: number, tipoRuc: TipoRuc): Tramo {
+  if (tipoRuc === 'ruc10' && ingresoAnual <= 96_000)  return 'nrus'
+  if (ingresoAnual <= 525_000)                        return 'rer'
+  if (ingresoAnual <= 8_925_000)                      return 'rmt'
+  return 'general'
+}
+
+const TRAMO_INFO: Record<Tramo, { label: string; descripcion: string; color: string }> = {
+  nrus:    { label: 'Nuevo RUS',         descripcion: 'Cuota fija mensual. El más simple.', color: 'green'  },
+  rer:     { label: 'RER',               descripcion: '1.5% de ingresos netos. Sin libros contables.',      color: 'blue'   },
+  rmt:     { label: 'RMT',               descripcion: '10% hasta 15 UIT, 29.5% sobre el exceso.',          color: 'purple' },
+  general: { label: 'Régimen General',   descripcion: '29.5% sobre utilidad. Para empresas grandes.',      color: 'gray'   },
+}
+
+const COLOR_MAP: Record<string, string> = {
+  green:  'bg-green-50 border-green-300 text-green-800',
+  blue:   'bg-blue-50  border-blue-300  text-blue-800',
+  purple: 'bg-purple-50 border-purple-300 text-purple-800',
+  gray:   'bg-gray-50  border-gray-300  text-gray-700',
+}
+
+function AsistenteRegimen({
+  tipoRuc,
+  onSeleccionar,
+}: {
+  tipoRuc: TipoRuc
+  onSeleccionar: (r: RegimenTributario) => void
+}) {
+  const [abierto,  setAbierto]  = useState(false)
+  const [ingreso,  setIngreso]  = useState<number | null>(null)
+  const [sugerido, setSugerido] = useState<Tramo | null>(null)
+
+  const TRAMOS = [
+    { label: 'Menos de S/ 96 mil / año',       value: 50_000    },
+    { label: 'Entre S/ 96 mil y S/ 525 mil',   value: 300_000   },
+    { label: 'Entre S/ 525 mil y S/ 8.9 mill', value: 2_000_000 },
+    { label: 'Más de S/ 8.9 millones',          value: 10_000_000 },
+  ]
+
+  function elegir(valor: number) {
+    setIngreso(valor)
+    const t = calcularRegimenSugerido(valor, tipoRuc)
+    setSugerido(t)
+  }
+
+  function aplicar(tramo: Tramo) {
+    const map: Partial<Record<Tramo, RegimenTributario>> = {
+      nrus:    'rus',
+      rer:     'rer',
+      rmt:     'rmt',
+      general: 'general',
+    }
+    const r = map[tramo]
+    if (r) onSeleccionar(r)
+    setAbierto(false)
+    setIngreso(null)
+    setSugerido(null)
+  }
+
+  // Nuevo RUS solo disponible para RUC 10
+  const mostrarNrus = tipoRuc === 'ruc10'
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="text-xs text-blue-600 hover:underline mt-1 block"
+      >
+        🤔 ¿No sabes tu régimen? → Calcúlalo aquí
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-blue-800">¿Cuánto facturas al año aproximadamente?</p>
+        <button
+          type="button"
+          onClick={() => { setAbierto(false); setSugerido(null); setIngreso(null) }}
+          className="text-blue-400 hover:text-blue-600 text-xs"
+        >✕</button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {TRAMOS
+          .filter((t) => mostrarNrus || t.value > 50_000)
+          .map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => elegir(t.value)}
+              className={`text-xs px-2 py-1.5 rounded border transition text-left ${
+                ingreso === t.value
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:border-blue-500'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+      </div>
+
+      {sugerido && (
+        <div className={`rounded-lg border p-3 ${COLOR_MAP[TRAMO_INFO[sugerido].color]}`}>
+          <p className="text-xs font-bold">{TRAMO_INFO[sugerido].label}</p>
+          <p className="text-xs mt-0.5 opacity-80">{TRAMO_INFO[sugerido].descripcion}</p>
+          {sugerido === 'nrus' && !mostrarNrus && (
+            <p className="text-xs mt-1 text-orange-700">⚠ Nuevo RUS solo aplica a personas naturales (RUC 10)</p>
+          )}
+          <button
+            type="button"
+            onClick={() => aplicar(sugerido)}
+            className="mt-2 text-xs px-3 py-1 bg-white rounded border font-medium hover:bg-gray-50 transition"
+          >
+            Usar {TRAMO_INFO[sugerido].label}
+          </button>
+          <p className="text-xs mt-1.5 opacity-60">Tip: puedes confirmarlo en tu último PDT o recibo de pago a SUNAT.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Sección Nubefact ──────────────────────────────────────────────────────────
+
+function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: boolean; modo: string } }) {
+  const [token,      setToken]      = useState('')
+  const [modo,       setModo]       = useState(initialConfig.modo ?? 'prueba')
+  const [configurado, setConfigurado] = useState(initialConfig.configurado)
+  const [testeando,  setTesteando]  = useState(false)
+  const [guardando,  setGuardando]  = useState(false)
+  const [testOk,     setTestOk]     = useState<boolean | null>(null)
+  const [testError,  setTestError]  = useState<string | null>(null)
+  const [saveOk,     setSaveOk]     = useState(false)
+  const [saveError,  setSaveError]  = useState<string | null>(null)
+  const [mostrarToken, setMostrarToken] = useState(false)
+
+  // Reset feedback cuando cambia token/modo
+  useEffect(() => {
+    setTestOk(null)
+    setTestError(null)
+    setSaveOk(false)
+    setSaveError(null)
+  }, [token, modo])
+
+  async function probarConexion() {
+    setTesteando(true)
+    setTestOk(null)
+    setTestError(null)
+    try {
+      const res = await fetch('/api/settings/nubefact', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ token: token.trim() || undefined }),
+      })
+      const d = await res.json()
+      if (d.ok) {
+        setTestOk(true)
+      } else {
+        setTestOk(false)
+        setTestError(d.error ?? 'Error de conexión')
+      }
+    } catch {
+      setTestOk(false)
+      setTestError('Error de red')
+    } finally {
+      setTesteando(false)
+    }
+  }
+
+  async function guardar() {
+    setGuardando(true)
+    setSaveOk(false)
+    setSaveError(null)
+    try {
+      const body: Record<string, string> = { modo }
+      if (token.trim()) body.token = token.trim()
+
+      const res = await fetch('/api/settings/nubefact', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      })
+      const d = await res.json()
+      if (d.ok) {
+        setSaveOk(true)
+        setConfigurado(true)
+        setToken('')  // limpiar campo tras guardar
+      } else {
+        setSaveError(d.error ?? 'Error al guardar')
+      }
+    } catch {
+      setSaveError('Error de red')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className="p-4 bg-white border border-gray-200 rounded-xl space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🔌</span>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Nubefact — Facturación electrónica</p>
+            <p className="text-xs text-gray-500">Emite boletas y facturas electrónicas ante SUNAT</p>
+          </div>
+        </div>
+        {configurado ? (
+          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Conectado</span>
+        ) : (
+          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Sin configurar</span>
+        )}
+      </div>
+
+      {/* Modo */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Modo de operación</label>
+        <div className="flex gap-2">
+          {(['prueba', 'produccion'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setModo(m)}
+              className={`flex-1 py-2 text-xs font-medium rounded-lg border-2 transition ${
+                modo === m
+                  ? m === 'produccion'
+                    ? 'border-green-500 bg-green-50 text-green-700'
+                    : 'border-blue-400 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+              }`}
+            >
+              {m === 'prueba' ? '🧪 Prueba (sin costo)' : '🏭 Producción (documentos reales)'}
+            </button>
+          ))}
+        </div>
+        {modo === 'produccion' && (
+          <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+            <span>⚠</span>
+            <span>En producción las boletas son documentos tributarios reales ante SUNAT.</span>
+          </p>
+        )}
+      </div>
+
+      {/* Token */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Token API de Nubefact
+          <a
+            href="https://app.nubefact.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-2 text-blue-500 hover:underline font-normal"
+          >
+            → Obtener token
+          </a>
+        </label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type={mostrarToken ? 'text' : 'password'}
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder={configurado ? '••••••••  (deja vacío para no cambiar)' : 'Pega tu token de Nubefact aquí'}
+              className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button
+              type="button"
+              onClick={() => setMostrarToken(!mostrarToken)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+            >
+              {mostrarToken ? '🙈' : '👁'}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={probarConexion}
+            disabled={testeando || (!token.trim() && !configurado)}
+            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-lg transition whitespace-nowrap"
+          >
+            {testeando ? '...' : 'Probar'}
+          </button>
+        </div>
+
+        {/* Feedback test */}
+        {testOk === true && (
+          <p className="text-xs text-green-600 mt-1">✓ Conexión con Nubefact exitosa</p>
+        )}
+        {testOk === false && testError && (
+          <p className="text-xs text-red-500 mt-1">✗ {testError}</p>
+        )}
+
+        <p className="text-xs text-gray-400 mt-1">
+          En Nubefact: Empresa → API → copiar el token del modo correspondiente.
+        </p>
+      </div>
+
+      {/* Botón guardar */}
+      <div className="flex items-center justify-between pt-1">
+        <div>
+          {saveOk && <p className="text-xs text-green-600">✓ Configuración guardada</p>}
+          {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={guardando}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition"
+        >
+          {guardando ? 'Guardando...' : 'Guardar Nubefact'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Componente principal ───────────────────────────────────────────────────────
+
+export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
   const [data, setData] = useState<FacturacionData>(inicial)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
@@ -39,11 +368,15 @@ export default function FacturacionTab({ inicial }: Props) {
   const [rucInfo,        setRucInfo]        = useState<RucInfo | null>(null)
   const [rucError,       setRucError]       = useState<string | null>(null)
 
+  // Traquea si la razón social fue autocompletada desde SUNAT en esta sesión
+  const [rsAutocompletada, setRsAutocompletada] = useState(false)
+
   function set<K extends keyof FacturacionData>(key: K, value: FacturacionData[K]) {
     setData((prev) => ({ ...prev, [key]: value }))
     setSuccess(null)
     setError(null)
-    if (key === 'ruc') { setRucInfo(null); setRucError(null) }
+    if (key === 'ruc') { setRucInfo(null); setRucError(null); setRsAutocompletada(false) }
+    if (key === 'razon_social') setRsAutocompletada(false)
   }
 
   async function verificarRuc() {
@@ -52,6 +385,7 @@ export default function FacturacionTab({ inicial }: Props) {
     setRucVerificando(true)
     setRucInfo(null)
     setRucError(null)
+    setRsAutocompletada(false)
     try {
       const res = await fetch('/api/sunat/ruc', {
         method: 'POST',
@@ -67,8 +401,10 @@ export default function FacturacionTab({ inicial }: Props) {
         }
       } else {
         setRucInfo(d)
+        // Autocompletar razón social si está vacía
         if (!data.razon_social?.trim()) {
           setData((prev) => ({ ...prev, razon_social: d.razonSocial }))
+          setRsAutocompletada(true)
         }
       }
     } catch {
@@ -83,7 +419,6 @@ export default function FacturacionTab({ inicial }: Props) {
     setError(null)
     setSuccess(null)
 
-    // Validaciones
     if (data.tipo_ruc !== 'sin_ruc') {
       if (!data.ruc || data.ruc.length !== 11) {
         setError('Ingresa un RUC válido de 11 dígitos.')
@@ -157,7 +492,9 @@ export default function FacturacionTab({ inicial }: Props) {
         <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Datos tributarios</p>
 
+          {/* RUC + Régimen */}
           <div className="grid grid-cols-2 gap-4">
+            {/* RUC */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 RUC <span className="text-red-500">*</span>
@@ -169,7 +506,7 @@ export default function FacturacionTab({ inicial }: Props) {
                   onChange={(e) => set('ruc', e.target.value.replace(/\D/g, '').slice(0, 11))}
                   placeholder="20123456789"
                   maxLength={11}
-                  className={`flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 transition ${
+                  className={`flex-1 px-3 py-2 rounded-lg border text-sm font-mono focus:outline-none focus:ring-2 transition ${
                     rucInfo
                       ? rucInfo.activo
                         ? 'border-green-400 focus:ring-green-300'
@@ -191,13 +528,14 @@ export default function FacturacionTab({ inicial }: Props) {
               {rucInfo && (
                 <p className={`text-xs mt-1 ${rucInfo.activo ? 'text-green-600' : 'text-yellow-600'}`}>
                   {rucInfo.activo
-                    ? `✓ ${rucInfo.razonSocial} — ACTIVO/HABIDO`
-                    : `⚠ ${rucInfo.razonSocial} — ${rucInfo.estado} / ${rucInfo.condicion}`}
+                    ? `✓ ACTIVO / HABIDO en SUNAT`
+                    : `⚠ ${rucInfo.estado} / ${rucInfo.condicion}`}
                 </p>
               )}
               {rucError && <p className="text-xs text-red-500 mt-1">{rucError}</p>}
             </div>
 
+            {/* Régimen */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Régimen <span className="text-red-500">*</span>
@@ -210,9 +548,9 @@ export default function FacturacionTab({ inicial }: Props) {
                 <option value="">Seleccionar...</option>
                 {data.tipo_ruc === 'ruc10' && (
                   <>
+                    <option value="rus">Nuevo RUS</option>
                     <option value="rer">RER</option>
                     <option value="rmt">RMT</option>
-                    <option value="rus">RUS (Nuevo RUS)</option>
                   </>
                 )}
                 {data.tipo_ruc === 'ruc20' && (
@@ -223,8 +561,16 @@ export default function FacturacionTab({ inicial }: Props) {
                   </>
                 )}
               </select>
+              {/* Asistente de régimen — aparece cuando no hay uno seleccionado */}
+              {!data.regimen_tributario && (
+                <AsistenteRegimen
+                  tipoRuc={data.tipo_ruc}
+                  onSeleccionar={(r) => set('regimen_tributario', r)}
+                />
+              )}
             </div>
 
+            {/* Razón social */}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Razón social <span className="text-red-500">*</span>
@@ -234,19 +580,57 @@ export default function FacturacionTab({ inicial }: Props) {
                 value={data.razon_social ?? ''}
                 onChange={(e) => set('razon_social', e.target.value)}
                 placeholder={data.tipo_ruc === 'ruc10' ? 'PÉREZ GARCÍA JUAN' : 'FERRETERÍA DON MARIO E.I.R.L.'}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
+              {rsAutocompletada && (
+                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Completado automáticamente desde SUNAT</span>
+                </p>
+              )}
+              {rucInfo && !rsAutocompletada && data.razon_social !== rucInfo.razonSocial && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setData((prev) => ({ ...prev, razon_social: rucInfo.razonSocial }))
+                    setRsAutocompletada(true)
+                  }}
+                  className="text-xs text-blue-600 hover:underline mt-1"
+                >
+                  ↩ Usar razón social SUNAT: {rucInfo.razonSocial}
+                </button>
+              )}
             </div>
 
+            {/* Nombre comercial */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre comercial</label>
-              <input
-                type="text"
-                value={data.nombre_comercial ?? ''}
-                onChange={(e) => set('nombre_comercial', e.target.value || null)}
-                placeholder="Ej: Ferretería Don Mario (si difiere de la razón social)"
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nombre comercial
+                <span className="text-gray-400 font-normal ml-1 text-xs">(el nombre con el que te conocen los clientes)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={data.nombre_comercial ?? ''}
+                  onChange={(e) => set('nombre_comercial', e.target.value || null)}
+                  placeholder="Ej: Ferretería Don Mario"
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                {/* Botón de copia solo si razón social está llena y nombre comercial está vacío */}
+                {data.razon_social?.trim() && !data.nombre_comercial?.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => set('nombre_comercial', data.razon_social)}
+                    title="Copiar razón social"
+                    className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg border border-gray-200 transition whitespace-nowrap"
+                  >
+                    Igual que razón social
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Opcional. Si tu tienda tiene nombre propio distinto a tu razón social (SUNAT no lo registra).
+              </p>
             </div>
           </div>
         </div>
@@ -314,7 +698,7 @@ export default function FacturacionTab({ inicial }: Props) {
           {!esSinRuc && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Serie Facturas {data.tipo_ruc === 'ruc20' ? '' : <span className="text-gray-400 font-normal">(solo RUC20)</span>}
+                Serie Facturas {data.tipo_ruc !== 'ruc20' && <span className="text-gray-400 font-normal">(solo RUC20)</span>}
               </label>
               <input
                 type="text"
@@ -347,17 +731,8 @@ export default function FacturacionTab({ inicial }: Props) {
         </div>
       </div>
 
-      {/* Nubefact — placeholder F3 */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-blue-600 text-lg">🔌</span>
-          <p className="text-sm font-medium text-blue-800">Nubefact — Facturación electrónica</p>
-          <span className="text-xs bg-blue-200 text-blue-700 px-2 py-0.5 rounded-full">Próximamente</span>
-        </div>
-        <p className="text-xs text-blue-600">
-          La conexión con Nubefact para emitir boletas y facturas electrónicas ante SUNAT estará disponible próximamente.
-        </p>
-      </div>
+      {/* Nubefact — F3 */}
+      <SeccionNubefact initialConfig={nubefactConfig} />
 
       {/* Feedback */}
       {error && (

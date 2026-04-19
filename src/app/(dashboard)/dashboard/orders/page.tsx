@@ -13,7 +13,7 @@ export default async function OrdersPage() {
 
   const supabase = await createClient()
 
-  const [{ data: pedidos }, { data: productos }, { data: zonas }, { data: repartidores }] = await Promise.all([
+  const [{ data: pedidos }, { data: productos }, { data: zonas }, { data: repartidores }, { data: ferreteriaData }] = await Promise.all([
     supabase
       .from('pedidos')
       .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*), metodo_pago, estado_pago, pago_confirmado_por, pago_confirmado_at')
@@ -36,6 +36,11 @@ export default async function OrdersPage() {
       .select('id, nombre, telefono, activo')
       .eq('ferreteria_id', session.ferreteriaId)
       .order('nombre'),
+    supabase
+      .from('ferreterias')
+      .select('nubefact_token_enc')
+      .eq('id', session.ferreteriaId)   // FERRETERÍA AISLADA
+      .single(),
   ])
 
   return (
@@ -58,6 +63,7 @@ export default async function OrdersPage() {
         rol={session.rol}
         repartidores={repartidores ?? []}
         permisos={session.permisos as PermisoMap}
+        nubefactConfigurado={!!ferreteriaData?.nubefact_token_enc}
       />
     </div>
   )

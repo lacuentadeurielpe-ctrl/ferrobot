@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
 import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2 } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
+import ModalEmitirBoleta from '@/components/comprobantes/ModalEmitirBoleta'
 import { createClient } from '@/lib/supabase/client'
 import type { Rol } from '@/lib/auth/roles'
 import { checkPermiso, type PermisoMap } from '@/lib/auth/permisos'
+import type { Pedido as PedidoDB } from '@/types/database'
 
 interface Repartidor {
   id: string
@@ -131,7 +133,7 @@ function estaEnRango(fecha: string, rango: string): boolean {
   return true
 }
 
-export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId, rol = 'dueno', repartidores = [], permisos }: {
+export default function OrdersTable({ pedidos: inicial, productos = [], zonas = [], ferreteriaId, rol = 'dueno', repartidores = [], permisos, nubefactConfigurado = false }: {
   pedidos: Pedido[]
   productos?: Producto[]
   zonas?: Zona[]
@@ -139,6 +141,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   rol?: Rol
   repartidores?: Repartidor[]
   permisos?: Partial<PermisoMap>
+  nubefactConfigurado?: boolean
 }) {
   const router = useRouter()
   const esDueno = rol === 'dueno'
@@ -161,6 +164,16 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   } | null>(null)
   const [aprobandoCredito, setAprobandoCredito] = useState(false)
   const puedeAprobarCreditos = checkPermiso(sessionData, 'aprobar_creditos')
+
+  // Modal emitir boleta electrónica (F3)
+  const [modalBoleta, setModalBoleta] = useState<PedidoDB | null>(null)
+  // Boletas ya emitidas en esta sesión: pedidoId → numeroCompleto
+  const [boletasEmitidas, setBoletasEmitidas] = useState<Record<string, { numeroCompleto: string; pdfUrl?: string }>>({})
+
+  function handleBoletaEmitida(pedidoId: string, resultado: { numeroCompleto: string; pdfUrl?: string }) {
+    setBoletasEmitidas((prev) => ({ ...prev, [pedidoId]: resultado }))
+    setModalBoleta(null)
+  }
 
   // Realtime: notificar cuando llega un pedido nuevo
   useEffect(() => {
@@ -874,6 +887,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     {/* Botones de comprobante */}
                     {ESTADOS_CON_COMPROBANTE.has(pedido.estado) && (() => {
                       const cp = estadoComprobante(pedido.id)
+                      const boletaEmitida = boletasEmitidas[pedido.id]
                       return (
                         <div className="border-t border-gray-200 pt-3 flex items-center gap-2 flex-wrap">
                           <button
@@ -902,6 +916,34 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                             }
                           </button>
 
+                          {/* Botón boleta electrónica — solo si Nubefact está configurado */}
+                          {nubefactConfigurado && (
+                            boletaEmitida ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg font-medium">
+                                  ✓ {boletaEmitida.numeroCompleto}
+                                </span>
+                                {boletaEmitida.pdfUrl && (
+                                  <a
+                                    href={boletaEmitida.pdfUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
+                                  >
+                                    PDF <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setModalBoleta(pedido as unknown as PedidoDB)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition"
+                              >
+                                🧾 Emitir boleta
+                              </button>
+                            )
+                          )}
+
                           {cp.error && (
                             <span className="text-xs text-red-500">{cp.error}</span>
                           )}
@@ -929,6 +971,15 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
           productos={productos}
           zonas={zonas}
           onClose={() => setModalNuevo(false)}
+        />
+      )}
+
+      {/* Modal emitir boleta electrónica (F3) */}
+      {modalBoleta && (
+        <ModalEmitirBoleta
+          pedido={modalBoleta as PedidoDB}
+          onClose={() => setModalBoleta(null)}
+          onEmitida={(r) => handleBoletaEmitida(modalBoleta.id, r)}
         />
       )}
     </div>
