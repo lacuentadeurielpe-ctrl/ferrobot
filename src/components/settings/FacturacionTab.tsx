@@ -215,12 +215,27 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
   }
 
   async function guardar() {
-    if (!ruta.trim()) { setSaveError('La Ruta es obligatoria'); return }
+    const rutaLimpia = ruta.trim()
+    if (!rutaLimpia) { setSaveError('La Ruta es obligatoria'); return }
+
+    // Detectar si la URL fue pegada duplicada (contiene el prefijo dos veces)
+    const prefijo = 'https://api.nubefact.com'
+    const ocurrencias = rutaLimpia.split(prefijo).length - 1
+    if (ocurrencias > 1) {
+      setSaveError('La Ruta parece estar duplicada. Cópiala de nuevo desde Nubefact y asegúrate de pegarla una sola vez.')
+      return
+    }
+
+    if (!rutaLimpia.startsWith('https://api.nubefact.com/api/v1/')) {
+      setSaveError('La Ruta debe comenzar con https://api.nubefact.com/api/v1/')
+      return
+    }
+
     setGuardando(true)
     setSaveOk(false)
     setSaveError(null)
     try {
-      const body: Record<string, string> = { modo, ruta: ruta.trim() }
+      const body: Record<string, string> = { modo, ruta: rutaLimpia }
       if (token.trim()) body.token = token.trim()
 
       const res = await fetch('/api/settings/nubefact', {
