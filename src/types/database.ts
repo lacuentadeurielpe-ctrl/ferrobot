@@ -114,6 +114,7 @@ export interface Ferreteria {
   representante_legal_cargo: string | null
   // ── Nubefact (F3) ───────────────────────────────────────────────
   nubefact_token_enc: string | null   // cifrado en BD, nunca exponer al cliente
+  nubefact_ruta:      string | null   // URL de la cuenta Nubefact (no secreta)
   nubefact_modo: 'prueba' | 'produccion'
   // ────────────────────────────────────────────────────────────────
   created_at: string

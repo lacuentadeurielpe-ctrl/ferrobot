@@ -63,7 +63,7 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     .select(`
       id, ruc, razon_social, nombre_comercial,
       serie_boletas, igv_incluido_en_precios,
-      nubefact_token_enc, nubefact_modo
+      nubefact_token_enc, nubefact_ruta, nubefact_modo
     `)
     .eq('id', opts.ferreteriaId)
     .single()
@@ -72,12 +72,8 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     return { ok: false, error: 'Ferretería no encontrada' }
   }
 
-  if (!ferreteria.nubefact_token_enc) {
-    return { ok: false, error: 'Nubefact no configurado. Ve a Settings → Facturación para conectar tu cuenta.' }
-  }
-
-  if (!ferreteria.ruc || ferreteria.ruc.length !== 11) {
-    return { ok: false, error: 'El RUC de la ferretería no está configurado. Completa Settings → Facturación.' }
+  if (!ferreteria.nubefact_token_enc || !ferreteria.nubefact_ruta) {
+    return { ok: false, error: 'Nubefact no configurado. Ve a Settings → Facturación y guarda la Ruta y el Token.' }
   }
 
   // ── 2. Cargar pedido con items — FERRETERÍA AISLADA ──────────────────────
@@ -246,8 +242,8 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     items:                       nubefactItems,
   }
 
-  // ── 9. Enviar a Nubefact ─────────────────────────────────────────────────
-  const resultado = await enviarANubefact(ferreteria.ruc, tokenPlano, payload)
+  // ── 9. Enviar a Nubefact (usando la RUTA del tenant) ────────────────────
+  const resultado = await enviarANubefact(ferreteria.nubefact_ruta!, tokenPlano, payload)
 
   // ── 10. Guardar en BD independientemente del resultado ──────────────────
   //    Si Nubefact falla, guardamos con estado 'error' para reintentar luego

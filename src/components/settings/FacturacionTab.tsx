@@ -23,6 +23,7 @@ interface Props {
   nubefactConfig: {
     configurado: boolean
     modo:        string
+    ruta?:       string | null
   }
 }
 
@@ -163,7 +164,8 @@ function AsistenteRegimen({
 
 // ── Sección Nubefact ──────────────────────────────────────────────────────────
 
-function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: boolean; modo: string } }) {
+function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: boolean; modo: string; ruta?: string | null } }) {
+  const [ruta,       setRuta]       = useState(initialConfig.ruta ?? '')
   const [token,      setToken]      = useState('')
   const [modo,       setModo]       = useState(initialConfig.modo ?? 'prueba')
   const [configurado, setConfigurado] = useState(initialConfig.configurado)
@@ -175,15 +177,16 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
   const [saveError,  setSaveError]  = useState<string | null>(null)
   const [mostrarToken, setMostrarToken] = useState(false)
 
-  // Reset feedback cuando cambia token/modo
+  // Reset feedback cuando cambia algo
   useEffect(() => {
     setTestOk(null)
     setTestError(null)
     setSaveOk(false)
     setSaveError(null)
-  }, [token, modo])
+  }, [ruta, token, modo])
 
   async function probarConexion() {
+    if (!ruta.trim()) { setTestOk(false); setTestError('Ingresa la Ruta primero'); return }
     setTesteando(true)
     setTestOk(null)
     setTestError(null)
@@ -191,7 +194,10 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
       const res = await fetch('/api/settings/nubefact', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ token: token.trim() || undefined }),
+        body:    JSON.stringify({
+          ruta:  ruta.trim(),
+          token: token.trim() || undefined,
+        }),
       })
       const d = await res.json()
       if (d.ok) {
@@ -209,11 +215,12 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
   }
 
   async function guardar() {
+    if (!ruta.trim()) { setSaveError('La Ruta es obligatoria'); return }
     setGuardando(true)
     setSaveOk(false)
     setSaveError(null)
     try {
-      const body: Record<string, string> = { modo }
+      const body: Record<string, string> = { modo, ruta: ruta.trim() }
       if (token.trim()) body.token = token.trim()
 
       const res = await fetch('/api/settings/nubefact', {
@@ -225,7 +232,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
       if (d.ok) {
         setSaveOk(true)
         setConfigurado(true)
-        setToken('')  // limpiar campo tras guardar
+        setToken('')  // limpiar token tras guardar (la ruta la dejamos visible)
       } else {
         setSaveError(d.error ?? 'Error al guardar')
       }
@@ -283,18 +290,41 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
         )}
       </div>
 
+      {/* Instrucción */}
+      <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
+        <p className="font-medium text-gray-700">¿Dónde encuentro estos datos?</p>
+        <p>En Nubefact → menú superior → <strong>Configuración → API - Integración</strong></p>
+        <p>Verás una tabla con <strong>RUTA</strong> y <strong>TOKEN</strong> — copia ambos aquí.</p>
+        <a
+          href="https://app.nubefact.com/api_tokens"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:underline inline-block pt-0.5"
+        >
+          → Ir a Nubefact API - Integración
+        </a>
+      </div>
+
+      {/* Ruta */}
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          Ruta <span className="text-red-500">*</span>
+          <span className="font-normal text-gray-400 ml-1">(columna RUTA en Nubefact)</span>
+        </label>
+        <input
+          type="text"
+          value={ruta}
+          onChange={(e) => setRuta(e.target.value)}
+          placeholder="https://api.nubefact.com/api/v1/xxxxxxxx-xxxx-xxxx-xxxx-..."
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+      </div>
+
       {/* Token */}
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">
-          Token API de Nubefact
-          <a
-            href="https://app.nubefact.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-2 text-blue-500 hover:underline font-normal"
-          >
-            → Obtener token
-          </a>
+          Token <span className="text-red-500">*</span>
+          <span className="font-normal text-gray-400 ml-1">(columna TOKEN en Nubefact)</span>
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -302,7 +332,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
               type={mostrarToken ? 'text' : 'password'}
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder={configurado ? '••••••••  (deja vacío para no cambiar)' : 'Pega tu token de Nubefact aquí'}
+              placeholder={configurado ? '••••••••  (deja vacío para no cambiar)' : 'Pega el token aquí'}
               className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
             <button
@@ -316,7 +346,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
           <button
             type="button"
             onClick={probarConexion}
-            disabled={testeando || (!token.trim() && !configurado)}
+            disabled={testeando || !ruta.trim()}
             className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-lg transition whitespace-nowrap"
           >
             {testeando ? '...' : 'Probar'}
@@ -330,10 +360,6 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
         {testOk === false && testError && (
           <p className="text-xs text-red-500 mt-1">✗ {testError}</p>
         )}
-
-        <p className="text-xs text-gray-400 mt-1">
-          En Nubefact: Empresa → API → copiar el token del modo correspondiente.
-        </p>
       </div>
 
       {/* Botón guardar */}

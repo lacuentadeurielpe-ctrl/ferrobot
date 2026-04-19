@@ -51,10 +51,11 @@ export default async function SettingsPage({
       .single(),
   ])
 
-  // Nubefact: solo necesitamos si está configurado y el modo (nunca el token)
+  // Nubefact: configurado, modo y ruta (la ruta no es secreta); el token NUNCA
   const nubefactConfig = {
-    configurado: !!ferreteria.nubefact_token_enc,
-    modo:        ferreteria.nubefact_modo ?? 'prueba',
+    configurado: !!ferreteria.nubefact_token_enc && !!ferreteria.nubefact_ruta,
+    modo:        ferreteria.nubefact_modo  ?? 'prueba',
+    ruta:        ferreteria.nubefact_ruta  ?? null,
   }
 
   const TABS = [
