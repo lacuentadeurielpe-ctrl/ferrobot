@@ -313,19 +313,23 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
   // ── 9. Enviar a Nubefact (usando la RUTA del tenant) ────────────────────
   const resultado = await enviarANubefact(ferreteria.nubefact_ruta!, tokenPlano, payload)
 
-  // ── 10. Guardar en BD independientemente del resultado ──────────────────
-  //    Si Nubefact falla, guardamos con estado 'error' para reintentar luego
+  // ── 10. Guardar en BD — UPSERT por (pedido_id, tipo) ───────────────────
+  //    Si ya existe un registro 'error' anterior para este pedido+tipo,
+  //    lo actualizamos con el nuevo numero y resultado (avanza el contador).
+  //    Si no existe, inserta normalmente.
+  //    NUNCA sobreescribe un registro 'emitido' (ya controlado en paso 3).
   const estadoComprobante = resultado.ok ? 'emitido' : 'error'
 
   const { data: comprobante, error: errInsert } = await supabase
     .from('comprobantes')
-    .insert({
+    .upsert({
       ferreteria_id:    opts.ferreteriaId,          // AISLADO
       pedido_id:        opts.pedidoId,
       tipo:             'boleta',
       serie,
       numero,
       numero_completo:  numeroCompleto,
+      numero_comprobante: numeroCompleto,
       estado:           estadoComprobante,
       subtotal:         totalGravada,
       igv:              totalIgv,
@@ -338,6 +342,8 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
       pdf_url:          resultado.data?.enlace_del_pdf ?? null,
       emitido_por:      opts.emitidoPor,
       error_envio:      resultado.ok ? null : (resultado.error ?? 'Error desconocido'),
+    }, {
+      onConflict: 'pedido_id,tipo',   // si ya existe → actualiza
     })
     .select('id')
     .single()
