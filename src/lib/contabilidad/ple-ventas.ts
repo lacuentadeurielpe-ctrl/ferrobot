@@ -45,38 +45,51 @@ export interface FilaVenta {
 }
 
 export function generarFilaPLE(fila: FilaVenta): string {
-  const periodo   = fila.periodo           // YYYYMM → SUNAT espera YYYYMM
-  const cuo       = fila.cuo
-  const m         = '1'                    // operación normal
-  const fechaEm   = formatFechaPLE(fila.fechaEmision)
-  const fechaVto  = fechaEm               // venta al contado = misma fecha
-  const codCdp    = codTipoComprobante(fila.tipoComprobante)
-  const serie     = fila.serie ?? ''
-  const nro       = String(fila.numero)
-  const nroFinal  = ''                    // solo para rangos de boletas
-  const codTDoc   = fila.tipoDocCliente ?? codTipoDocumento(fila.nroDocCliente)
-  const nroDoc    = fila.nroDocCliente ?? ''
-  const nombre    = (fila.nombreCliente ?? 'CLIENTES VARIOS').replace(/\|/g, ' ')
-  const export_   = '0.00'               // exportación = 0
-  const base      = fila.baseImponible.toFixed(2)
-  const igv       = fila.igv.toFixed(2)
-  const descBase  = '0.00'
-  const descIgv   = '0.00'
-  const exonerada = '0.00'
-  const inafecta  = '0.00'
-  const isc       = '0.00'
-  const icbper    = '0.00'
-  const otros     = '0.00'
-  const total     = fila.total.toFixed(2)
-  const tc        = '1'                   // tipo de cambio (1 = soles)
-  const fechaRef  = ''
+  // SUNAT Libro 14 — Registro de Ventas e Ingresos
+  // 30 campos separados por | con | al final
+  // Ref: Resolución de Superintendencia 286-2009/SUNAT y modificatorias
+
+  const periodo    = fila.periodo                        // YYYYMM
+  const cuo        = fila.cuo                            // código único de operación
+  const m          = '1'                                 // 1=anotado, 8=pendiente
+  const fechaEm    = formatFechaPLE(fila.fechaEmision)
+  const fechaVto   = fechaEm                             // contado = misma fecha
+  const codCdp     = codTipoComprobante(fila.tipoComprobante)
+  const serie      = fila.serie ?? ''
+  const nro        = String(fila.numero)
+  const nroFinal   = ''   // vacío para comprobantes individuales (no rangos)
+
+  // Documento de identidad del cliente
+  const tipoDoc = fila.tipoDocCliente ?? codTipoDocumento(fila.nroDocCliente)
+  // SUNAT: si no hay documento usar '-' en tipo y vacío en número
+  const codTDoc    = tipoDoc === '0' ? '-' : tipoDoc
+  const nroDoc     = (tipoDoc === '0' || !fila.nroDocCliente) ? '' : fila.nroDocCliente
+  const nombre     = (fila.nombreCliente ?? '-').replace(/\|/g, ' ')
+
+  const export_    = '0.00'   // exportación = 0 (ventas nacionales)
+  const base       = fila.baseImponible.toFixed(2)
+  const igv        = fila.igv.toFixed(2)
+  const descBase   = '0.00'
+  const descIgv    = '0.00'
+  const exonerada  = '0.00'
+  const inafecta   = '0.00'
+  const isc        = '0.00'
+  const icbper     = '0.00'
+  const otros      = '0.00'
+  const total      = fila.total.toFixed(2)
+  const tc         = '1.000' // tipo de cambio (soles, 3 decimales)
+
+  // Referencia (solo para notas de crédito/débito — vacío en boletas/facturas)
+  const fechaRef   = ''
   const tipoCdpRef = ''
-  const serieRef  = ''
-  const nroRef    = ''
-  const estadoCdp = fila.estado === 'anulado' ? '6' : '1'
+  const serieRef   = ''
+  const nroRef     = ''
+
+  const estadoCdp  = fila.estado === 'anulado' ? '6' : '1'
   const campoLibre = ''
 
-  return [
+  // 30 campos exactos
+  const campos = [
     periodo, cuo, m, fechaEm, fechaVto,
     codCdp, serie, nro, nroFinal,
     codTDoc, nroDoc, nombre,
@@ -84,7 +97,8 @@ export function generarFilaPLE(fila: FilaVenta): string {
     exonerada, inafecta, isc, icbper, otros, total,
     tc, fechaRef, tipoCdpRef, serieRef, nroRef,
     estadoCdp, campoLibre,
-  ].join('|') + '|'
+  ]
+  return campos.join('|') + '|'
 }
 
 export function generarPLEVentas(

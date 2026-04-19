@@ -59,26 +59,34 @@ export async function GET(
     .lt('created_at', hasta)
     .order('created_at', { ascending: true })
 
+  // Separador ; (estándar CSV en Excel español/peruano — no usar coma)
+  const SEP = ';'
   const BOM = '\uFEFF'
-  const cabecera = ['Fecha', 'Tipo', 'Serie-Número', 'Cliente', 'RUC/DNI', 'Base Imponible', 'IGV 18%', 'Total', 'Estado'].join(',')
-  const filas = (comprobantes ?? []).map(c => {
+  const cabecera = [
+    'Fecha', 'Tipo', 'Serie-Número', 'Cliente', 'RUC/DNI',
+    'Base Imponible', 'IGV 18%', 'Total', 'Estado',
+  ].join(SEP)
+
+  const filas = (comprobantes ?? []).map((c, i) => {
     const fecha = new Date(c.created_at).toLocaleDateString('es-PE')
     const tipo  = c.tipo === 'factura' ? 'Factura' : 'Boleta'
     const serie = c.numero_completo ?? `${c.serie}-${c.numero}`
+    // Números con coma decimal para Excel español
+    const fmt   = (n: number) => n.toFixed(2).replace('.', ',')
     return [
       `"${fecha}"`,
       `"${tipo}"`,
       `"${serie}"`,
       `"${(c.cliente_nombre ?? 'CLIENTES VARIOS').replace(/"/g, '""')}"`,
       `"${c.cliente_ruc_dni ?? ''}"`,
-      (c.subtotal ?? 0).toFixed(2),
-      (c.igv ?? 0).toFixed(2),
-      (c.total ?? 0).toFixed(2),
+      fmt(c.subtotal ?? 0),
+      fmt(c.igv ?? 0),
+      fmt(c.total ?? 0),
       `"${c.estado}"`,
-    ].join(',')
+    ].join(SEP)
   })
 
-  const csv = BOM + [cabecera, ...filas].join('\n')
+  const csv = BOM + [cabecera, ...filas].join('\r\n')
   const filename = `RegistroVentas_${year}_${month}.csv`
 
   return new Response(csv, {
