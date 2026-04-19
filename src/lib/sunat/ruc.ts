@@ -1,13 +1,12 @@
-// Consulta de RUC vía API de SUNAT
-// Proveedor: api.apis.net.pe — requiere token Bearer gratuito (registro en apis.net.pe)
+// Consulta de RUC vía API de Decolecta (antes apis.net.pe)
+// Documentación: https://docs.decolecta.com
 // Variable de entorno requerida: APIS_NET_PE_TOKEN
 //
-// Si el token no está configurado, la verificación queda deshabilitada pero
-// el usuario puede guardar el RUC manualmente sin validar.
-//
-// Cacheo en memoria con TTL de 24 horas para reducir llamadas a la API.
+// Endpoint básico:  GET https://api.decolecta.com/v1/sunat/ruc?numero={ruc}
+// Endpoint avanzado: GET https://api.decolecta.com/v1/sunat/ruc/full?numero={ruc}
+// Usamos el avanzado para obtener el campo `tipo` (ej: "SOCIEDAD ANONIMA CERRADA")
 
-const SUNAT_API_BASE = 'https://api.apis.net.pe/v2/sunat/ruc'
+const DECOLECTA_BASE = 'https://api.decolecta.com/v1/sunat/ruc'
 const CACHE_TTL_MS   = 24 * 60 * 60 * 1000  // 24 horas
 const CACHE_ERR_MS   = 60 * 1000             // 1 min en error temporal
 const TIMEOUT_MS     = 8_000
@@ -17,8 +16,8 @@ const TIMEOUT_MS     = 8_000
 export interface RucInfo {
   ruc:               string
   razonSocial:       string
-  tipoContribuyente: string   // 'PERSONA NATURAL CON NEGOCIO' | 'SOCIEDAD ANONIMA CERRADA' | ...
-  estado:            string   // 'ACTIVO' | 'BAJA DE OFICIO' | 'SUSPENDIDO' | ...
+  tipoContribuyente: string   // 'SOCIEDAD ANONIMA CERRADA' | 'PERSONA NATURAL CON NEGOCIO' | ...
+  estado:            string   // 'ACTIVO' | 'BAJA DE OFICIO' | ...
   condicion:         string   // 'HABIDO' | 'NO HABIDO'
   direccion:         string | null
   ubigeo:            string | null
@@ -32,14 +31,13 @@ export interface RucInfo {
 }
 
 export interface RucResult {
-  ok:    boolean
-  data?: RucInfo
-  error?: string
-  /** true cuando el token no está configurado — el front puede mostrar mensaje diferente */
+  ok:      boolean
+  data?:   RucInfo
+  error?:  string
   sinToken?: boolean
 }
 
-// ── Cache en memoria ───────────────────────────────────────────────────────────
+// ── Cache ─────────────────────────────────────────────────────────────────────
 
 interface CacheEntry {
   data:     RucInfo | null
@@ -56,22 +54,24 @@ function limpiarCacheExpirado() {
   }
 }
 
-// ── Normalización ──────────────────────────────────────────────────────────────
+// ── Normalización ─────────────────────────────────────────────────────────────
 
-function detectarTipoPersona(tipoContribuyente: string): 'natural' | 'juridica' {
-  const t = tipoContribuyente.toUpperCase()
+function detectarTipoPersona(tipo: string, ruc: string): 'natural' | 'juridica' {
+  if (ruc.startsWith('10')) return 'natural'
+  if (ruc.startsWith('20')) return 'juridica'
+  const t = tipo.toUpperCase()
   return t.includes('PERSONA NATURAL') || t.includes('EMPRESA INDIVIDUAL')
     ? 'natural'
     : 'juridica'
 }
 
-function detectarTipoRuc(ruc: string, tipoContribuyente: string): 'ruc10' | 'ruc20' {
+function detectarTipoRuc(ruc: string): 'ruc10' | 'ruc20' {
   if (ruc.startsWith('10')) return 'ruc10'
   if (ruc.startsWith('20')) return 'ruc20'
-  return detectarTipoPersona(tipoContribuyente) === 'natural' ? 'ruc10' : 'ruc20'
+  return 'ruc10' // fallback
 }
 
-// ── Función principal ──────────────────────────────────────────────────────────
+// ── Función principal ─────────────────────────────────────────────────────────
 
 export async function consultarRuc(ruc: string): Promise<RucResult> {
   const rucLimpio = ruc.replace(/\D/g, '')
@@ -79,17 +79,11 @@ export async function consultarRuc(ruc: string): Promise<RucResult> {
     return { ok: false, error: 'RUC debe tener 11 dígitos' }
   }
 
-  // Si no hay token configurado, indicarlo claramente
   const token = process.env.APIS_NET_PE_TOKEN
   if (!token) {
-    return {
-      ok:       false,
-      error:    'Verificación SUNAT no configurada (falta APIS_NET_PE_TOKEN)',
-      sinToken: true,
-    }
+    return { ok: false, error: 'Verificación SUNAT no configurada (falta APIS_NET_PE_TOKEN)', sinToken: true }
   }
 
-  // Cache
   limpiarCacheExpirado()
   const cached = cache.get(rucLimpio)
   if (cached) {
@@ -97,56 +91,58 @@ export async function consultarRuc(ruc: string): Promise<RucResult> {
     if (cached.data)  return { ok: true,  data: cached.data  }
   }
 
-  // Llamada a la API
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
-    const res = await fetch(`${SUNAT_API_BASE}?numero=${rucLimpio}`, {
+    // Usamos endpoint /full para obtener el campo `tipo`
+    const url = `${DECOLECTA_BASE}/full?numero=${rucLimpio}`
+    const res = await fetch(url, {
       headers: {
-        'Accept':        'application/json',
+        'Content-Type':  'application/json',
         'Authorization': `Bearer ${token}`,
       },
       signal: controller.signal,
     })
     clearTimeout(timer)
 
-    if (res.status === 401) {
-      // Token inválido o expirado
-      return { ok: false, error: 'Token SUNAT inválido — verifica APIS_NET_PE_TOKEN en Vercel', sinToken: true }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, error: 'Token inválido — verifica APIS_NET_PE_TOKEN en Vercel', sinToken: true }
     }
 
-    if (res.status === 404) {
-      const err = 'RUC no encontrado en SUNAT'
+    if (res.status === 422 || res.status === 404) {
+      const err = 'RUC no encontrado o inválido en SUNAT'
       cache.set(rucLimpio, { data: null, error: err, expiraAt: Date.now() + CACHE_ERR_MS })
       return { ok: false, error: err }
     }
 
     if (!res.ok) {
-      const err = `Error SUNAT API: ${res.status}`
+      const body = await res.text().catch(() => '')
+      const err = `Error API SUNAT: ${res.status}${body ? ' — ' + body.slice(0, 80) : ''}`
       cache.set(rucLimpio, { data: null, error: err, expiraAt: Date.now() + CACHE_ERR_MS })
       return { ok: false, error: err }
     }
 
     const raw = await res.json()
 
-    const tipoContrib = raw.tipoContribuyente ?? raw.tipo_contribuyente ?? ''
-    const estado      = raw.estado     ?? ''
-    const condicion   = raw.condicion  ?? ''
+    // Decolecta usa snake_case: razon_social, numero_documento, tipo, etc.
+    const tipoContrib = raw.tipo ?? ''
+    const estado      = raw.estado    ?? ''
+    const condicion   = raw.condicion ?? ''
 
     const info: RucInfo = {
       ruc:               rucLimpio,
-      razonSocial:       raw.razonSocial ?? raw.nombre ?? '',
+      razonSocial:       raw.razon_social ?? '',
       tipoContribuyente: tipoContrib,
       estado,
       condicion,
-      direccion:         raw.direccion    ?? null,
-      ubigeo:            raw.ubigeo       ?? null,
+      direccion:         raw.direccion   ?? null,
+      ubigeo:            raw.ubigeo      ?? null,
       departamento:      raw.departamento ?? null,
-      provincia:         raw.provincia    ?? null,
-      distrito:          raw.distrito     ?? null,
-      tipoPersona:       detectarTipoPersona(tipoContrib),
-      tipoRucSugerido:   detectarTipoRuc(rucLimpio, tipoContrib),
+      provincia:         raw.provincia   ?? null,
+      distrito:          raw.distrito    ?? null,
+      tipoPersona:       detectarTipoPersona(tipoContrib, rucLimpio),
+      tipoRucSugerido:   detectarTipoRuc(rucLimpio),
       activo:            estado === 'ACTIVO' && condicion === 'HABIDO',
     }
 
@@ -168,7 +164,7 @@ export function validarFormatoRuc(ruc: string): boolean {
   return r.length === 11 && (r.startsWith('10') || r.startsWith('20'))
 }
 
-/** true si el token APIS_NET_PE_TOKEN está configurado */
+/** true si el token está configurado */
 export function sunatDisponible(): boolean {
   return !!process.env.APIS_NET_PE_TOKEN
 }
