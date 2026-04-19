@@ -22,6 +22,7 @@ import {
 import { handleIncomingMessage } from '@/lib/bot/message-handler'
 import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
 import { desencriptar } from '@/lib/encryption'
+import { pausarBotPorDueno } from '@/lib/bot/session'
 
 // Vercel: máximo 30s de ejecución para esta ruta
 export const maxDuration = 30
@@ -64,8 +65,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  // Solo procesar mensajes entrantes
   const tipoEvento = payload.type ?? ''
+
+  // Bug 3 fix: detectar mensajes salientes manuales del dueño → pausar bot
+  const esOutbound = tipoEvento.includes('outbound') || tipoEvento.includes('message.sending') ||
+    tipoEvento === 'whatsapp.message.sent' || tipoEvento === 'message.sent'
+  if (esOutbound) {
+    // El dueño escribió manualmente desde YCloud → pausar bot para esa conversación
+    const msgOut = extraerMensaje(payload)
+    if (msgOut?.to) {
+      // Identify tenant first for outbound
+      const telefonoRawOut = extraerTelefonoFerreteria(payload)
+      const telefonoNormOut = telefonoRawOut?.replace(/^\+/, '') ?? ''
+      const supabaseOut = createAdminClient()
+      const { data: ferreteriaOut } = await supabaseOut
+        .from('ferreterias')
+        .select('id')
+        .or(`telefono_whatsapp.eq.${telefonoNormOut},telefono_whatsapp.eq.+${telefonoNormOut}`)
+        .eq('activo', true)
+        .single()
+      if (ferreteriaOut) {
+        const telefonoDestino = msgOut.to.replace(/^\+/, '')
+        console.log(`[Webhook] Mensaje manual del dueño → pausar bot para ${telefonoDestino}`)
+        pausarBotPorDueno(supabaseOut, ferreteriaOut.id, telefonoDestino).catch(() => {})
+      }
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // Solo procesar mensajes entrantes reales
   if (!tipoEvento.includes('inbound_message') && !tipoEvento.includes('message.received')) {
     return NextResponse.json({ ok: true })
   }
@@ -142,6 +170,14 @@ export async function POST(request: Request) {
   const telefonoFerreteria = mensaje.to
   const ycloudMessageId = mensaje.id
   const telefonoEnvio = telefonoFerreteria.replace(/^\+/, '')
+
+  // Bug 1 fix: ignorar si el remitente es la propia ferretería (eco del bot)
+  const clienteNorm = telefonoCliente.replace(/^\+/, '')
+  const ferrNorm = telefonoFerreteria.replace(/^\+/, '')
+  if (clienteNorm === ferrNorm || clienteNorm === ferreteria.telefono_whatsapp?.replace(/^\+/, '')) {
+    console.log(`[Webhook] Mensaje propio ignorado (from=${telefonoCliente})`)
+    return NextResponse.json({ ok: true })
+  }
 
   // ── 6. Procesar según tipo de mensaje ─────────────────────────────────────
   let textoMensaje: string | null = null
@@ -223,6 +259,55 @@ export async function POST(request: Request) {
                 .join(', ')
               textoMensaje = `Quiero cotizar: ${listaTexto}`
               notaParaBot = `[El cliente envió una imagen con una lista de productos. Vision detectó: ${listaTexto}]`
+            } else if (analisis.tipo === 'comprobante_pago' && analisis.pago) {
+              // Verificación de pago por foto
+              const p = analisis.pago
+              console.log(`[Webhook] Comprobante de pago detectado — monto=${p.monto} dest=${p.destinatario}`)
+
+              // Buscar pedido pendiente del cliente
+              const { data: pedidoPendiente } = await supabase
+                .from('pedidos')
+                .select('id, numero_pedido, total, estado_pago')
+                .eq('ferreteria_id', ferreteria.id)
+                .in('estado', ['pendiente', 'confirmado', 'en_preparacion'])
+                .neq('estado_pago', 'pagado')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+
+              if (pedidoPendiente && p.monto !== null) {
+                const diferencia = Math.abs(p.monto - pedidoPendiente.total)
+                const tolerancia = pedidoPendiente.total * 0.05 // 5%
+
+                if (diferencia <= tolerancia) {
+                  // Monto coincide → marcar como verificando y notificar dueño
+                  await supabase
+                    .from('pedidos')
+                    .update({ estado_pago: 'verificando' })
+                    .eq('id', pedidoPendiente.id)
+
+                  // Notificar al dueño
+                  if (ferreteria.telefono_dueno) {
+                    await enviarMensaje({
+                      from: telefonoEnvio,
+                      to: ferreteria.telefono_dueno,
+                      texto: `💳 *Pago recibido para verificar*\nCliente: ${telefonoCliente}\nPedido: *${pedidoPendiente.numero_pedido}*\nMonto detectado: S/ ${p.monto.toFixed(2)}\nTotal pedido: S/ ${pedidoPendiente.total.toFixed(2)}\n${p.operacion_id ? `Op: ${p.operacion_id}` : ''}\n\nConfirma el pago desde el panel.`,
+                      apiKey: tenantApiKey,
+                    }).catch(() => {})
+                  }
+
+                  textoMensaje = `[COMPROBANTE_PAGO_RECIBIDO: monto=S/${p.monto.toFixed(2)} pedido=${pedidoPendiente.numero_pedido} estado=verificando]`
+                  notaParaBot = `[El cliente envió comprobante de pago. Monto S/${p.monto.toFixed(2)} coincide con el pedido ${pedidoPendiente.numero_pedido} (S/${pedidoPendiente.total.toFixed(2)}). El pago está en revisión.]`
+                } else {
+                  // Monto no coincide
+                  textoMensaje = `[COMPROBANTE_PAGO_MONTO_INCORRECTO: monto_detectado=S/${p.monto.toFixed(2)} total_pedido=S/${pedidoPendiente.total.toFixed(2)}]`
+                  notaParaBot = `[El cliente envió comprobante de pago pero el monto S/${p.monto.toFixed(2)} NO coincide con el pedido ${pedidoPendiente.numero_pedido} (S/${pedidoPendiente.total.toFixed(2)}).]`
+                }
+              } else {
+                // No hay pedido pendiente o no se pudo leer el monto
+                textoMensaje = mensaje.image.caption || `[COMPROBANTE_PAGO_SIN_PEDIDO]`
+                notaParaBot = `[El cliente envió lo que parece un comprobante de pago${p.monto !== null ? ` de S/${p.monto.toFixed(2)}` : ''}, pero no tiene pedido pendiente.]`
+              }
             } else {
               textoMensaje = mensaje.image.caption || analisis.descripcion
               notaParaBot = `[El cliente envió una imagen. Análisis Vision: tipo=${analisis.tipo}, descripción="${analisis.descripcion}"]`
@@ -282,7 +367,7 @@ export async function POST(request: Request) {
       }
     }
 
-  } else if (mensaje.type === 'sticker') {
+  } else if (['sticker', 'reaction', 'ephemeral', 'order', 'unsupported'].includes(mensaje.type ?? '')) {
     return NextResponse.json({ ok: true })
 
   } else {

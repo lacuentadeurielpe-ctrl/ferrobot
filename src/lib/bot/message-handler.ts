@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, TipoTareaIA } from '@/types/database'
 import { llamarDeepSeek, type IntentBot } from '@/lib/ai/deepseek'
 import { llamarClaude, claudeDisponible, buildSystemPromptClaude } from '@/lib/ai/claude'
-import { buildSystemPrompt, buildHistorialMensajes } from '@/lib/ai/prompt'
+import { buildSystemPrompt, buildSystemPromptLite, buildHistorialMensajes } from '@/lib/ai/prompt'
 import { procesarItemsSolicitados, formatearCotizacion } from '@/lib/bot/catalog-search'
 import {
   getOrCreateSession,
@@ -14,6 +14,7 @@ import {
   verificarRetomarBot,
   pausarBot,
   mensajeYaProcesado,
+  yaEnvioMensajeFueraHorario,
 } from '@/lib/bot/session'
 import { formatHora } from '@/lib/utils'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
@@ -79,6 +80,19 @@ interface HandleMessageResult {
   respuesta: string | null
   conversacionId: string
   mensajesExtra?: MensajeExtra[]
+}
+
+/** Heurística rápida: ¿el mensaje podría necesitar el catálogo? */
+function mensajeNecesitaCatalogo(texto: string): boolean {
+  const lower = texto.toLowerCase()
+  // Palabras que sugieren consulta de producto o cotización
+  const keywordsCatalogo = [
+    'precio', 'stock', 'cuánto', 'cuanto', 'tiene', 'tengo', 'quiero',
+    'cotiz', 'pedido', 'comprar', 'boleta', 'factura', 'fierro', 'cemento',
+    'caño', 'tubo', 'cable', 'pintura', 'clavo', 'tornillo', 'madera',
+    'unidad', 'kilo', 'metro', 'varilla', 'saco', 'bolsa', 'caja',
+  ]
+  return keywordsCatalogo.some(k => lower.includes(k)) || texto.length > 80
 }
 
 function estaEnHorario(ferreteria: Ferreteria): boolean {
@@ -148,6 +162,11 @@ export async function handleIncomingMessage({
   // ── 5. Horario de atención ────────────────────────────────────────────────
   console.log(`[Bot] Verificando horario — apertura=${ferreteria.horario_apertura} cierre=${ferreteria.horario_cierre} dias=${JSON.stringify(ferreteria.dias_atencion)}`)
   if (!estaEnHorario(ferreteria)) {
+    // Evitar spam: solo responder una vez por hora fuera de horario
+    const yaRespondi = await yaEnvioMensajeFueraHorario(supabase, conversacion.id)
+    if (yaRespondi) {
+      return { respuesta: null, conversacionId: conversacion.id }
+    }
     const msg = ferreteria.mensaje_fuera_horario ??
       `Hola, gracias por escribir a *${ferreteria.nombre}*. ` +
       `Por el momento estamos cerrados 🙏\n\n` +
@@ -183,13 +202,14 @@ export async function handleIncomingMessage({
   }
 
   // ── 8. Historial + llamada a DeepSeek (intent + respuesta) ────────────────
-  const historial = await getHistorial(supabase, conversacion.id, maxContexto)
+  const necesitaCatalogo = mensajeNecesitaCatalogo(textoMensaje) || !!datosFlujo
+  const limiteHistorial = necesitaCatalogo ? maxContexto : Math.min(maxContexto, 4)
+  const historial = await getHistorial(supabase, conversacion.id, limiteHistorial)
   const historialParaAI = historial.slice(0, -1)
 
-  const systemPrompt = buildSystemPrompt({
-    ferreteria, productos: productos ?? [], zonas: zonas ?? [], config, datosFlujo,
-    nombreCliente: nombreClienteGuardado,
-  })
+  const systemPrompt = necesitaCatalogo
+    ? buildSystemPrompt({ ferreteria, productos: productos ?? [], zonas: zonas ?? [], config, datosFlujo, nombreCliente: nombreClienteGuardado })
+    : buildSystemPromptLite({ ferreteria, zonas: zonas ?? [], config })
 
   let respuestaAI
   try {

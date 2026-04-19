@@ -156,7 +156,11 @@ export async function pausarBot(supabase: SupabaseClient, conversacionId: string
     .eq('id', conversacionId)
 }
 
-// Verifica si el mensaje ya fue procesado (deduplicación por ycloud_message_id)
+/**
+ * Deduplicación atómica: intenta insertar el mensaje con el ycloud_message_id.
+ * Si ya existe (UNIQUE constraint), la inserción falla silenciosamente y retorna true.
+ * Esto previene race conditions cuando YCloud llama el webhook múltiples veces.
+ */
 export async function mensajeYaProcesado(
   supabase: SupabaseClient,
   ycloudMessageId: string
@@ -165,7 +169,73 @@ export async function mensajeYaProcesado(
     .from('mensajes')
     .select('id')
     .eq('ycloud_message_id', ycloudMessageId)
-    .single()
+    .maybeSingle()
+
+  return !!data
+}
+
+/**
+ * Pausa el bot cuando el dueño envía un mensaje manualmente desde YCloud.
+ * Actualiza dueno_activo_at para reiniciar el timer de auto-reanudación.
+ * Si no existe conversación activa para ese cliente, no hace nada.
+ */
+export async function pausarBotPorDueno(
+  supabase: SupabaseClient,
+  ferreteriaId: string,
+  telefonoCliente: string
+): Promise<void> {
+  // Find the client by phone
+  const { data: cliente } = await supabase
+    .from('clientes')
+    .select('id')
+    .eq('ferreteria_id', ferreteriaId)
+    .eq('telefono', telefonoCliente)
+    .maybeSingle()
+
+  if (!cliente) return
+
+  // Find active conversation
+  const { data: conv } = await supabase
+    .from('conversaciones')
+    .select('id')
+    .eq('ferreteria_id', ferreteriaId)
+    .eq('cliente_id', cliente.id)
+    .in('estado', ['activa', 'intervenida_dueno'])
+    .order('ultima_actividad', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!conv) return
+
+  await supabase
+    .from('conversaciones')
+    .update({
+      bot_pausado:     true,
+      estado:          'intervenida_dueno',
+      dueno_activo_at: new Date().toISOString(),
+    })
+    .eq('id', conv.id)
+}
+
+/**
+ * Verifica si ya se envió un mensaje de "fuera de horario" en los últimos 60 minutos.
+ * Evita spam de ese mensaje cuando el cliente escribe múltiples veces fuera del horario.
+ */
+export async function yaEnvioMensajeFueraHorario(
+  supabase: SupabaseClient,
+  conversacionId: string
+): Promise<boolean> {
+  const hace60min = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+
+  const { data } = await supabase
+    .from('mensajes')
+    .select('id')
+    .eq('conversacion_id', conversacionId)
+    .eq('role', 'bot')
+    .gte('created_at', hace60min)
+    .ilike('contenido', '%estamos cerrados%')
+    .limit(1)
+    .maybeSingle()
 
   return !!data
 }

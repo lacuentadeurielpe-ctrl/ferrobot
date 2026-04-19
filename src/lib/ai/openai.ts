@@ -60,20 +60,26 @@ export async function transcribirAudio(
 // ── Imagen → Análisis (GPT-4o Vision) ────────────────────────────────────────
 
 export interface AnalisisImagen {
-  tipo: 'lista_productos' | 'producto_individual' | 'consulta' | 'otro'
-  descripcion: string  // respuesta en lenguaje natural para el cliente
+  tipo: 'lista_productos' | 'producto_individual' | 'comprobante_pago' | 'consulta' | 'otro'
+  descripcion: string
   productosDetectados?: Array<{ nombre: string; cantidad?: number; precio?: number }>
+  // Only present when tipo === 'comprobante_pago'
+  pago?: {
+    monto: number | null          // numeric amount extracted (e.g. 150.00)
+    destinatario: string | null   // recipient name/number
+    operacion_id: string | null   // operation/transaction ID
+    fecha: string | null          // date string as shown in screenshot
+  }
 }
 
 /**
- * Analiza una imagen con GPT-4o Vision.
- * Detecta si es una lista de productos, una foto de producto, o algo genérico.
+ * Analiza una imagen con GPT-4o-mini Vision.
+ * Detecta si es una lista de productos, una foto de producto, comprobante de pago o algo genérico.
  * Retorna un análisis estructurado para que el bot pueda responder apropiadamente.
  */
 export async function analizarImagen(
   buffer: Buffer,
   mimeType: string,
-  contextoNegocio?: string
 ): Promise<AnalisisImagen | null> {
   const apiKey = getKey()
   if (!apiKey) return null
@@ -81,20 +87,26 @@ export async function analizarImagen(
   const base64 = buffer.toString('base64')
   const imageUrl = `data:${mimeType};base64,${base64}`
 
-  const systemPrompt = `Eres el asistente de una ferretería peruana.
-Analiza la imagen que te envía el cliente y determina:
-1. Si es una LISTA DE PRODUCTOS (cotización, lista de compras, pedido escrito a mano, captura de otra cotización)
-2. Si es la FOTO DE UN PRODUCTO (para saber qué es, pedir precio, o identificarlo)
-3. Si es una CONSULTA sobre instalación, daño, medida, etc.
-4. Otro contenido
+  const systemPrompt = `Eres el asistente de una ferretería peruana. Analiza la imagen del cliente.
 
-${contextoNegocio ? `Contexto de la ferretería: ${contextoNegocio}` : ''}
+Determina cuál de estos tipos es:
+1. LISTA_PRODUCTOS: cotización escrita, lista de compras, captura de lista, pedido escrito
+2. PRODUCTO_INDIVIDUAL: foto de un producto para identificar, pedir precio o consultar
+3. COMPROBANTE_PAGO: captura de pago Yape, Plin, transferencia bancaria, depósito, BCP, Interbank, BBVA, etc.
+4. CONSULTA: foto de instalación, daño, medida, plano, obra
+5. OTRO: selfie, paisaje, meme, nada relevante para la ferretería
 
-Responde SOLO en JSON con este formato exacto:
+Responde SOLO en JSON:
 {
-  "tipo": "lista_productos" | "producto_individual" | "consulta" | "otro",
-  "descripcion": "respuesta en español peruano natural y amigable para el cliente (máx 200 chars)",
-  "productosDetectados": [{"nombre": "...", "cantidad": 2, "precio": 15.50}]  // solo si tipo=lista_productos
+  "tipo": "lista_productos" | "producto_individual" | "comprobante_pago" | "consulta" | "otro",
+  "descripcion": "respuesta amigable en español peruano para el cliente (máx 150 chars)",
+  "productosDetectados": [{"nombre": "...", "cantidad": 2}],  // solo si tipo=lista_productos
+  "pago": {
+    "monto": 150.00,               // número extraído del comprobante, null si no se ve
+    "destinatario": "...",         // nombre o número del destinatario, null si no se ve
+    "operacion_id": "...",         // código de operación/transacción, null si no se ve
+    "fecha": "..."                 // fecha tal como aparece, null si no se ve
+  }  // solo si tipo=comprobante_pago
 }`
 
   try {
@@ -105,8 +117,8 @@ Responde SOLO en JSON con este formato exacto:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        max_tokens: 500,
+        model: 'gpt-4o-mini',
+        max_tokens: 400,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: systemPrompt },

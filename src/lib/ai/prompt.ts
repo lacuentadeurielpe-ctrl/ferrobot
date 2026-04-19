@@ -1,7 +1,7 @@
 // Construcción del system prompt para DeepSeek
 import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido } from '@/types/database'
 
-interface ContextoNegocio {
+export interface ContextoNegocio {
   ferreteria: Ferreteria
   productos: Producto[]
   zonas: ZonaDelivery[]
@@ -154,6 +154,9 @@ REGLAS:
 7. Si el mensaje contiene "[El cliente envió un audio...]" → procésalo como si fuera texto normal.
    Si contiene "[El cliente envió una imagen...]" → actúa según el análisis descrito.
    Esas notas entre corchetes son para ti, NO las menciones en tu respuesta al cliente.
+8. Si el mensaje contiene "[COMPROBANTE_PAGO_RECIBIDO...]" → responde confirmando que recibiste el comprobante y que está en revisión. Usa intent: faq_pagos.
+   Si contiene "[COMPROBANTE_PAGO_MONTO_INCORRECTO...]" → informa amablemente que el monto no coincide y pide aclaración. Usa intent: faq_pagos.
+   Si contiene "[COMPROBANTE_PAGO_SIN_PEDIDO]" → pregunta a qué pedido corresponde. Usa intent: faq_pagos.
 
 JSON:
 {"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"..."},"tipo_comprobante_solicitado":"boleta|factura"}
@@ -203,4 +206,33 @@ export function buildHistorialMensajes(
     role: m.role === 'cliente' ? 'user' : 'assistant',
     content: m.contenido,
   }))
+}
+
+/**
+ * Prompt reducido para intents simples (FAQ, saludos, estado_pedido).
+ * No incluye el catálogo completo — ahorra ~60% de tokens.
+ */
+export function buildSystemPromptLite(ctx: Pick<ContextoNegocio, 'ferreteria' | 'zonas' | 'config'>): string {
+  const { ferreteria, zonas } = ctx
+  const diasAtencion = ferreteria.dias_atencion?.join(', ') || 'lunes a viernes'
+  const horario = ferreteria.horario_apertura && ferreteria.horario_cierre
+    ? `${ferreteria.horario_apertura.slice(0, 5)} a ${ferreteria.horario_cierre.slice(0, 5)}`
+    : 'a consultar'
+  const formasPago = ferreteria.formas_pago?.length ? ferreteria.formas_pago.join(', ') : 'a consultar'
+  const zonasTexto = zonas.length
+    ? zonas.map((z) => `${z.nombre} (~${z.tiempo_estimado_min} min)`).join(', ')
+    : 'no ofrecemos delivery'
+
+  return `Eres el asistente de "${ferreteria.nombre}", ferretería peruana. Responde de forma breve y amigable en español peruano.
+
+DATOS:
+- Dirección: ${ferreteria.direccion ?? 'a consultar'}
+- Horario: ${diasAtencion}, de ${horario}
+- Formas de pago: ${formasPago}
+- Delivery: ${zonasTexto}
+
+Responde SOLO en JSON:
+{"intent":"faq_horario|faq_direccion|faq_delivery|faq_pagos|estado_pedido|saludo|pedir_humano|desconocido","respuesta":"...","numero_pedido":"..."}
+
+Intents válidos: saludo | faq_horario | faq_direccion | faq_delivery | faq_pagos | estado_pedido | pedir_humano | desconocido`
 }
