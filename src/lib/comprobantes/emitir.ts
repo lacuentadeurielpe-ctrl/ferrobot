@@ -178,14 +178,11 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     }
   }
 
-  // Eliminar comprobantes 'error' anteriores para poder reintentar
-  await supabase
-    .from('comprobantes')
-    .delete()
-    .eq('pedido_id', opts.pedidoId)
-    .eq('ferreteria_id', opts.ferreteriaId)
-    .eq('tipo', 'boleta')
-    .eq('estado', 'error')
+  // IMPORTANTE: NO borramos registros 'error' anteriores.
+  // generar_numero_comprobante usa MAX(numero) de la tabla — si borramos los
+  // errores, el contador retrocede y Nubefact rechaza con "documento ya existe".
+  // Los registros 'error' quedan como auditoría y el siguiente intento
+  // recibe un número correlativo nuevo (2, 3, …) que Nubefact nunca ha visto.
 
   // ── 4. Desencriptar token Nubefact ───────────────────────────────────────
   let tokenPlano: string
