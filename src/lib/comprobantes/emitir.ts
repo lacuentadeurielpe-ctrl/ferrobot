@@ -39,6 +39,61 @@ export interface ResultadoEmision {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Convierte la unidad interna del catálogo al código SUNAT que exige Nubefact.
+ * Cualquier valor no reconocido → 'NIU' (unidad) que es el fallback seguro.
+ */
+function mapearUnidadSunat(unidad: string): string {
+  const u = (unidad ?? '').toLowerCase().trim()
+  const mapa: Record<string, string> = {
+    // Unidad genérica
+    'unid': 'NIU', 'unidad': 'NIU', 'unidades': 'NIU',
+    'und': 'NIU', 'u': 'NIU', 'niu': 'NIU',
+    'pza': 'NIU', 'pieza': 'NIU', 'piezas': 'NIU',
+    'item': 'NIU', 'items': 'NIU',
+    // Peso
+    'kg': 'KGM', 'kgm': 'KGM', 'kilo': 'KGM', 'kilos': 'KGM',
+    'kilogramo': 'KGM', 'kilogramos': 'KGM',
+    'g': 'GRM', 'gr': 'GRM', 'gramo': 'GRM', 'gramos': 'GRM',
+    'tn': 'TNE', 'ton': 'TNE', 'tonelada': 'TNE', 'toneladas': 'TNE',
+    'lb': 'LBR', 'libra': 'LBR', 'libras': 'LBR',
+    // Longitud
+    'm': 'MTR', 'mt': 'MTR', 'mtr': 'MTR', 'metro': 'MTR', 'metros': 'MTR',
+    'cm': 'CMT', 'centimetro': 'CMT', 'centimetros': 'CMT',
+    'mm': 'MMT', 'milimetro': 'MMT', 'milimetros': 'MMT',
+    'pie': 'FOT', 'pies': 'FOT', 'pulg': 'INH', 'pulgada': 'INH',
+    // Área / Volumen
+    'm2': 'MTK', 'metro2': 'MTK', 'metro cuadrado': 'MTK',
+    'm3': 'MTQ', 'metro3': 'MTQ', 'metro cubico': 'MTQ',
+    // Líquido
+    'l': 'LTR', 'lt': 'LTR', 'ltr': 'LTR', 'litro': 'LTR', 'litros': 'LTR',
+    'ml': 'MLT', 'mililitro': 'MLT', 'mililitros': 'MLT',
+    'galon': 'GLL', 'galón': 'GLL', 'galones': 'GLL',
+    // Empaque
+    'caja': 'BX',  'cajas': 'BX',
+    'bolsa': 'BG',  'bolsas': 'BG',
+    'saco': 'SAC', 'sacos': 'SAC',
+    'rollo': 'ROL', 'rollos': 'ROL',
+    'par': 'PR',   'pares': 'PR',
+    'docena': 'DZN', 'docenas': 'DZN',
+    'paquete': 'PK',  'paquetes': 'PK',
+    'juego': 'SET', 'juegos': 'SET',
+    'kit': 'SET',
+    'plancha': 'NIU', 'planchas': 'NIU',
+    'varilla': 'NIU', 'varillas': 'NIU',
+    'balde': 'NIU', 'baldes': 'NIU',
+    'cilindro': 'NIU', 'cilindros': 'NIU',
+    'bidon': 'NIU', 'bidones': 'NIU',
+    'tubo': 'NIU', 'tubos': 'NIU',
+    'bollon': 'NIU', 'bollones': 'NIU',
+    // Servicio / Tiempo
+    'serv': 'ZZ', 'servicio': 'ZZ', 'servicios': 'ZZ',
+    'hr': 'HUR', 'hora': 'HUR', 'horas': 'HUR',
+    'dia': 'DAY', 'días': 'DAY', 'dias': 'DAY',
+  }
+  return mapa[u] ?? 'NIU'
+}
+
 function fechaPeruana(): string {
   // DD-MM-YYYY en zona Lima (UTC-5)
   const fecha = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Lima' }))
@@ -161,7 +216,7 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     const totalItem      = redondear2(precioConIgv * item.cantidad)
 
     return {
-      unidad_de_medida:  item.unidad === 'unid' ? 'NIU' : (item.unidad?.toUpperCase().slice(0, 3) || 'NIU'),
+      unidad_de_medida:  mapearUnidadSunat(item.unidad),
       codigo:            item.producto_id ?? `ITEM${i + 1}`,
       descripcion:       item.nombre_producto,
       cantidad:          item.cantidad,
