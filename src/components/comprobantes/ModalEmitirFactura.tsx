@@ -37,9 +37,13 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
         body:    JSON.stringify({ ruc: rucLimpio }),
       })
       const d = await res.json()
-      if (res.ok && d.razon_social) {
-        setRazonSocial(d.razon_social)
+      // La API devuelve RucInfo con campo camelCase: razonSocial
+      const nombre = d.razonSocial ?? d.razon_social ?? ''
+      if (res.ok && nombre) {
+        setRazonSocial(nombre)
         setRucError(null)
+      } else if (d.sinToken) {
+        setRucError('Verificación SUNAT no configurada — escribe la razón social manualmente.')
       } else {
         setRucError('RUC no encontrado en SUNAT. Puedes ingresar la razón social manualmente.')
       }
