@@ -196,7 +196,7 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
   }
 
   const numero = corrData as number
-  const numeroCompleto = `B-${serie}-${String(numero).padStart(6, '0')}`
+  const numeroCompleto = `${serie}-${String(numero).padStart(8, '0')}`
 
   // ── 6. Calcular montos IGV ───────────────────────────────────────────────
   const igvIncluido = ferreteria.igv_incluido_en_precios ?? false

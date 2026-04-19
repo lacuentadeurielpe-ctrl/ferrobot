@@ -724,7 +724,9 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Serie Notas de Venta</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {esSinRuc ? 'Serie Notas de Venta' : 'Serie Boletas Electrónicas'}
+            </label>
             <input
               type="text"
               value={data.serie_boletas}
@@ -733,7 +735,25 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
               maxLength={4}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
-            <p className="text-xs text-gray-400 mt-1">Ej: NV001 → NV-NV001-000001</p>
+            {esSinRuc ? (
+              <p className="text-xs text-gray-400 mt-1">Ej: B001 → B001-000001</p>
+            ) : (
+              <p className="text-xs text-orange-600 mt-1 flex items-start gap-1">
+                <span>⚠</span>
+                <span>
+                  Debe coincidir <strong>exactamente</strong> con la serie configurada en tu cuenta Nubefact.
+                  Veríficala en{' '}
+                  <a
+                    href="https://www.nubefact.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Nubefact → Comprobantes → Series
+                  </a>.
+                </span>
+              </p>
+            )}
           </div>
 
           {!esSinRuc && (

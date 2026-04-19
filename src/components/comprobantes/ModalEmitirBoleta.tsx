@@ -36,7 +36,11 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
       const d = await res.json()
       if (!res.ok) {
         if (d.tokenInvalido) {
-          setError('Token Nubefact inválido. Ve a Settings → Facturación para reconfigurarlo.')
+          setError('Token Nubefact inválido. Ve a Configuración → Facturación para reconfigurarlo.')
+        } else if (d.error?.toLowerCase().includes('serie')) {
+          setError(
+            `${d.error} → Ve a Configuración → Facturación y corrige la "Serie Boletas Electrónicas" para que coincida con la serie registrada en tu cuenta Nubefact.`
+          )
         } else {
           setError(d.error ?? 'Error al emitir la boleta')
         }
