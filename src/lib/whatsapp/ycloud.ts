@@ -255,14 +255,24 @@ export async function descargarMedia(
 
   console.log(`[YCloud] descargarMedia inicio — mediaId=${mediaId}`)
 
-  try {
-    const res = await fetch(`${YCLOUD_BASE_URL}/whatsapp/media/${mediaId}`, {
-      headers: { 'X-API-Key': apiKey },
-    })
+  // Para media, probar siempre con la global key primero (más permisos),
+  // luego con la del tenant como fallback
+  const globalKey = process.env.YCLOUD_API_KEY
+  const keysAProbar = [...new Set([globalKey, apiKey].filter(Boolean))] as string[]
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.error(`[YCloud] Error GET media/${mediaId}: HTTP ${res.status} — ${body.slice(0, 300)}`)
+  let res: Response | null = null
+  for (const k of keysAProbar) {
+    const r = await fetch(`${YCLOUD_BASE_URL}/whatsapp/media/${mediaId}`, {
+      headers: { 'X-API-Key': k },
+    })
+    if (r.ok) { res = r; break }
+    const body = await r.text().catch(() => '')
+    console.warn(`[YCloud] Error GET media/${mediaId} con key ...${k.slice(-6)}: HTTP ${r.status} — ${body.slice(0, 200)}`)
+  }
+
+  try {
+    if (!res) {
+      console.error(`[YCloud] Todos los intentos de GET media/${mediaId} fallaron`)
       return null
     }
 
