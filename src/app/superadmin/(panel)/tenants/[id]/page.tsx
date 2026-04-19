@@ -94,7 +94,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <a href="/superadmin/tenants" className="text-gray-500 hover:text-gray-300 text-sm">← Clientes</a>
+            <a href="/superadmin/tenants" className="text-gray-500 hover:text-white text-sm">← Clientes</a>
           </div>
           <h1 className="text-2xl font-bold">{ferreteria.nombre}</h1>
           <p className="text-gray-400 text-sm mt-1 font-mono">{ferreteria.telefono_whatsapp}</p>
@@ -112,14 +112,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <p className="text-xs text-gray-500 mb-1">Créditos disponibles</p>
-          <p className={`text-2xl font-bold ${creditosDisp === 0 ? 'text-red-400' : creditosDisp < 100 ? 'text-yellow-400' : 'text-orange-400'}`}>
+          <p className={`text-2xl font-bold ${creditosDisp === 0 ? 'text-red-400' : creditosDisp < 100 ? 'text-yellow-400' : 'text-white'}`}>
             {creditosDisp.toLocaleString()}
           </p>
           {plan && <p className="text-xs text-gray-600 mt-1">Plan: {plan.nombre}</p>}
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <p className="text-xs text-gray-500 mb-1">Créditos extra (manuales)</p>
-          <p className="text-2xl font-bold text-blue-400">{creditosExtra.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-indigo-400">{creditosExtra.toLocaleString()}</p>
           <p className="text-xs text-gray-600 mt-1">acumulado histórico</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
@@ -204,7 +204,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 text-sm">Sin incidencias 🎉</p>
+          <p className="text-gray-500 text-sm">Sin incidencias</p>
         )}
       </div>
 
@@ -254,7 +254,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 {movimientos.map((m, i) => (
                   <tr key={i}>
                     <td className="py-1.5 text-gray-300 font-mono text-xs">{m.tipo_tarea}</td>
-                    <td className="py-1.5 text-right text-orange-300">{m.creditos_usados}</td>
+                    <td className="py-1.5 text-right text-indigo-300">{m.creditos_usados}</td>
                     <td className="py-1.5 text-right text-gray-500">{m.costo_usd ? `$${Number(m.costo_usd).toFixed(4)}` : '—'}</td>
                     <td className="py-1.5 text-right text-gray-600">
                       {new Date(m.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
@@ -276,7 +276,7 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
   return (
     <div className="flex justify-between">
       <span className="text-gray-500">{label}</span>
-      <span className={highlight ? 'font-bold text-orange-400' : 'text-white'}>{value}</span>
+      <span className={highlight ? 'font-bold text-indigo-400' : 'text-white'}>{value}</span>
     </div>
   )
 }

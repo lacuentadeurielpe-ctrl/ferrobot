@@ -18,10 +18,10 @@ async function getTenants() {
 }
 
 const ESTADO_COLORS: Record<string, string> = {
-  activo:     'bg-green-900/40 text-green-300 border-green-800',
-  trial:      'bg-yellow-900/40 text-yellow-300 border-yellow-800',
-  suspendido: 'bg-red-900/40 text-red-300 border-red-800',
-  cancelado:  'bg-gray-700 text-gray-400 border-gray-600',
+  activo:     'bg-green-500/10 text-green-400 border-green-500',
+  trial:      'bg-yellow-500/10 text-yellow-400 border-yellow-500',
+  suspendido: 'bg-red-500/10 text-red-400 border-red-500',
+  cancelado:  'bg-gray-800 text-gray-500 border-gray-700',
 }
 
 export default async function TenantsPage() {
@@ -83,7 +83,7 @@ export default async function TenantsPage() {
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/superadmin/tenants/${t.id}`}
-                      className="text-orange-400 hover:text-orange-300 text-xs"
+                      className="text-indigo-400 hover:text-indigo-300 text-xs"
                     >
                       Ver →
                     </Link>

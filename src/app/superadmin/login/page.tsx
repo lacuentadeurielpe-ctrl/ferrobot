@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Wrench } from 'lucide-react'
 
 export default function SuperadminLoginPage() {
   const [email, setEmail] = useState('')
@@ -47,8 +48,8 @@ export default function SuperadminLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl mb-4">
-            <span className="text-2xl">🔧</span>
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-white rounded-2xl mb-4">
+            <Wrench className="w-7 h-7 text-gray-900" />
           </div>
           <h1 className="text-2xl font-bold text-white">FerroBot</h1>
           <p className="text-gray-400 text-sm mt-1">Panel de Superadmin</p>
@@ -58,7 +59,7 @@ export default function SuperadminLoginPage() {
           <h2 className="text-lg font-semibold text-white mb-6">Iniciar sesión</h2>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-900/40 border border-red-700 rounded-lg text-red-300 text-sm">
+            <div className="mb-4 p-3 bg-red-950/40 border border-red-800 rounded-lg text-red-300 text-sm">
               {error}
             </div>
           )}
@@ -71,7 +72,7 @@ export default function SuperadminLoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="superadmin@ferrobot.app"
               />
             </div>
@@ -83,7 +84,7 @@ export default function SuperadminLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="••••••••"
               />
             </div>
@@ -91,7 +92,7 @@ export default function SuperadminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold rounded-lg py-2.5 transition-colors"
+              className="w-full bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-900 font-semibold rounded-lg py-2.5 transition-colors"
             >
               {loading ? 'Verificando...' : 'Entrar al panel'}
             </button>

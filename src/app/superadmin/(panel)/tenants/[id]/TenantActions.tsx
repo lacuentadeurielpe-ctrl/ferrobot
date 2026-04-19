@@ -95,25 +95,25 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
       <div className="flex flex-wrap gap-2 justify-end">
         <button
           onClick={() => togglePanel('creditos')}
-          className="px-3 py-1.5 bg-orange-500/20 border border-orange-700 text-orange-300 rounded-lg text-sm hover:bg-orange-500/30 transition-colors"
+          className="px-3 py-1.5 bg-white text-gray-900 rounded-lg text-sm hover:bg-gray-100 transition-colors font-medium"
         >
           + Créditos
         </button>
         <button
           onClick={() => togglePanel('ycloud')}
-          className="px-3 py-1.5 bg-green-900/30 border border-green-700 text-green-300 rounded-lg text-sm hover:bg-green-900/50 transition-colors"
+          className="px-3 py-1.5 border border-gray-600 text-gray-300 rounded-lg text-sm hover:bg-gray-800 transition-colors"
         >
-          {ycloudConfigurado ? '📡 YCloud' : '📡 Configurar WA'}
+          {ycloudConfigurado ? 'YCloud' : 'Configurar WA'}
         </button>
         {estadoActual !== 'activo' && (
           <button onClick={() => cambiarEstado('activo')} disabled={loading}
-            className="px-3 py-1.5 bg-green-900/40 border border-green-700 text-green-300 rounded-lg text-sm hover:bg-green-900/60 disabled:opacity-50 transition-colors">
+            className="px-3 py-1.5 border border-green-600 text-green-400 rounded-lg text-sm hover:bg-green-900/30 disabled:opacity-50 transition-colors">
             Activar
           </button>
         )}
         {estadoActual !== 'suspendido' && estadoActual !== 'cancelado' && (
           <button onClick={() => cambiarEstado('suspendido')} disabled={loading}
-            className="px-3 py-1.5 bg-red-900/40 border border-red-700 text-red-300 rounded-lg text-sm hover:bg-red-900/60 disabled:opacity-50 transition-colors">
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm disabled:opacity-50 transition-colors">
             Suspender
           </button>
         )}
@@ -121,12 +121,12 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
 
       {/* Panel: Agregar créditos */}
       {panel === 'creditos' && (
-        <div className="mt-2 p-4 bg-gray-800 border border-gray-700 rounded-xl space-y-3">
+        <div className="mt-2 p-4 bg-gray-900 border border-gray-700 rounded-xl space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-white">Agregar créditos</p>
             <div className="text-right">
-              <p className="text-xs text-gray-500">Saldo actual</p>
-              <p className={`text-lg font-bold ${creditosDisponibles === 0 ? 'text-red-400' : creditosDisponibles < 100 ? 'text-yellow-400' : 'text-orange-400'}`}>
+              <p className="text-xs text-gray-400">Saldo actual</p>
+              <p className={`text-lg font-bold ${creditosDisponibles === 0 ? 'text-red-400' : creditosDisponibles < 100 ? 'text-yellow-400' : 'text-white'}`}>
                 {creditosDisponibles.toLocaleString()} cr
               </p>
             </div>
@@ -138,7 +138,7 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
             <div className="grid grid-cols-4 gap-1">
               {[100, 500, 1000, 5000].map((n) => (
                 <button key={n} type="button" onClick={() => setCreditos(n)}
-                  className={`py-1 rounded text-xs border transition-colors ${creditos === n ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-600 text-gray-400 hover:border-gray-400'}`}>
+                  className={`py-1 rounded text-xs border transition-colors ${creditos === n ? 'bg-white text-gray-900 border-white' : 'border-gray-600 text-gray-400 hover:border-gray-400'}`}>
                   {n.toLocaleString()}
                 </button>
               ))}
@@ -149,19 +149,19 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
             <label className="text-xs text-gray-400">O ingresa cantidad exacta</label>
             <input type="number" value={creditos} onChange={(e) => setCreditos(Number(e.target.value))}
               min={1} max={100000}
-              className="w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
+              className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" />
           </div>
 
           {creditos > 0 && (
             <p className="text-xs text-gray-500">
-              Saldo resultante: <span className="text-orange-300 font-semibold">{(creditosDisponibles + creditos).toLocaleString()} cr</span>
+              Saldo resultante: <span className="text-white font-semibold">{(creditosDisponibles + creditos).toLocaleString()} cr</span>
             </p>
           )}
 
           <div>
             <label className="text-xs text-gray-400">Motivo</label>
             <select value={motivo} onChange={(e) => setMotivo(e.target.value)}
-              className="w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm">
+              className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
               <option value="recarga_manual">Recarga manual</option>
               <option value="plan_mensual">Renovación plan mensual</option>
               <option value="compensacion">Compensación</option>
@@ -170,7 +170,7 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
           </div>
           <div className="flex gap-2">
             <button onClick={agregarCreditos} disabled={loading || creditos <= 0}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm rounded-lg py-1.5 transition-colors">
+              className="flex-1 bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-900 font-medium text-sm rounded-lg py-1.5 transition-colors">
               {loading ? 'Procesando...' : `Agregar ${creditos.toLocaleString()} créditos`}
             </button>
             <button onClick={() => setPanel('none')} className="px-3 text-gray-400 hover:text-white text-sm">Cancelar</button>
@@ -180,7 +180,7 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
 
       {/* Panel: Configurar YCloud */}
       {panel === 'ycloud' && (
-        <form onSubmit={guardarYCloud} className="mt-2 p-4 bg-gray-800 border border-gray-700 rounded-xl space-y-3">
+        <form onSubmit={guardarYCloud} className="mt-2 p-4 bg-gray-900 border border-gray-700 rounded-xl space-y-3">
           <p className="text-sm font-medium text-white">
             {ycloudConfigurado ? 'Actualizar YCloud' : 'Configurar YCloud'}
           </p>
@@ -189,7 +189,7 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
             <label className="text-xs text-gray-400">Número WhatsApp (sin +) *</label>
             <input type="text" value={ycNumero} onChange={(e) => setYcNumero(e.target.value)}
               placeholder="51987654321"
-              className="w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" required />
+              className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" required />
           </div>
 
           <div>
@@ -200,10 +200,10 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
               <input type={mostrarApiKey ? 'text' : 'password'} value={ycApiKey}
                 onChange={(e) => setYcApiKey(e.target.value)}
                 placeholder={ycloudConfigurado ? '••••••••' : 'API Key de YCloud'}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 pr-10 text-white text-sm" />
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 pr-16 text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
               <button type="button" onClick={() => setMostrarApiKey(v => !v)}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 text-xs">
-                {mostrarApiKey ? '🙈' : '👁'}
+                {mostrarApiKey ? 'Ocultar' : 'Ver'}
               </button>
             </div>
           </div>
@@ -212,12 +212,12 @@ export default function TenantActions({ tenantId, estadoActual, nombre, ycloudCo
             <label className="text-xs text-gray-400">Webhook Secret (vacío = mantener actual)</label>
             <input type="password" value={ycWebhookSecret} onChange={(e) => setYcWebhookSecret(e.target.value)}
               placeholder="••••••••"
-              className="w-full mt-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
+              className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
           </div>
 
           <div className="flex gap-2">
             <button type="submit" disabled={loading}
-              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm rounded-lg py-1.5 transition-colors">
+              className="flex-1 bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-900 font-medium text-sm rounded-lg py-1.5 transition-colors">
               {loading ? 'Guardando...' : 'Guardar YCloud'}
             </button>
             <button type="button" onClick={() => setPanel('none')} className="px-3 text-gray-400 hover:text-white text-sm">

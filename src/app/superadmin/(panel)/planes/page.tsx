@@ -47,9 +47,9 @@ export default async function PlanesPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {planes.filter(p => p.activo).map((plan) => (
             <div key={plan.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-              <p className="text-xs text-gray-500 mb-1">{plan.nombre}</p>
-              <p className="text-xl font-bold text-orange-400">{conteoPlanes[plan.id] ?? 0}</p>
-              <p className="text-xs text-gray-600 mt-1">suscripciones</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">{plan.nombre}</p>
+              <p className="text-2xl font-bold text-white">{conteoPlanes[plan.id] ?? 0}</p>
+              <p className="text-xs text-gray-500 mt-1">suscripciones</p>
             </div>
           ))}
         </div>
@@ -76,7 +76,7 @@ export default async function PlanesPage() {
               <span className="text-gray-400">{item.tarea}</span>
               <div className="flex items-center gap-3 ml-3 shrink-0">
                 <span className="text-gray-600 text-xs">{item.modelo}</span>
-                <span className="text-orange-400 font-mono font-medium">{item.cr} cr</span>
+                <span className="text-indigo-400 font-mono font-medium">{item.cr} cr</span>
               </div>
             </div>
           ))}

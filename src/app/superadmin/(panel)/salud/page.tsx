@@ -29,14 +29,14 @@ async function getYCloudStatus() {
   return data ?? []
 }
 
-const TIPO_EMOJI: Record<string, string> = {
-  ycloud_error:      '📡',
-  ia_error:          '🤖',
-  mp_error:          '💳',
-  webhook_caido:     '🔔',
-  creditos_agotados: '⚠️',
-  creditos_bajos:    '📉',
-  token_expirado:    '🔑',
+const TIPO_LABEL: Record<string, string> = {
+  ycloud_error:      'YCloud',
+  ia_error:          'IA Error',
+  mp_error:          'MP Error',
+  webhook_caido:     'Webhook',
+  creditos_agotados: 'Sin créditos',
+  creditos_bajos:    'Créditos bajos',
+  token_expirado:    'Token expirado',
 }
 
 const CONEXION_COLORS: Record<string, string> = {
@@ -63,7 +63,7 @@ export default async function SaludPage() {
         <h1 className="text-2xl font-bold">Salud del sistema</h1>
         <p className="text-gray-400 text-sm mt-1">
           {incidencias.length === 0
-            ? 'Todo OK — sin incidencias activas 🎉'
+            ? 'Todo OK — sin incidencias activas'
             : `${incidencias.length} incidencia${incidencias.length > 1 ? 's' : ''} sin resolver`}
         </p>
       </div>
@@ -97,7 +97,7 @@ export default async function SaludPage() {
                     isError ? 'bg-red-900/60 text-red-300' :
                               'bg-gray-800 text-gray-500'
                   }`}>
-                    {isOk ? '✓ OK' : isError ? '✗ Error' : '— Sin clave'}
+                    {isOk ? 'OK' : isError ? 'Error' : 'Sin clave'}
                   </span>
                 </div>
                 {api.latencia_ms !== null && (
@@ -123,7 +123,7 @@ export default async function SaludPage() {
             return (
               <div key={inc.id} className="bg-red-950/20 border border-red-900/50 rounded-xl p-4 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <span className="text-xl mt-0.5">{TIPO_EMOJI[inc.tipo ?? ''] ?? '⚠️'}</span>
+                  <span className="text-xs font-mono bg-gray-800 border border-gray-700 px-2 py-1 rounded text-gray-300 mt-0.5 shrink-0">{TIPO_LABEL[inc.tipo ?? ''] ?? inc.tipo}</span>
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-mono text-sm text-red-300">{inc.tipo}</span>
@@ -148,7 +148,7 @@ export default async function SaludPage() {
 
       {incidencias.length === 0 && (
         <div className="mb-8 bg-green-950/10 border border-green-900/30 rounded-xl p-5 text-center">
-          <p className="text-green-400 text-sm font-medium">🎉 Sin incidencias activas</p>
+          <p className="text-green-400 text-sm font-medium">Sin incidencias activas</p>
           <p className="text-gray-500 text-xs mt-1">Todos los sistemas funcionan correctamente</p>
         </div>
       )}

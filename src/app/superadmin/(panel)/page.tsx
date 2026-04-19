@@ -76,16 +76,16 @@ export default async function SuperadminPage() {
             {stats.incidencias_abiertas}
           </p>
           <p className="text-sm text-gray-500 mt-1">
-            {stats.incidencias_abiertas === 0 ? 'Todo OK 🎉' : 'Revisar en pestaña Salud →'}
+            {stats.incidencias_abiertas === 0 ? 'Todo OK' : 'Revisar en pestaña Salud →'}
           </p>
         </div>
       </div>
 
       {/* Links rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <QuickLink href="/superadmin/tenants" title="Clientes" desc="Gestionar ferreterías, planes y suscripciones" icon="🏪" />
-        <QuickLink href="/superadmin/ia" title="IA & Créditos" desc="Consumo global, movimientos y modelos" icon="🤖" />
-        <QuickLink href="/superadmin/salud" title="Salud del sistema" desc="Incidencias activas, conexiones YCloud" icon="🔔" />
+        <QuickLink href="/superadmin/tenants" title="Clientes" desc="Gestionar ferreterías, planes y suscripciones" />
+        <QuickLink href="/superadmin/ia" title="IA & Créditos" desc="Consumo global, movimientos y modelos" />
+        <QuickLink href="/superadmin/salud" title="Salud del sistema" desc="Incidencias activas, conexiones YCloud" />
       </div>
     </div>
   )
@@ -96,24 +96,23 @@ function KPICard({ label, value, color }: { label: string; value: number; color:
     green:  'text-green-400',
     yellow: 'text-yellow-400',
     red:    'text-red-400',
-    blue:   'text-blue-400',
+    blue:   'text-indigo-400',
   }
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${colors[color] ?? 'text-white'}`}>{value}</p>
+      <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">{label}</p>
+      <p className={`text-3xl font-bold ${colors[color] ?? 'text-white'}`}>{value}</p>
     </div>
   )
 }
 
-function QuickLink({ href, title, desc, icon }: { href: string; title: string; desc: string; icon: string }) {
+function QuickLink({ href, title, desc }: { href: string; title: string; desc: string }) {
   return (
     <a
       href={href}
-      className="block bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-orange-500/50 hover:bg-gray-800/50 transition-colors group"
+      className="block bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-gray-600 hover:bg-gray-800/50 transition-colors group"
     >
-      <div className="text-2xl mb-2">{icon}</div>
-      <h3 className="font-semibold text-white group-hover:text-orange-400 transition-colors">{title}</h3>
+      <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">{title}</h3>
       <p className="text-sm text-gray-500 mt-1">{desc}</p>
     </a>
   )

@@ -84,7 +84,7 @@ export default function PlanesManager({ planes, secret }: Props) {
   return (
     <div>
       {(error || success) && (
-        <div className={`mb-4 px-4 py-2 rounded-lg text-sm ${error ? 'bg-red-900/30 border border-red-800 text-red-300' : 'bg-green-900/30 border border-green-800 text-green-300'}`}>
+        <div className={`mb-4 px-4 py-2 rounded-lg text-sm ${error ? 'bg-red-950/30 border border-red-800 text-red-300' : 'bg-green-950/30 border border-green-800 text-green-300'}`}>
           {error || success}
         </div>
       )}
@@ -99,22 +99,22 @@ export default function PlanesManager({ planes, secret }: Props) {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-white">{plan.nombre}</h3>
-                    {!plan.activo && <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">Inactivo</span>}
+                    {!plan.activo && <span className="text-xs text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">Inactivo</span>}
                   </div>
                   <div className="flex gap-4 mt-2 text-sm text-gray-400">
-                    <span>🪙 {plan.creditos_mes.toLocaleString()} cr/mes</span>
-                    <span>💰 {formatPEN(Number(plan.precio_mensual))}/mes</span>
-                    <span>📈 {formatPEN(Number(plan.precio_exceso))}/cr exceso</span>
+                    <span>{plan.creditos_mes.toLocaleString()} cr/mes</span>
+                    <span>{formatPEN(Number(plan.precio_mensual))}/mes</span>
+                    <span>{formatPEN(Number(plan.precio_exceso))}/cr exceso</span>
                   </div>
                 </div>
                 {plan.activo && (
                   <div className="flex gap-2">
                     <button onClick={() => abrirEditar(plan)}
-                      className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg transition-colors">
+                      className="px-3 py-1.5 text-xs border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors">
                       Editar
                     </button>
                     <button onClick={() => desactivar(plan.id, plan.nombre)}
-                      className="px-3 py-1.5 text-xs bg-red-900/20 hover:bg-red-900/40 border border-red-800 text-red-400 rounded-lg transition-colors">
+                      className="px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
                       Desactivar
                     </button>
                   </div>
@@ -126,8 +126,8 @@ export default function PlanesManager({ planes, secret }: Props) {
 
         {/* Crear nuevo */}
         {creando ? (
-          <div className="bg-gray-900 border border-orange-800/50 rounded-xl p-5">
-            <p className="text-sm font-medium text-orange-300 mb-4">Nuevo plan</p>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-5">
+            <p className="text-sm font-medium text-white mb-4">Nuevo plan</p>
             <FormPlan form={form} setForm={setForm} onGuardar={guardar} onCancelar={() => setCreando(false)} loading={loading} />
           </div>
         ) : (
@@ -154,27 +154,31 @@ function FormPlan({ form, setForm, onGuardar, onCancelar, loading }: {
         <div>
           <label className="text-xs text-gray-400">Nombre del plan</label>
           <input type="text" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-            placeholder="Básico, Estándar, Pro..." className="w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
+            placeholder="Básico, Estándar, Pro..."
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
         </div>
         <div>
           <label className="text-xs text-gray-400">Créditos por mes</label>
           <input type="number" value={form.creditos_mes} onChange={(e) => setForm({ ...form, creditos_mes: Number(e.target.value) })}
-            min={1} className="w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
+            min={1}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
         </div>
         <div>
           <label className="text-xs text-gray-400">Precio mensual (S/)</label>
           <input type="number" value={form.precio_mensual} onChange={(e) => setForm({ ...form, precio_mensual: Number(e.target.value) })}
-            min={0} step={0.01} className="w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
+            min={0} step={0.01}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
         </div>
         <div>
           <label className="text-xs text-gray-400">Precio por crédito en exceso (S/)</label>
           <input type="number" value={form.precio_exceso} onChange={(e) => setForm({ ...form, precio_exceso: Number(e.target.value) })}
-            min={0} step={0.01} className="w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm" />
+            min={0} step={0.01}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
         </div>
       </div>
       <div className="flex gap-2">
         <button onClick={onGuardar} disabled={loading}
-          className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm rounded-lg py-1.5 transition-colors">
+          className="flex-1 bg-white hover:bg-gray-100 disabled:opacity-50 text-gray-900 font-medium text-sm rounded-lg py-1.5 transition-colors">
           {loading ? 'Guardando...' : 'Guardar plan'}
         </button>
         <button onClick={onCancelar} className="px-3 text-gray-400 hover:text-white text-sm">Cancelar</button>

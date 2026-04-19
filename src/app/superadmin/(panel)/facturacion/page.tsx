@@ -129,8 +129,8 @@ export default async function FacturacionPage() {
       {/* ── Alertas de vencimiento ────────────────────────────── */}
       {totalAlertas > 0 && (
         <div className="mb-8 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-400 mb-3">
-            ⚠️ Alertas de cobro ({totalAlertas})
+          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
+            Alertas de cobro ({totalAlertas})
           </h2>
 
           {/* Pagos vencidos */}
@@ -141,7 +141,7 @@ export default async function FacturacionPage() {
             return (
               <div key={s.ferreteria_id} className="flex items-center justify-between bg-red-950/20 border border-red-900/40 rounded-xl px-4 py-3">
                 <div>
-                  <a href={`/superadmin/tenants/${f?.id ?? s.ferreteria_id}`} className="font-medium text-white hover:text-orange-400 text-sm">
+                  <a href={`/superadmin/tenants/${f?.id ?? s.ferreteria_id}`} className="font-medium text-white hover:text-indigo-400 text-sm">
                     {f?.nombre ?? s.ferreteria_id}
                   </a>
                   <p className="text-xs text-red-400 mt-0.5">
@@ -162,7 +162,7 @@ export default async function FacturacionPage() {
             return (
               <div key={f.id} className="flex items-center justify-between bg-red-950/20 border border-red-900/40 rounded-xl px-4 py-3">
                 <div>
-                  <a href={`/superadmin/tenants/${f.id}`} className="font-medium text-white hover:text-orange-400 text-sm">
+                  <a href={`/superadmin/tenants/${f.id}`} className="font-medium text-white hover:text-indigo-400 text-sm">
                     {f.nombre}
                   </a>
                   <p className="text-xs text-red-400 mt-0.5">Trial vencido hace {dias} día{dias !== 1 ? 's' : ''}</p>
@@ -182,7 +182,7 @@ export default async function FacturacionPage() {
             return (
               <div key={s.ferreteria_id} className="flex items-center justify-between bg-yellow-950/20 border border-yellow-900/40 rounded-xl px-4 py-3">
                 <div>
-                  <a href={`/superadmin/tenants/${f?.id ?? s.ferreteria_id}`} className="font-medium text-white hover:text-orange-400 text-sm">
+                  <a href={`/superadmin/tenants/${f?.id ?? s.ferreteria_id}`} className="font-medium text-white hover:text-indigo-400 text-sm">
                     {f?.nombre ?? s.ferreteria_id}
                   </a>
                   <p className="text-xs text-yellow-500 mt-0.5">
@@ -203,7 +203,7 @@ export default async function FacturacionPage() {
             return (
               <div key={f.id} className="flex items-center justify-between bg-yellow-950/20 border border-yellow-900/40 rounded-xl px-4 py-3">
                 <div>
-                  <a href={`/superadmin/tenants/${f.id}`} className="font-medium text-white hover:text-orange-400 text-sm">
+                  <a href={`/superadmin/tenants/${f.id}`} className="font-medium text-white hover:text-indigo-400 text-sm">
                     {f.nombre}
                   </a>
                   <p className="text-xs text-yellow-500 mt-0.5">Trial vence en {dias} día{dias !== 1 ? 's' : ''}</p>
@@ -225,7 +225,7 @@ export default async function FacturacionPage() {
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <p className="text-xs text-gray-500 mb-1">Créditos vendidos</p>
-          <p className="text-2xl font-bold text-orange-400">{stats.creditosTotal.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-indigo-400">{stats.creditosTotal.toLocaleString()}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <p className="text-xs text-gray-500 mb-1">Recargas totales</p>
@@ -239,7 +239,7 @@ export default async function FacturacionPage() {
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <p className="text-xs text-gray-500 mb-1">Créditos vendidos (30d)</p>
-          <p className="text-2xl font-bold text-orange-300">{stats.creditos30d.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-indigo-300">{stats.creditos30d.toLocaleString()}</p>
         </div>
       </div>
 
@@ -277,7 +277,7 @@ export default async function FacturacionPage() {
               {stats.topTenants.map(([fid, data], i) => (
                 <div key={fid} className="flex items-center gap-3">
                   <span className="text-gray-600 text-xs w-4">{i + 1}</span>
-                  <a href={`/superadmin/tenants/${fid}`} className="flex-1 text-sm text-gray-300 hover:text-orange-400 truncate">{data.nombre}</a>
+                  <a href={`/superadmin/tenants/${fid}`} className="flex-1 text-sm text-gray-300 hover:text-indigo-400 truncate">{data.nombre}</a>
                   <span className="text-xs text-gray-500">{data.recargas}x</span>
                   <span className="text-sm text-green-400 font-mono w-24 text-right">{formatPEN(data.monto)}</span>
                 </div>
@@ -313,12 +313,12 @@ export default async function FacturacionPage() {
                     {new Date(r.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </td>
                   <td className="px-4 py-3">
-                    <a href={`/superadmin/tenants/${r.ferreteria_id}`} className="text-white hover:text-orange-400">{r.nombre_ferreteria}</a>
+                    <a href={`/superadmin/tenants/${r.ferreteria_id}`} className="text-white hover:text-indigo-400">{r.nombre_ferreteria}</a>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-300">{MOTIVO_LABEL[r.motivo] ?? r.motivo}</span>
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-orange-300">+{(r.creditos ?? 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-mono text-indigo-300">+{(r.creditos ?? 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-right font-mono text-green-400">
                     {Number(r.monto_cobrado) > 0 ? formatPEN(Number(r.monto_cobrado)) : '—'}
                   </td>

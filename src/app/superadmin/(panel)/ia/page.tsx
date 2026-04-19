@@ -81,7 +81,7 @@ export default async function IAPage() {
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <p className="text-xs text-gray-500 mb-1">Total créditos</p>
-          <p className="text-2xl font-bold text-orange-400">{stats.totalCreditos.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-indigo-400">{stats.totalCreditos.toLocaleString()}</p>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
           <p className="text-xs text-gray-500 mb-1">Costo total USD</p>
@@ -104,7 +104,7 @@ export default async function IAPage() {
                 <div key={modelo}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="font-mono text-xs text-gray-300">{modelo}</span>
-                    <span className="text-orange-300">{data.creditos.toLocaleString()} cr</span>
+                    <span className="text-indigo-300">{data.creditos.toLocaleString()} cr</span>
                   </div>
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>{data.llamadas} llamadas</span>
@@ -112,7 +112,7 @@ export default async function IAPage() {
                   </div>
                   <div className="mt-1 h-1 bg-gray-800 rounded-full">
                     <div
-                      className="h-1 bg-orange-500 rounded-full"
+                      className="h-1 bg-indigo-500 rounded-full"
                       style={{ width: `${Math.min(100, (data.creditos / Math.max(stats.totalCreditos, 1)) * 100)}%` }}
                     />
                   </div>
@@ -173,18 +173,18 @@ export default async function IAPage() {
               <tr key={fid} className="hover:bg-gray-800/30">
                 <td className="px-4 py-3 text-gray-500">{i + 1}</td>
                 <td className="px-4 py-3">
-                  <a href={`/superadmin/tenants/${fid}`} className="text-white hover:text-orange-400">
+                  <a href={`/superadmin/tenants/${fid}`} className="text-white hover:text-indigo-400">
                     {data.nombre}
                   </a>
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-orange-300">
+                <td className="px-4 py-3 text-right font-mono text-indigo-300">
                   {data.creditos.toLocaleString()}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-gray-800 rounded-full max-w-24">
                       <div
-                        className="h-1.5 bg-orange-500 rounded-full"
+                        className="h-1.5 bg-indigo-500 rounded-full"
                         style={{ width: `${Math.min(100, (data.creditos / Math.max(stats.totalCreditos, 1)) * 100)}%` }}
                       />
                     </div>
@@ -206,7 +206,7 @@ export default async function IAPage() {
           {(Object.entries(COSTO_CREDITOS) as Array<[string, number]>).map(([tarea, costo]) => (
             <div key={tarea} className="flex justify-between text-xs">
               <span className="text-gray-400 font-mono">{tarea}</span>
-              <span className="text-orange-300">{costo} cr</span>
+              <span className="text-indigo-300">{costo} cr</span>
             </div>
           ))}
         </div>
