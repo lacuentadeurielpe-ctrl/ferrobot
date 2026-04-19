@@ -57,7 +57,7 @@ export default function ContabilidadPanel({ libros: librosIniciales, ferreteriaI
     }
   }
 
-  function descargar(id: string, formato: 'ple' | 'csv') {
+  function descargar(id: string, formato: 'ple' | 'csv' | 'excel') {
     window.open(`/api/contabilidad/exportar/${id}?formato=${formato}`, '_blank')
   }
 
@@ -144,18 +144,25 @@ export default function ContabilidadPanel({ libros: librosIniciales, ferreteriaI
         {libroActual && (
           <div className="mt-4 flex flex-wrap gap-2">
             <button
-              onClick={() => descargar(libroActual.id, 'csv')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm rounded-lg border border-emerald-200 transition"
+              onClick={() => descargar(libroActual.id, 'excel')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg border border-emerald-700 transition"
             >
               <Download className="w-3.5 h-3.5" />
-              CSV (para contador)
+              Excel Formato 14.1 SUNAT
             </button>
             <button
               onClick={() => descargar(libroActual.id, 'ple')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm rounded-lg border border-blue-200 transition"
             >
               <FileText className="w-3.5 h-3.5" />
-              PLE .txt (formato SUNAT)
+              PLE .txt (SUNAT electrónico)
+            </button>
+            <button
+              onClick={() => descargar(libroActual.id, 'csv')}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm rounded-lg border border-gray-200 transition"
+            >
+              <Download className="w-3.5 h-3.5" />
+              CSV simple
             </button>
             {libroActual.estado === 'borrador' && (
               <button
@@ -212,15 +219,15 @@ export default function ContabilidadPanel({ libros: librosIniciales, ferreteriaI
                     <td className="py-2.5">
                       <div className="flex items-center gap-1 justify-end">
                         <button
-                          onClick={() => descargar(libro.id, 'csv')}
-                          title="Descargar CSV"
+                          onClick={() => descargar(libro.id, 'excel')}
+                          title="Excel Formato 14.1 SUNAT"
                           className="p-1 text-gray-400 hover:text-emerald-600"
                         >
                           <Download className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => descargar(libro.id, 'ple')}
-                          title="Descargar PLE"
+                          title="Descargar PLE .txt"
                           className="p-1 text-gray-400 hover:text-blue-600"
                         >
                           <FileText className="w-4 h-4" />
