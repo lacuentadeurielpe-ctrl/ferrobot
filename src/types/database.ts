@@ -538,6 +538,32 @@ export interface IncidenciaSistema {
   created_at: string
 }
 
+// ══════════════════════════════════════════════════════════════════
+// CONTABILIDAD — F5 Libros Contables
+// ══════════════════════════════════════════════════════════════════
+
+export type TipoLibro = 'ventas' | 'compras' | 'inventario'
+export type EstadoLibro = 'borrador' | 'cerrado'
+
+export interface LibroContable {
+  id: string
+  ferreteria_id: string
+  periodo: string              // YYYYMM
+  tipo_libro: TipoLibro
+  estado: EstadoLibro
+  total_registros: number
+  total_ventas: number
+  total_igv: number
+  total_base_imponible: number
+  total_boletas: number
+  total_facturas: number
+  contenido_ple: string | null
+  generado_at: string
+  cerrado_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 // Ferreteria extendida con campos SaaS
 export interface FerreteriaSaaS extends Ferreteria {
   plan_id: string | null

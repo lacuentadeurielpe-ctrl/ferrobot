@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Camera,
   Loader2,
+  BookOpen,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -41,6 +42,7 @@ const navItems: NavItem[] = [
   { label: 'Clientes',       href: '/dashboard/clientes',       icon: Users,           permiso: 'ver_historial_clientes' },
   { label: 'Créditos',       href: '/dashboard/creditos',       icon: CreditCard,      permiso: 'ver_creditos' },
   { label: 'Rendiciones',    href: '/dashboard/rendiciones',    icon: ClipboardList,   permiso: 'ver_caja_dia' },
+  { label: 'Contabilidad',   href: '/dashboard/contabilidad',   icon: BookOpen,        permiso: 'configurar_ferreteria' },
   { label: 'Configuración',  href: '/dashboard/settings',       icon: Settings,        permiso: 'configurar_ferreteria' },
 ]
 
