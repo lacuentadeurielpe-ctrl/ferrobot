@@ -197,11 +197,12 @@ export async function POST(request: Request) {
 
   } else if (mensaje.type === 'audio' || (mensaje as any).type === 'voice') {
     // Audio/voz: intentar extraer el media ID desde múltiples campos posibles que YCloud puede enviar
+    // En n8n el usuario hacía un HTTP Request con algún ID del mensaje — probamos todos los candidatos
     const audioObj: Record<string, unknown> = mensaje.audio ?? (mensaje as any).voice ?? {}
-    // YCloud puede enviar el ID en id, link, url o a veces el wamid del mensaje es el media ID
+    // Orden: audio.id → audio.link/url → wamid (WhatsApp msg ID) → mensaje.id (YCloud msg ID)
     const audioId: string | null =
       (audioObj.id as string) || (audioObj.link as string) || (audioObj.url as string) ||
-      mensaje.wamid || null
+      mensaje.wamid || mensaje.id || null
     const audioMime = (audioObj.mimeType as string) || (audioObj.mime_type as string) || 'audio/ogg'
     console.log(`[Webhook] Audio/Voice — mediaId=${audioId ?? 'NULL'}, mime=${audioMime}, openAI=${openAIDisponible()}`)
     if (openAIDisponible() && audioId) {
@@ -258,7 +259,7 @@ export async function POST(request: Request) {
     const imageObj: Record<string, unknown> = mensaje.image ?? {}
     const imageId: string | null =
       (imageObj.id as string) || (imageObj.link as string) || (imageObj.url as string) ||
-      mensaje.wamid || null
+      mensaje.wamid || mensaje.id || null
     const imageMime = (imageObj.mimeType as string) || 'image/jpeg'
     console.log(`[Webhook] Imagen — mediaId=${imageId ?? 'NULL'}, mime=${imageMime}, openAI=${openAIDisponible()}`)
     if (openAIDisponible() && imageId) {
@@ -361,7 +362,7 @@ export async function POST(request: Request) {
     const docObj: Record<string, unknown> = mensaje.document ?? {}
     const docId: string | null =
       (docObj.id as string) || (docObj.link as string) || (docObj.url as string) ||
-      mensaje.wamid || null
+      mensaje.wamid || mensaje.id || null
     const caption = (docObj.caption as string)?.trim()
     const nombre = (docObj.filename as string) ?? ''
     const esImagen = /\.(jpg|jpeg|png|webp)$/i.test(nombre)
