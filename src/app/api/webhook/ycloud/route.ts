@@ -183,11 +183,18 @@ export async function POST(request: Request) {
   let textoMensaje: string | null = null
   let notaParaBot: string | null = null
 
-  // Diagnóstico: para media, loguear payload completo en la primera línea (visible en Vercel)
+  // Diagnóstico de campos de media (corto para ser visible en Vercel logs)
   if (mensaje.type !== 'text') {
-    console.log(`[Webhook] MEDIA_PAYLOAD tipo=${mensaje.type} msg=${JSON.stringify(mensaje).slice(0, 700)}`)
+    const mo = (mensaje as any)[mensaje.type] ?? {}
+    const keys = Object.keys(mo).join(',') || 'VACIO'
+    const id = mo.id ?? 'N'
+    const link = mo.link ?? 'N'
+    const url = mo.url ?? 'N'
+    const mediaUrl = mo.mediaUrl ?? mo.media_url ?? 'N'
+    const fileId = mo.fileId ?? mo.file_id ?? 'N'
+    console.log(`[MF] t=${mensaje.type} keys=${keys} id=${id} link=${link} url=${url} murl=${mediaUrl} fid=${fileId} wamid=${mensaje.wamid ?? 'N'} mid=${mensaje.id ?? 'N'}`)
   } else {
-    console.log(`[Webhook] tipo=${mensaje.type} from=${telefonoCliente}`)
+    console.log(`[Webhook] tipo=text from=${telefonoCliente}`)
   }
 
   if (mensaje.type === 'text' && mensaje.text?.body?.trim()) {
