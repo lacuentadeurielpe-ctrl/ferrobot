@@ -38,7 +38,7 @@ export default async function OrdersPage() {
       .order('nombre'),
     supabase
       .from('ferreterias')
-      .select('nubefact_token_enc')
+      .select('nubefact_token_enc, tipo_ruc')
       .eq('id', session.ferreteriaId)   // FERRETERÍA AISLADA
       .single(),
   ])
@@ -64,6 +64,7 @@ export default async function OrdersPage() {
         repartidores={repartidores ?? []}
         permisos={session.permisos as PermisoMap}
         nubefactConfigurado={!!ferreteriaData?.nubefact_token_enc}
+        tieneRuc={ferreteriaData?.tipo_ruc !== 'sin_ruc'}
       />
     </div>
   )
