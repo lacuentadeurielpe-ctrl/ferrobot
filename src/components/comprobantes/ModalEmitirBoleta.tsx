@@ -45,6 +45,7 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
           setError(d.error ?? 'Error al emitir la boleta')
         }
       } else {
+        // ok=true tanto para boleta recién emitida como para boleta ya guardada en BD
         onEmitida({ numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl })
       }
     } catch {

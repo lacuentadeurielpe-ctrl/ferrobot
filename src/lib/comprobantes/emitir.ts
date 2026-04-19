@@ -5,7 +5,6 @@
 //   - El token Nubefact se obtiene de la propia ferretería (nunca env global)
 //   - El correlativo usa pg_advisory_xact_lock para evitar duplicados concurrentes
 
-import { randomUUID }        from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { desencriptar }      from '@/lib/encryption'
 import { enviarANubefact }   from '@/lib/nubefact'
@@ -157,28 +156,29 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     return { ok: false, error: 'El pedido no tiene items' }
   }
 
-  // ── 3. Verificar que no existe boleta YA EMITIDA para este pedido ─────────
-  //    Solo bloqueamos si ya fue emitida con éxito.
-  //    Los comprobantes con estado='error' pueden reintentarse.
+  // ── 3. Verificar si ya existe boleta emitida — si es así, la devolvemos ────
+  //    Nunca llamamos a Nubefact dos veces para el mismo pedido.
   const { data: yaEmitida } = await supabase
     .from('comprobantes')
-    .select('id, numero_completo, estado')
+    .select('id, numero_completo, estado, pdf_url, xml_url')
     .eq('pedido_id', opts.pedidoId)
     .eq('ferreteria_id', opts.ferreteriaId)   // AISLADO
     .eq('tipo', 'boleta')
-    .eq('estado', 'emitido')                  // solo bloqueamos si está emitida con éxito
+    .eq('estado', 'emitido')
     .maybeSingle()
 
   if (yaEmitida) {
+    // Ya emitida → devolver datos de BD sin tocar Nubefact
     return {
-      ok:             false,
-      error:          `Ya existe la boleta ${yaEmitida.numero_completo} para este pedido.`,
+      ok:             true,
       comprobanteId:  yaEmitida.id,
+      numeroCompleto: yaEmitida.numero_completo,
+      pdfUrl:         yaEmitida.pdf_url   ?? undefined,
+      xmlUrl:         yaEmitida.xml_url   ?? undefined,
     }
   }
 
-  // Eliminar comprobantes en estado 'error' anteriores para este pedido
-  // (así el usuario puede reintentar luego de corregir la configuración)
+  // Eliminar comprobantes 'error' anteriores para poder reintentar
   await supabase
     .from('comprobantes')
     .delete()
@@ -300,7 +300,10 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     tipo_de_nota_de_debito:      '',
     enviar_automaticamente_a_la_sunat:  true,
     enviar_automaticamente_al_cliente:  false,
-    codigo_unico:                randomUUID(),   // UUID único por intento — deduplicación manejada por nuestra BD
+    // codigo_unico: estable por documento (serie+numero+ferretería).
+    // Si Nubefact ya tiene este código, devuelve el mismo resultado (idempotencia).
+    // Cambia automáticamente si se genera un nuevo correlativo en el reintento.
+    codigo_unico:                `${opts.ferreteriaId.slice(0, 8)}-${serie}-${String(numero).padStart(8, '0')}`,
     condiciones_de_pago:         '',
     medio_de_pago:               '',
     placa_vehiculo:              '',
