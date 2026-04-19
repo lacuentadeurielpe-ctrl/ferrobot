@@ -282,10 +282,10 @@ export async function descargarMedia(
 
   console.log(`[YCloud] descargarMedia inicio — mediaId=${mediaId}`)
 
-  // Para media, probar siempre con la global key primero (más permisos),
-  // luego con la del tenant como fallback
+  // Para media, usar primero la API key del tenant (la media pertenece a su WABA),
+  // y la global key como fallback (útil en desarrollo con cuenta única)
   const globalKey = process.env.YCLOUD_API_KEY
-  const keysAProbar = [...new Set([globalKey, apiKey].filter(Boolean))] as string[]
+  const keysAProbar = [...new Set([apiKey, globalKey].filter(Boolean))] as string[]
 
   let res: Response | null = null
   for (const k of keysAProbar) {

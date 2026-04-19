@@ -185,11 +185,14 @@ export async function POST(request: Request) {
 
   // Diagnóstico completo del mensaje recibido
   console.log(`[Webhook] tipo=${mensaje.type} from=${telefonoCliente} openAI=${openAIDisponible()}`)
-  // Log de estructura de media para diagnosticar campos reales que envía YCloud
+  // Log completo de estructura de media — permite ver exactamente qué campos envía YCloud
   if (mensaje.type !== 'text') {
-    const mediaObj = (mensaje as any)[mensaje.type] ?? {}
-    console.log(`[Webhook] media obj keys=${Object.keys(mediaObj).join(',') || 'VACÍO'} wamid=${mensaje.wamid ?? 'N/A'} msgId=${mensaje.id}`)
-    console.log(`[Webhook] media raw=${JSON.stringify(mediaObj).slice(0, 200)}`)
+    const fullMensaje = JSON.stringify(mensaje)
+    console.log(`[Webhook] DIAGMEDIA|${mensaje.type}|${fullMensaje.slice(0, 800)}`)
+    // Guardar en BD para inspección fácil (fire & forget)
+    void supabase.from('configuracion_ycloud')
+      .update({ ultimo_error: `DIAG_MEDIA|${mensaje.type}|${fullMensaje.slice(0, 490)}` })
+      .eq('ferreteria_id', ferreteria.id)
   }
 
   if (mensaje.type === 'text' && mensaje.text?.body?.trim()) {
