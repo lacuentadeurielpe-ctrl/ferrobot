@@ -234,21 +234,12 @@ export async function POST(request: Request) {
     }
 
     if (!textoMensaje) {
-      // Sin transcripción: pausar bot (via pausarBotPorDueno que busca por cliente) y notificar
+      // Sin transcripción: responder al cliente sin pausar el bot
+      // (pausar bloquearía los mensajes de texto posteriores)
       try {
-        await pausarBotPorDueno(supabase, ferreteria.id, telefonoCliente)
-
-        if (ferreteria.telefono_dueno) {
-          await enviarMensaje({
-            from: telefonoEnvio, to: ferreteria.telefono_dueno,
-            texto: `🎧 *Nota de voz sin procesar*\nEl cliente ${telefonoCliente} envió una nota de voz. Respóndele desde el panel.\n\nEl bot está pausado.`,
-            apiKey: tenantApiKey,
-          }).catch(() => {})
-        }
-
         await enviarMensaje({
           from: telefonoEnvio, to: telefonoCliente,
-          texto: '🎧 Recibí tu nota de voz. Un encargado te responde en breve 🙌',
+          texto: '🎧 Recibí tu nota de voz. Escríbeme tu consulta por texto y te ayudo enseguida 🙌',
           apiKey: tenantApiKey,
         }).catch(() => {})
       } catch (e) {
