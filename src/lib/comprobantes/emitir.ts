@@ -227,7 +227,7 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
 
     return {
       unidad_de_medida:  mapearUnidadSunat(item.unidad),
-      codigo:            item.producto_id ?? `ITEM${i + 1}`,
+      codigo:            String(i + 1).padStart(3, '0'),  // P001, P002... — no mostramos UUID
       descripcion:       item.nombre_producto,
       cantidad:          item.cantidad,
       valor_unitario:    valorUnitario,
