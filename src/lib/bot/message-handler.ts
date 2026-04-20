@@ -6,6 +6,7 @@ import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPe
 import { llamarDeepSeek, type IntentBot } from '@/lib/ai/deepseek'
 import { llamarClaude, claudeDisponible, buildSystemPromptClaude } from '@/lib/ai/claude'
 import { buildSystemPrompt, buildSystemPromptLite, buildHistorialMensajes } from '@/lib/ai/prompt'
+import { ejecutarOrquestador } from '@/lib/ai/orchestrator'
 import { procesarItemsSolicitados, formatearCotizacion } from '@/lib/bot/catalog-search'
 import {
   getOrCreateSession,
@@ -206,6 +207,61 @@ export async function handleIncomingMessage({
   const limiteHistorial = necesitaCatalogo ? maxContexto : Math.min(maxContexto, 4)
   const historial = await getHistorial(supabase, conversacion.id, limiteHistorial)
   const historialParaAI = historial.slice(0, -1)
+
+  // ── 8a. F1: Orquestador v2 (tool-calling) — gated por feature flag ────────
+  // Si el tenant tiene usar_orquestador_v2 = true, usamos el nuevo flujo con
+  // tools en vez del intent-switch clásico. Arranque seguro: flag default false.
+  const usarOrquestador = (config as any)?.usar_orquestador_v2 === true
+  if (usarOrquestador) {
+    try {
+      console.log(`[Bot] Usando orquestador v2 — ferreteria=${ferreteria.id}`)
+      // Descontamos crédito mínimo — cualquier respuesta del orquestador cuesta
+      // al menos 1 crédito. (F2 refinará este costo según tools usadas.)
+      const creditosOk = await verificarYDescontarCreditos(ferreteria.id, 'respuesta_simple')
+      if (!creditosOk.ok) {
+        const msg = respuestaModoBasico()
+        await guardarMensaje(supabase, conversacion.id, 'bot', msg)
+        return { respuesta: msg, conversacionId: conversacion.id }
+      }
+
+      const systemPromptOrq = buildSystemPromptLite({
+        ferreteria,
+        zonas: zonas ?? [],
+        config,
+      })
+
+      const resultado = await ejecutarOrquestador(
+        systemPromptOrq,
+        historialParaAI.map((m) => ({
+          role: m.role === 'cliente' ? 'user' : 'assistant',
+          content: m.contenido,
+        })),
+        textoMensaje,
+        {
+          supabase,
+          ferreteriaId: ferreteria.id,       // FERRETERÍA AISLADA — inyectado
+          conversacionId: conversacion.id,
+          clienteId: conversacion.cliente_id,
+          productos: productos ?? [],
+        }
+      )
+
+      console.log(`[Orchestrator] tools=${resultado.toolsUsadas.join(',')} iter=${resultado.iteraciones}`)
+
+      registrarMovimiento({
+        ferreteriaId: ferreteria.id,
+        tipoTarea:    'respuesta_simple',
+        conversacionId: conversacion.id,
+        origen: 'bot',
+      }).catch(() => {})
+
+      await guardarMensaje(supabase, conversacion.id, 'bot', resultado.respuesta)
+      return { respuesta: resultado.respuesta, conversacionId: conversacion.id }
+    } catch (e) {
+      // Fallback al flujo clásico si el orquestador falla
+      console.error('[Orchestrator] Falló — cayendo al flujo clásico:', e)
+    }
+  }
 
   const systemPrompt = necesitaCatalogo
     ? buildSystemPrompt({ ferreteria, productos: productos ?? [], zonas: zonas ?? [], config, datosFlujo, nombreCliente: nombreClienteGuardado })
