@@ -71,11 +71,19 @@ interface SettingsFormProps {
   ferreteria: Ferreteria
   zonas: Zona[]
   margenMinimo?: number
+  debounceSegundos?: number
+  ventanaGraciaMinutos?: number
 }
 
 type Tab = 'negocio' | 'horario' | 'bot' | 'zonas' | 'comprobante' | 'pagos'
 
-export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margenMinimo = 10 }: SettingsFormProps) {
+export default function SettingsForm({
+  ferreteria,
+  zonas: zonasIniciales,
+  margenMinimo = 10,
+  debounceSegundos = 8,
+  ventanaGraciaMinutos = 30,
+}: SettingsFormProps) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('negocio')
   const [saving, setSaving] = useState(false)
@@ -94,6 +102,8 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
     mensaje_fuera_horario: ferreteria.mensaje_fuera_horario ?? '',
     timeout_intervencion_dueno: ferreteria.timeout_intervencion_dueno,
     margen_minimo_porcentaje: margenMinimo,
+    debounce_segundos: debounceSegundos,
+    ventana_gracia_minutos: ventanaGraciaMinutos,
     color_comprobante: ferreteria.color_comprobante || '#1e40af',
     mensaje_comprobante: ferreteria.mensaje_comprobante ?? '',
     telefono_dueno: ferreteria.telefono_dueno ?? '',
@@ -163,6 +173,8 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
           mensaje_fuera_horario: form.mensaje_fuera_horario.trim() || null,
           timeout_intervencion_dueno: Number(form.timeout_intervencion_dueno),
           margen_minimo_porcentaje: Number(form.margen_minimo_porcentaje),
+          debounce_segundos: Number(form.debounce_segundos),
+          ventana_gracia_minutos: Number(form.ventana_gracia_minutos),
           mensaje_comprobante: form.mensaje_comprobante.trim() || null,
           telefono_dueno: form.telefono_dueno.trim() || null,
           // Pagos
@@ -654,6 +666,50 @@ export default function SettingsForm({ ferreteria, zonas: zonasIniciales, margen
             </div>
             <p className="text-xs text-gray-400 mt-1">
               El sistema te alertará cuando el precio de una cotización o producto esté por debajo de este margen.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Debounce de mensajes
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                name="debounce_segundos"
+                value={form.debounce_segundos}
+                onChange={handleChange}
+                min={0}
+                max={30}
+                step={1}
+                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              />
+              <span className="text-sm text-gray-600">segundos de espera tras el último mensaje</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Si el cliente envía varios mensajes seguidos, el bot espera N segundos desde el último antes de responder, y los procesa juntos. 0 = responder de inmediato.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ventana de gracia post-confirmación
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                name="ventana_gracia_minutos"
+                value={form.ventana_gracia_minutos}
+                onChange={handleChange}
+                min={0}
+                max={120}
+                step={1}
+                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              />
+              <span className="text-sm text-gray-600">minutos para agregar items al pedido</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Dentro de esta ventana el cliente puede agregar productos al pedido recién confirmado (siempre que no esté despachado ni pagado). 0 = desactivado.
             </p>
           </div>
 

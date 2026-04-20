@@ -275,6 +275,8 @@ export async function handleIncomingMessage({
           conversacionId: conversacion.id,
           clienteId: conversacion.cliente_id,
           productos: productos ?? [],
+          ventanaGraciaMinutos: (config as unknown as { ventana_gracia_minutos?: number } | null)?.ventana_gracia_minutos ?? 30,
+          ycloudApiKey,
         }
       )
 

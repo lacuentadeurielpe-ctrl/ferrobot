@@ -41,7 +41,7 @@ export default async function SettingsPage({
       .order('nombre'),
     supabase
       .from('configuracion_bot')
-      .select('margen_minimo_porcentaje')
+      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos')
       .eq('ferreteria_id', ferreteria.id)
       .single(),
     getEstadoMP(ferreteria.id),
@@ -129,6 +129,8 @@ export default async function SettingsPage({
           }}
           zonas={zonas ?? []}
           margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
+          debounceSegundos={(configBot as { debounce_segundos?: number } | null)?.debounce_segundos ?? 8}
+          ventanaGraciaMinutos={(configBot as { ventana_gracia_minutos?: number } | null)?.ventana_gracia_minutos ?? 30}
         />
       )}
 

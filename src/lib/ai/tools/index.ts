@@ -12,6 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Producto } from '@/types/database'
 import { procesarItemsSolicitados } from '@/lib/bot/catalog-search'
 import { pausarBot } from '@/lib/bot/session'
+import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -21,12 +22,20 @@ export interface ToolContext {
   conversacionId: string
   clienteId: string
   productos: Producto[]   // catálogo ya cargado (evita refetch por tool call)
+  /** Ventana de gracia configurada (en minutos) para agregar_a_pedido_reciente */
+  ventanaGraciaMinutos?: number
+  /** api_key de YCloud del tenant (para regenerar y reenviar comprobante) */
+  ycloudApiKey?: string
 }
 
 export interface ToolResult {
   ok: boolean
   data?: unknown
   error?: string
+  /** Motivo estructurado de fallo (para que el modelo distinga casos) */
+  motivo?: string
+  /** Mensaje orientativo para el modelo en caso de fallo controlado */
+  mensaje?: string
 }
 
 // Validación obligatoria: toda tool debe tener ferreteriaId
@@ -107,6 +116,36 @@ export const TOOL_SCHEMAS = [
         'Devuelve información de la ferretería: horario, dirección, métodos de pago, zonas de delivery. ' +
         'Úsalo cuando el cliente pregunte por horarios, ubicación, cómo pagar o si hacen delivery.',
       parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'agregar_a_pedido_reciente',
+      description:
+        'Intenta agregar productos a un pedido recién confirmado del cliente (ventana de gracia). ' +
+        'Úsalo SOLO cuando el cliente pide explícitamente agregar algo ("agrega X", "olvidé Y", "también X"). ' +
+        'La tool valida automáticamente que el pedido esté dentro de la ventana de tiempo, no despachado ' +
+        'y sin comprobante tributario emitido. Si no se puede agregar, devuelve motivo y el bot ' +
+        'debe proponer crear un pedido nuevo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            description: 'Productos a agregar al pedido reciente.',
+            items: {
+              type: 'object',
+              properties: {
+                nombre_buscado: { type: 'string' },
+                cantidad:       { type: 'number' },
+              },
+              required: ['nombre_buscado', 'cantidad'],
+            },
+          },
+        },
+        required: ['items'],
+      },
     },
   },
   {
@@ -287,6 +326,183 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     ])
     if (!ferreteria) return { ok: false, error: 'Ferretería no encontrada' }
     return { ok: true, data: { ferreteria, zonas_delivery: zonas ?? [] } }
+  },
+
+  agregar_a_pedido_reciente: async (ctx, args) => {
+    requireTenant(ctx)
+    const items = args.items as Array<{ nombre_buscado: string; cantidad: number }> | undefined
+    if (!Array.isArray(items) || items.length === 0) {
+      return { ok: false, error: 'items vacío' }
+    }
+    const ventanaMin = ctx.ventanaGraciaMinutos ?? 30
+
+    // ── Criterio 1: buscar el pedido más reciente del cliente en estado editable
+    const { data: pedidoRaw } = await ctx.supabase
+      .from('pedidos')
+      .select(
+        'id, numero_pedido, total, estado, estado_pago, modalidad, created_at, ' +
+        'modificaciones_count, nombre_cliente, direccion_entrega, items_pedido(*)'
+      )
+      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+      .eq('cliente_id', ctx.clienteId)
+      .in('estado', ['confirmado', 'en_preparacion'])  // Criterio 2: no despachado ni cancelado
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const pedido = pedidoRaw as unknown as {
+      id: string
+      numero_pedido: string
+      total: number
+      estado: string
+      estado_pago: string | null
+      modalidad: string
+      created_at: string
+      modificaciones_count: number | null
+      items_pedido: Array<Record<string, unknown>>
+    } | null
+
+    if (!pedido) {
+      return {
+        ok: false,
+        motivo: 'sin_pedido_editable',
+        mensaje: 'No encontré un pedido reciente editable. Sugiere crear un pedido nuevo.',
+      }
+    }
+
+    // ── Criterio 3: ventana de tiempo (30 min default)
+    const minutosTranscurridos = (Date.now() - new Date(pedido.created_at).getTime()) / 60000
+    if (minutosTranscurridos > ventanaMin) {
+      return {
+        ok: false,
+        motivo: 'fuera_de_ventana',
+        mensaje: `El pedido ${pedido.numero_pedido} ya tiene ${Math.round(minutosTranscurridos)} min. Sugiere crear un pedido nuevo para lo adicional.`,
+      }
+    }
+
+    // ── Criterio 4: no hay comprobante tributario ya emitido (estado_pago = pagado)
+    if (pedido.estado_pago === 'pagado') {
+      return {
+        ok: false,
+        motivo: 'pedido_pagado',
+        mensaje: `El pedido ${pedido.numero_pedido} ya fue pagado, con comprobante emitido. Sugiere crear un pedido nuevo para lo adicional.`,
+      }
+    }
+
+    // ── Procesar los items a agregar (fuzzy search + cálculo de precios)
+    const { data: configBot } = await ctx.supabase
+      .from('configuracion_bot')
+      .select('umbral_monto_negociacion')
+      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+      .single()
+
+    const resultados = procesarItemsSolicitados(
+      items,
+      ctx.productos,
+      (configBot as { umbral_monto_negociacion?: number } | null)?.umbral_monto_negociacion
+    )
+
+    const productoCostoMap = new Map(ctx.productos.map((p) => [p.id, p.precio_compra ?? 0]))
+    const itemsActuales = pedido.items_pedido ?? []
+    const agregados: Array<{ nombre: string; cantidad: number; precio: number; subtotal: number }> = []
+
+    for (const r of resultados) {
+      if (!r.disponible || !r.producto) continue
+
+      const existente = itemsActuales.find((i) => (i.producto_id as string) === r.producto!.id)
+      if (existente) {
+        // Ya está en el pedido → sumar cantidad
+        const nuevaCantidad = (existente.cantidad as number) + r.cantidad
+        const nuevoSubtotal = r.precio_unitario * nuevaCantidad
+        await ctx.supabase
+          .from('items_pedido')
+          .update({
+            cantidad: nuevaCantidad,
+            precio_unitario: r.precio_unitario,
+            subtotal: nuevoSubtotal,
+          })
+          .eq('id', existente.id as string)
+        agregados.push({
+          nombre: r.producto.nombre,
+          cantidad: r.cantidad,
+          precio: r.precio_unitario,
+          subtotal: r.precio_unitario * r.cantidad,
+        })
+      } else {
+        // Nuevo item
+        await ctx.supabase.from('items_pedido').insert({
+          pedido_id:       pedido.id,
+          producto_id:     r.producto.id,
+          nombre_producto: r.producto.nombre,
+          unidad:          r.producto.unidad,
+          cantidad:        r.cantidad,
+          precio_unitario: r.precio_unitario,
+          subtotal:        r.subtotal,
+          costo_unitario:  productoCostoMap.get(r.producto.id) ?? 0,
+        })
+        agregados.push({
+          nombre: r.producto.nombre,
+          cantidad: r.cantidad,
+          precio: r.precio_unitario,
+          subtotal: r.subtotal,
+        })
+      }
+    }
+
+    if (agregados.length === 0) {
+      return {
+        ok: false,
+        motivo: 'productos_no_encontrados',
+        mensaje: 'No encontré esos productos en el catálogo. Verifica los nombres.',
+      }
+    }
+
+    // ── Recalcular total del pedido
+    const { data: itemsFinal } = await ctx.supabase
+      .from('items_pedido')
+      .select('subtotal, cantidad, costo_unitario')
+      .eq('pedido_id', pedido.id)
+
+    const nuevoTotal = (itemsFinal ?? []).reduce((s, i) => s + (i.subtotal as number), 0)
+    const nuevoCosto = (itemsFinal ?? []).reduce(
+      (s, i) => s + ((i.costo_unitario as number) ?? 0) * (i.cantidad as number),
+      0
+    )
+
+    await ctx.supabase
+      .from('pedidos')
+      .update({
+        total: nuevoTotal,
+        costo_total: nuevoCosto,
+        modificado_post_confirmacion_at: new Date().toISOString(),
+        modificaciones_count: (pedido.modificaciones_count ?? 0) + 1,
+      })
+      .eq('id', pedido.id)
+      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+
+    // ── Regenerar nota de venta (borrar la anterior + generar nueva)
+    try {
+      await eliminarComprobantePedido(pedido.id, ctx.ferreteriaId)
+      await generarYEnviarComprobante({
+        pedidoId:     pedido.id,
+        ferreteriaId: ctx.ferreteriaId,
+        esProforma:   false,
+        ycloudApiKey: ctx.ycloudApiKey,
+      })
+    } catch (e) {
+      console.error('[agregar_a_pedido_reciente] Error regenerando comprobante:', e)
+      // No abortar — los items ya fueron agregados
+    }
+
+    return {
+      ok: true,
+      data: {
+        pedido_numero: pedido.numero_pedido,
+        nuevo_total: nuevoTotal,
+        items_agregados: agregados,
+        comprobante_regenerado: true,
+      },
+    }
   },
 
   sugerir_complementario: async (ctx, args) => {

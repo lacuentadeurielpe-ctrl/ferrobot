@@ -23,6 +23,7 @@ import { handleIncomingMessage } from '@/lib/bot/message-handler'
 import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/openai'
 import { desencriptar } from '@/lib/encryption'
 import { pausarBotPorDueno } from '@/lib/bot/session'
+import { acumularOProcesar } from '@/lib/bot/debounce'
 
 // Vercel: hasta 60s para poder hacer download + Whisper + DeepSeek en secuencia
 export const maxDuration = 60
@@ -410,16 +411,43 @@ export async function POST(request: Request) {
 
   console.log(`[Webhook] Mensaje de ${telefonoCliente}: "${textoMensaje.slice(0, 60)}"`)
 
-  // ── 7. Procesar con el bot ─────────────────────────────────────────────────
-  const textoCompleto = notaParaBot ? `${textoMensaje}\n\n${notaParaBot}` : textoMensaje
+  // ── 7a. Debounce (F4) — acumular mensajes del cliente en ráfaga ───────────
+  let textoCompleto = notaParaBot ? `${textoMensaje}\n\n${notaParaBot}` : textoMensaje
+  let ycloudMessageIdFinal = ycloudMessageId
 
+  // Leer configuración del tenant (debounce_segundos)
+  const { data: configBot } = await supabase
+    .from('configuracion_bot')
+    .select('debounce_segundos')
+    .eq('ferreteria_id', ferreteria.id)
+    .single()
+  const debounceSegundos = (configBot as { debounce_segundos?: number } | null)?.debounce_segundos ?? 8
+
+  if (debounceSegundos > 0) {
+    const resultado = await acumularOProcesar({
+      supabase,
+      ferreteriaId: ferreteria.id,
+      telefonoCliente,
+      texto: textoCompleto,
+      ycloudMessageId,
+      debounceSegundos,
+    })
+    if (!resultado.procesar) {
+      // Otro webhook más tardío procesará la conversación acumulada
+      return NextResponse.json({ ok: true })
+    }
+    textoCompleto = resultado.textoAcumulado ?? textoCompleto
+    ycloudMessageIdFinal = resultado.ycloudMessageIdUltimo ?? ycloudMessageId
+  }
+
+  // ── 7. Procesar con el bot ─────────────────────────────────────────────────
   try {
     const { respuesta, mensajesExtra } = await handleIncomingMessage({
       supabase,
       ferreteria,
       telefonoCliente,
       textoMensaje: textoCompleto,
-      ycloudMessageId,
+      ycloudMessageId: ycloudMessageIdFinal,
       ycloudApiKey: tenantApiKey,
     })
 
