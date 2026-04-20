@@ -7,6 +7,7 @@ import RepartidoresSection from '@/components/settings/RepartidoresSection'
 import MercadoPagoConnect from '@/components/settings/MercadoPagoConnect'
 import YCloudConnect from '@/components/settings/YCloudConnect'
 import FacturacionTab from '@/components/settings/FacturacionTab'
+import ComplementariosSection from '@/components/settings/ComplementariosSection'
 import { Settings } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,7 @@ export default async function SettingsPage({
   const tabActivo = params.tab ?? 'general'
 
   const admin = createAdminClient()
-  const [{ data: zonas }, { data: configBot }, estadoMP, { data: ycloudConfig }] = await Promise.all([
+  const [{ data: zonas }, { data: configBot }, estadoMP, { data: ycloudConfig }, { data: productosActivos }] = await Promise.all([
     supabase
       .from('zonas_delivery')
       .select('id, nombre, tiempo_estimado_min')
@@ -49,6 +50,12 @@ export default async function SettingsPage({
       .select('numero_whatsapp, estado_conexion, ultimo_mensaje_at, ultimo_error')
       .eq('ferreteria_id', ferreteria.id)
       .single(),
+    supabase
+      .from('productos')
+      .select('id, nombre, unidad')
+      .eq('ferreteria_id', ferreteria.id)
+      .eq('activo', true)
+      .order('nombre'),
   ])
 
   // Nubefact: configurado, modo y ruta (la ruta no es secreta); el token NUNCA
@@ -59,12 +66,13 @@ export default async function SettingsPage({
   }
 
   const TABS = [
-    { id: 'general',     label: 'General' },
-    { id: 'facturacion', label: '🧾 Facturación' },
-    { id: 'whatsapp',    label: 'WhatsApp' },
-    { id: 'pagos',       label: 'Pagos' },
-    { id: 'equipo',      label: 'Equipo' },
-    { id: 'repartidores', label: 'Repartidores' },
+    { id: 'general',        label: 'General' },
+    { id: 'facturacion',    label: '🧾 Facturación' },
+    { id: 'whatsapp',       label: 'WhatsApp' },
+    { id: 'pagos',          label: 'Pagos' },
+    { id: 'equipo',         label: 'Equipo' },
+    { id: 'repartidores',   label: 'Repartidores' },
+    { id: 'complementarios', label: '🔗 Complementarios' },
   ]
 
   return (
@@ -180,6 +188,11 @@ export default async function SettingsPage({
       {/* ── Repartidores ────────────────────────────────────────────── */}
       {tabActivo === 'repartidores' && (
         <RepartidoresSection modoInicial={ferreteria.modo_asignacion_delivery ?? 'manual'} />
+      )}
+
+      {/* ── Complementarios ─────────────────────────────────────────── */}
+      {tabActivo === 'complementarios' && (
+        <ComplementariosSection productos={productosActivos ?? []} />
       )}
     </div>
   )

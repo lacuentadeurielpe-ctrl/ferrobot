@@ -112,6 +112,28 @@ export const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'sugerir_complementario',
+      description:
+        'Busca productos complementarios para lo que el cliente está comprando. ' +
+        'Úsalo SOLO después de una cotización exitosa, cuando el cliente ya tiene productos en su lista. ' +
+        'Devuelve 0, 1 o 2 sugerencias como máximo — si no hay nada realmente complementario, devuelve vacío. ' +
+        'IMPORTANTE: solo sugerir si la tool devuelve resultados; nunca inventar complementarios propios.',
+      parameters: {
+        type: 'object',
+        properties: {
+          producto_ids: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'IDs de los productos que el cliente ya tiene en esta cotización.',
+          },
+        },
+        required: ['producto_ids'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'historial_cliente',
       description:
         'Devuelve el perfil del cliente (lo que ya sabemos de él) y sus últimos pedidos. ' +
@@ -166,6 +188,23 @@ export const TOOL_SCHEMAS = [
 // ── Executors ────────────────────────────────────────────────────────────────
 
 type Executor = (ctx: ToolContext, args: Record<string, unknown>) => Promise<ToolResult>
+
+// Extrae tokens significativos de una lista de nombres de productos
+// (>3 chars, sin tildes, solo alfanumérico)
+function tokenizarProductos(nombres: string[]): Set<string> {
+  const tokens = new Set<string>()
+  for (const nombre of nombres) {
+    nombre
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 3)
+      .forEach((t) => tokens.add(t))
+  }
+  return tokens
+}
 
 export const TOOL_EXECUTORS: Record<string, Executor> = {
 
@@ -248,6 +287,99 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     ])
     if (!ferreteria) return { ok: false, error: 'Ferretería no encontrada' }
     return { ok: true, data: { ferreteria, zonas_delivery: zonas ?? [] } }
+  },
+
+  sugerir_complementario: async (ctx, args) => {
+    requireTenant(ctx)
+    const productoIds = args.producto_ids as string[] | undefined
+    if (!Array.isArray(productoIds) || productoIds.length === 0) {
+      return { ok: true, data: { sugerencias: [] } }
+    }
+
+    // Obtener datos de los productos que el cliente está comprando
+    // (para el filtro contextual de relevancia)
+    const productosActuales = ctx.productos.filter((p) => productoIds.includes(p.id))
+    const categoriasActuales = new Set(productosActuales.map((p) => p.categoria_id).filter(Boolean))
+    const tokensActuales = tokenizarProductos(productosActuales.map((p) => p.nombre))
+
+    // Buscar pares complementarios configurados (manual primero, luego auto)
+    const { data: pares, error } = await ctx.supabase
+      .from('productos_complementarios')
+      .select('complementario_id, tipo, frecuencia')
+      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+      .in('producto_id', productoIds)
+      .eq('activo', true)
+      .order('tipo', { ascending: true })       // 'auto' < 'manual' alfabéticamente — manual va primero con desc
+      .order('frecuencia', { ascending: false })
+
+    if (error || !pares || pares.length === 0) {
+      return { ok: true, data: { sugerencias: [] } }
+    }
+
+    // Filtrar complementarios que ya están en la cotización actual
+    const idsYaEnCotizacion = new Set(productoIds)
+    const candidatos = pares.filter((p) => !idsYaEnCotizacion.has(p.complementario_id))
+
+    if (candidatos.length === 0) {
+      return { ok: true, data: { sugerencias: [] } }
+    }
+
+    // Obtener datos de los candidatos (con stock y categoría)
+    const idsCanditatos = [...new Set(candidatos.map((c) => c.complementario_id))]
+    const complementariosInfo = ctx.productos.filter(
+      (p) => idsCanditatos.includes(p.id) && p.activo && p.stock > 0
+    )
+
+    // ── FILTRO DE RELEVANCIA CONTEXTUAL ─────────────────────────────────────
+    // Un complementario pasa el filtro si:
+    //   (a) es tipo 'manual' — el dueño ya validó la relación, confiamos
+    //   (b) misma categoría que algún producto en la cotización actual
+    //   (c) comparte al menos 1 token significativo (>3 chars) con algún producto en cotización
+    // Este filtro previene sugerencias random aunque el modelo las detecte como frecuentes.
+    const candidatosFiltrados = complementariosInfo.filter((comp) => {
+      const parOrigen = candidatos.find((c) => c.complementario_id === comp.id)
+      if (!parOrigen) return false
+
+      // (a) Par manual: el dueño lo aprobó explícitamente → pasa siempre
+      if (parOrigen.tipo === 'manual') return true
+
+      // (b) Misma categoría
+      if (comp.categoria_id && categoriasActuales.has(comp.categoria_id)) return true
+
+      // (c) Token compartido — ej: "arena" aparece en "cemento + arena" y "arena fina"
+      const tokensComp = [...tokenizarProductos([comp.nombre])]
+      const hayTokenComun = tokensComp.some((t) => tokensActuales.has(t))
+      if (hayTokenComun) return true
+
+      return false
+    })
+
+    if (candidatosFiltrados.length === 0) {
+      return { ok: true, data: { sugerencias: [] } }
+    }
+
+    // Máximo 2 sugerencias — ordenar: manuales primero, luego por frecuencia
+    const ordenados = candidatosFiltrados
+      .map((comp) => {
+        const par = candidatos.find((c) => c.complementario_id === comp.id)!
+        return { comp, tipo: par.tipo, frecuencia: par.frecuencia }
+      })
+      .sort((a, b) => {
+        if (a.tipo === 'manual' && b.tipo !== 'manual') return -1
+        if (a.tipo !== 'manual' && b.tipo === 'manual') return 1
+        return b.frecuencia - a.frecuencia
+      })
+      .slice(0, 2)
+
+    const sugerencias = ordenados.map(({ comp }) => ({
+      id:             comp.id,
+      nombre:         comp.nombre,
+      precio_unitario: comp.precio_base,
+      unidad:         comp.unidad,
+      stock:          comp.stock,
+    }))
+
+    return { ok: true, data: { sugerencias } }
   },
 
   historial_cliente: async (ctx) => {
