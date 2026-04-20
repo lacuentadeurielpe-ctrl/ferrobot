@@ -31,6 +31,11 @@ interface DatosYape {
   qr_url: string | null
 }
 
+interface DatosPlin {
+  numero: string
+  nombre: string
+}
+
 interface DatosTransferencia {
   banco: string
   cuenta: string
@@ -55,13 +60,16 @@ interface Ferreteria {
   telefono_dueno: string | null
   resumen_diario_activo: boolean
   datos_yape: DatosYape | null
+  datos_plin: DatosPlin | null
   datos_transferencia: DatosTransferencia | null
   metodos_pago_activos: string[] | null
+  tolerancia_dias_pago: number
 }
 
 const TODOS_METODOS = [
   { key: 'efectivo', label: 'Efectivo', desc: 'Pago en efectivo al momento de la entrega' },
   { key: 'yape', label: 'Yape', desc: 'Transferencia instantánea por Yape' },
+  { key: 'plin', label: 'Plin', desc: 'Pago instantáneo por Plin (Interbank, BBVA, Scotiabank, BCP)' },
   { key: 'transferencia', label: 'Transferencia bancaria', desc: 'Depósito o transferencia a cuenta bancaria' },
   { key: 'tarjeta', label: 'Tarjeta / POS', desc: 'Pago con tarjeta de crédito o débito' },
   { key: 'credito', label: 'Crédito', desc: 'Pago diferido con límite acordado' },
@@ -73,6 +81,7 @@ interface SettingsFormProps {
   margenMinimo?: number
   debounceSegundos?: number
   ventanaGraciaMinutos?: number
+  toleranciaDiasPago?: number
 }
 
 type Tab = 'negocio' | 'horario' | 'bot' | 'zonas' | 'comprobante' | 'pagos'
@@ -83,6 +92,7 @@ export default function SettingsForm({
   margenMinimo = 10,
   debounceSegundos = 8,
   ventanaGraciaMinutos = 30,
+  toleranciaDiasPago = 30,
 }: SettingsFormProps) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('negocio')
@@ -129,9 +139,13 @@ export default function SettingsForm({
   const [datosYape, setDatosYape] = useState<DatosYape>(
     ferreteria.datos_yape ?? { numero: '', qr_url: null }
   )
+  const [datosPlin, setDatosPlin] = useState<DatosPlin>(
+    ferreteria.datos_plin ?? { numero: '', nombre: '' }
+  )
   const [datosTransferencia, setDatosTransferencia] = useState<DatosTransferencia>(
     ferreteria.datos_transferencia ?? { banco: '', cuenta: '', cci: null, titular: '' }
   )
+  const [toleranciaDias, setToleranciaDias] = useState<number>(toleranciaDiasPago)
   const [subiendoQR, setSubiendoQR] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
   const qrInputRef = useRef<HTMLInputElement>(null)
@@ -182,6 +196,10 @@ export default function SettingsForm({
           datos_yape: metodosActivos.includes('yape') && datosYape.numero.trim()
             ? { numero: datosYape.numero.trim(), qr_url: datosYape.qr_url }
             : null,
+          datos_plin: metodosActivos.includes('plin') && datosPlin.numero.trim()
+            ? { numero: datosPlin.numero.trim(), nombre: datosPlin.nombre.trim() }
+            : null,
+          tolerancia_dias_pago: Number(toleranciaDias),
           datos_transferencia: metodosActivos.includes('transferencia') && datosTransferencia.banco.trim()
             ? {
                 banco: datosTransferencia.banco.trim(),
@@ -950,6 +968,34 @@ export default function SettingsForm({
             </div>
           )}
 
+          {/* Plin */}
+          {metodosActivos.includes('plin') && (
+            <div className="border-t border-gray-100 pt-5">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Datos de Plin</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Número Plin *</label>
+                  <input
+                    value={datosPlin.numero}
+                    onChange={(e) => setDatosPlin((p) => ({ ...p, numero: e.target.value }))}
+                    placeholder="987654321"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Número de celular asociado a Plin</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Titular *</label>
+                  <input
+                    value={datosPlin.nombre}
+                    onChange={(e) => setDatosPlin((p) => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Juan Pérez"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Transferencia */}
           {metodosActivos.includes('transferencia') && (
             <div className="border-t border-gray-100 pt-5">
@@ -999,6 +1045,29 @@ export default function SettingsForm({
               </p>
             </div>
           )}
+
+          {/* Tolerancia de días para detección de pagos */}
+          <div className="border-t border-gray-100 pt-5">
+            <p className="text-sm font-semibold text-gray-700 mb-1">Detección automática de comprobantes</p>
+            <p className="text-xs text-gray-500 mb-3">
+              Cuando el cliente envía una captura de pago, el bot busca pedidos sin pagar dentro de este rango.
+            </p>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                value={toleranciaDias}
+                onChange={(e) => setToleranciaDias(Number(e.target.value))}
+                min={0}
+                max={365}
+                step={1}
+                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              />
+              <span className="text-sm text-gray-600">días hacia atrás para buscar pedidos</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              30 días recomendado. Cubre casos de clientes que pagan semanas después del pedido.
+            </p>
+          </div>
         </div>
       )}
 

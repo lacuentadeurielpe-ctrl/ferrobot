@@ -20,6 +20,7 @@ import {
   Camera,
   Loader2,
   BookOpen,
+  Wallet,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -40,6 +41,7 @@ const navItems: NavItem[] = [
   { label: 'Pedidos',        href: '/dashboard/orders',         icon: ShoppingCart,    badge: 'pedidos',      permiso: 'ver_pedidos' },
   { label: 'Conversaciones', href: '/dashboard/conversations',  icon: MessageSquare,   badge: 'conversaciones', permiso: 'ver_pedidos' },
   { label: 'Clientes',       href: '/dashboard/clientes',       icon: Users,           permiso: 'ver_historial_clientes' },
+  { label: 'Pagos',          href: '/dashboard/pagos',          icon: Wallet,          permiso: 'ver_pedidos' },
   { label: 'Créditos',       href: '/dashboard/creditos',       icon: CreditCard,      permiso: 'ver_creditos' },
   { label: 'Rendiciones',    href: '/dashboard/rendiciones',    icon: ClipboardList,   permiso: 'ver_caja_dia' },
   { label: 'Contabilidad',   href: '/dashboard/contabilidad',   icon: BookOpen,        permiso: 'configurar_ferreteria' },

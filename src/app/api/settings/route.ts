@@ -34,7 +34,8 @@ export async function PATCH(request: Request) {
     'color_comprobante', 'mensaje_comprobante',
     'telefono_dueno', 'resumen_diario_activo',
     'modo_asignacion_delivery',
-    'datos_yape', 'datos_transferencia', 'metodos_pago_activos',
+    'datos_yape', 'datos_plin', 'datos_transferencia', 'metodos_pago_activos',
+    'tolerancia_dias_pago',
   ]
 
   const update: Record<string, unknown> = {}

@@ -124,13 +124,16 @@ export default async function SettingsPage({
             telefono_dueno: ferreteria.telefono_dueno ?? null,
             resumen_diario_activo: ferreteria.resumen_diario_activo ?? false,
             datos_yape: ferreteria.datos_yape ?? null,
+            datos_plin: ferreteria.datos_plin ?? null,
             datos_transferencia: ferreteria.datos_transferencia ?? null,
             metodos_pago_activos: ferreteria.metodos_pago_activos ?? null,
+            tolerancia_dias_pago: ferreteria.tolerancia_dias_pago ?? 30,
           }}
           zonas={zonas ?? []}
           margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
           debounceSegundos={(configBot as { debounce_segundos?: number } | null)?.debounce_segundos ?? 8}
           ventanaGraciaMinutos={(configBot as { ventana_gracia_minutos?: number } | null)?.ventana_gracia_minutos ?? 30}
+          toleranciaDiasPago={(ferreteria as unknown as { tolerancia_dias_pago?: number }).tolerancia_dias_pago ?? 30}
         />
       )}
 

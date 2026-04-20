@@ -24,6 +24,8 @@ import { transcribirAudio, analizarImagen, openAIDisponible } from '@/lib/ai/ope
 import { desencriptar } from '@/lib/encryption'
 import { pausarBotPorDueno } from '@/lib/bot/session'
 import { acumularOProcesar } from '@/lib/bot/debounce'
+import { extraerComprobante } from '@/lib/pagos/extractor'
+import { procesarPago } from '@/lib/pagos/matcher'
 
 // Vercel: hasta 60s para poder hacer download + Whisper + DeepSeek en secuencia
 export const maxDuration = 60
@@ -269,63 +271,76 @@ export async function POST(request: Request) {
                 .join(', ')
               textoMensaje = `Quiero cotizar: ${listaTexto}`
               notaParaBot = `[El cliente envió una imagen con una lista de productos. Vision detectó: ${listaTexto}]`
-            } else if (analisis.tipo === 'comprobante_pago' && analisis.pago) {
-              // Verificación de pago por foto
-              const p = analisis.pago
-              console.log(`[Webhook] Comprobante de pago detectado — monto=${p.monto} dest=${p.destinatario}`)
+            } else if (analisis.tipo === 'comprobante_pago') {
+              // ── F5: Comprobante detectado → extractor especializado + matcher ──
+              console.log(`[Webhook] Comprobante de pago detectado — ejecutando extractor F5`)
 
-              // Buscar pedido pendiente del cliente — FILTRADO por cliente_id (ferretería aislada)
+              // Re-analizar con el extractor especializado (más detallado que analizarImagen)
+              const datosComprobante = await extraerComprobante(media.buffer, media.mimeType)
+
+              // Buscar cliente en la ferretería actual — FERRETERÍA AISLADA
               const telefonoClienteNorm = telefonoCliente.replace(/^\+/, '')
               const { data: clienteData } = await supabase
                 .from('clientes')
                 .select('id')
-                .eq('ferreteria_id', ferreteria.id)
+                .eq('ferreteria_id', ferreteria.id)   // FERRETERÍA AISLADA
                 .eq('telefono', telefonoClienteNorm)
                 .maybeSingle()
 
-              const { data: pedidoPendiente } = await supabase
-                .from('pedidos')
-                .select('id, numero_pedido, total, estado_pago')
-                .eq('ferreteria_id', ferreteria.id)
-                .eq('cliente_id', clienteData?.id ?? '')
-                .in('estado', ['pendiente', 'confirmado', 'en_preparacion'])
-                .neq('estado_pago', 'pagado')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle()
+              if (datosComprobante) {
+                console.log(`[F5] Comprobante extraído — tipo=${datosComprobante.tipo} monto=${datosComprobante.monto} confianza=${datosComprobante.confianza_global}`)
 
-              if (pedidoPendiente && p.monto !== null) {
-                const diferencia = Math.abs(p.monto - pedidoPendiente.total)
-                const tolerancia = pedidoPendiente.total * 0.05 // 5%
+                const resultado = await procesarPago({
+                  supabase,
+                  ferreteriaId: ferreteria.id,   // FERRETERÍA AISLADA
+                  clienteId: clienteData?.id ?? null,
+                  datos: datosComprobante,
+                })
 
-                if (diferencia <= tolerancia) {
-                  // Monto coincide → marcar como verificando y notificar dueño
-                  await supabase
-                    .from('pedidos')
-                    .update({ estado_pago: 'verificando' })
-                    .eq('id', pedidoPendiente.id)
+                console.log(`[F5] Pago procesado — estado=${resultado.estado} pedido=${resultado.pedidoNumero ?? 'N/A'}`)
 
-                  // Notificar al dueño
-                  if (ferreteria.telefono_dueno) {
-                    await enviarMensaje({
-                      from: telefonoEnvio,
-                      to: ferreteria.telefono_dueno,
-                      texto: `💳 *Pago recibido para verificar*\nCliente: ${telefonoCliente}\nPedido: *${pedidoPendiente.numero_pedido}*\nMonto detectado: S/ ${p.monto.toFixed(2)}\nTotal pedido: S/ ${pedidoPendiente.total.toFixed(2)}\n${p.operacion_id ? `Op: ${p.operacion_id}` : ''}\n\nConfirma el pago desde el panel.`,
-                      apiKey: tenantApiKey,
-                    }).catch(() => {})
-                  }
-
-                  textoMensaje = `[COMPROBANTE_PAGO_RECIBIDO: monto=S/${p.monto.toFixed(2)} pedido=${pedidoPendiente.numero_pedido} estado=verificando]`
-                  notaParaBot = `[El cliente envió comprobante de pago. Monto S/${p.monto.toFixed(2)} coincide con el pedido ${pedidoPendiente.numero_pedido} (S/${pedidoPendiente.total.toFixed(2)}). El pago está en revisión.]`
-                } else {
-                  // Monto no coincide
-                  textoMensaje = `[COMPROBANTE_PAGO_MONTO_INCORRECTO: monto_detectado=S/${p.monto.toFixed(2)} total_pedido=S/${pedidoPendiente.total.toFixed(2)}]`
-                  notaParaBot = `[El cliente envió comprobante de pago pero el monto S/${p.monto.toFixed(2)} NO coincide con el pedido ${pedidoPendiente.numero_pedido} (S/${pedidoPendiente.total.toFixed(2)}).]`
+                // Notificar al dueño si necesita revisión manual
+                if (resultado.estado === 'pendiente_revision' && resultado.mensajeDueno && ferreteria.telefono_dueno) {
+                  const montoStr = datosComprobante.monto ? `S/${datosComprobante.monto.toFixed(2)}` : 'monto no legible'
+                  enviarMensaje({
+                    from: telefonoEnvio,
+                    to: ferreteria.telefono_dueno,
+                    texto: `${resultado.mensajeDueno}\nCliente: ${telefonoCliente}\nMonto: ${montoStr}\nOp: ${datosComprobante.numero_operacion ?? 'N/A'}\n\nRevisa en el panel 👇`,
+                    apiKey: tenantApiKey,
+                  }).catch(() => {})
                 }
+
+                // Responder al cliente directamente — sin pasar por el LLM
+                await enviarMensaje({
+                  from: telefonoEnvio,
+                  to: telefonoCliente,
+                  texto: resultado.mensajeCliente,
+                  apiKey: tenantApiKey,
+                }).catch(() => {})
+
+                // Guardar en historial de conversación (fire & forget)
+                if (clienteData?.id) {
+                  const { data: conv } = await supabase
+                    .from('conversaciones')
+                    .select('id')
+                    .eq('ferreteria_id', ferreteria.id)   // FERRETERÍA AISLADA
+                    .eq('cliente_id', clienteData.id)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+                  if (conv?.id) {
+                    await supabase.from('mensajes').insert([
+                      { conversacion_id: conv.id, role: 'cliente', contenido: '[Comprobante de pago enviado]' },
+                      { conversacion_id: conv.id, role: 'bot', contenido: resultado.mensajeCliente },
+                    ]).then(() => {})
+                  }
+                }
+
+                return NextResponse.json({ ok: true })
               } else {
-                // No hay pedido pendiente o no se pudo leer el monto
-                textoMensaje = (imageObj.caption as string) || `[COMPROBANTE_PAGO_SIN_PEDIDO]`
-                notaParaBot = `[El cliente envió lo que parece un comprobante de pago${p.monto !== null ? ` de S/${p.monto.toFixed(2)}` : ''}, pero no tiene pedido pendiente.]`
+                // Vision no pudo extraer datos del comprobante → pasar al bot con contexto
+                textoMensaje = (imageObj.caption as string) || '[El cliente envió una imagen de pago]'
+                notaParaBot = '[El cliente envió lo que parece un comprobante de pago, pero no se pudieron extraer los datos. Pídele que escriba el número de operación o el monto para registrarlo manualmente.]'
               }
             } else {
               textoMensaje = (imageObj.caption as string) || analisis.descripcion
