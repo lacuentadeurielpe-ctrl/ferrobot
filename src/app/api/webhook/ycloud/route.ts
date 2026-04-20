@@ -198,12 +198,11 @@ export async function POST(request: Request) {
     textoMensaje = mensaje.text.body.trim()
 
   } else if (mensaje.type === 'audio' || (mensaje as any).type === 'voice') {
-    // Audio/voz: intentar extraer el media ID desde múltiples campos posibles que YCloud puede enviar
-    // En n8n el usuario hacía un HTTP Request con algún ID del mensaje — probamos todos los candidatos
+    // Audio/voz: YCloud envía un URL directo en `audio.link` — lo preferimos sobre `audio.id`
+    // (el ID numérico de WhatsApp da 404 en /v2/whatsapp/media/{id})
     const audioObj: Record<string, unknown> = mensaje.audio ?? (mensaje as any).voice ?? {}
-    // Orden: audio.id → audio.link/url → wamid (WhatsApp msg ID) → mensaje.id (YCloud msg ID)
     const audioId: string | null =
-      (audioObj.id as string) || (audioObj.link as string) || (audioObj.url as string) ||
+      (audioObj.link as string) || (audioObj.url as string) || (audioObj.id as string) ||
       mensaje.wamid || mensaje.id || null
     const audioMime = (audioObj.mimeType as string) || (audioObj.mime_type as string) || 'audio/ogg'
     console.log(`[Webhook] Audio/Voice — mediaId=${audioId ?? 'NULL'}, mime=${audioMime}, openAI=${openAIDisponible()}`)
@@ -249,9 +248,10 @@ export async function POST(request: Request) {
 
   } else if (mensaje.type === 'image') {
     // Imagen: analizar con GPT-4o-mini Vision
+    // YCloud envía URL directo en `image.link` — preferirlo sobre `image.id` (que da 404)
     const imageObj: Record<string, unknown> = mensaje.image ?? {}
     const imageId: string | null =
-      (imageObj.id as string) || (imageObj.link as string) || (imageObj.url as string) ||
+      (imageObj.link as string) || (imageObj.url as string) || (imageObj.id as string) ||
       mensaje.wamid || mensaje.id || null
     const imageMime = (imageObj.mimeType as string) || 'image/jpeg'
     console.log(`[Webhook] Imagen — mediaId=${imageId ?? 'NULL'}, mime=${imageMime}, openAI=${openAIDisponible()}`)
@@ -354,7 +354,7 @@ export async function POST(request: Request) {
   } else if (mensaje.type === 'document') {
     const docObj: Record<string, unknown> = mensaje.document ?? {}
     const docId: string | null =
-      (docObj.id as string) || (docObj.link as string) || (docObj.url as string) ||
+      (docObj.link as string) || (docObj.url as string) || (docObj.id as string) ||
       mensaje.wamid || mensaje.id || null
     const caption = (docObj.caption as string)?.trim()
     const nombre = (docObj.filename as string) ?? ''
