@@ -44,7 +44,9 @@
       "Bash(timeout 80 bash -c \"while true; do sleep 10; echo 'waiting...'; done\")",
       "Bash(timeout 90 bash -c \"while true; do sleep 15; echo 'checking...'; done\")",
       "Bash(grep -E \"^\\\\-.*\\\\.json$|vercel|env\")",
-      "Bash(taskkill /F /IM node.exe)"
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(git -C D:\\\\cotizador status --short)",
+      "Bash(dir \"D:\\\\cotizador\\\\\" | findstr /i \"env\")"
     ]
   }
 }

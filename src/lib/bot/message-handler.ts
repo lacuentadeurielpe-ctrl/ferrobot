@@ -7,6 +7,8 @@ import { llamarDeepSeek, type IntentBot } from '@/lib/ai/deepseek'
 import { llamarClaude, claudeDisponible, buildSystemPromptClaude } from '@/lib/ai/claude'
 import { buildSystemPrompt, buildSystemPromptLite, buildHistorialMensajes } from '@/lib/ai/prompt'
 import { ejecutarOrquestador } from '@/lib/ai/orchestrator'
+import { buildOrchestratorSystemPrompt } from '@/lib/ai/orchestrator-prompt'
+import { aplicarCompaction } from '@/lib/ai/compaction'
 import { procesarItemsSolicitados, formatearCotizacion } from '@/lib/bot/catalog-search'
 import {
   getOrCreateSession,
@@ -224,15 +226,45 @@ export async function handleIncomingMessage({
         return { respuesta: msg, conversacionId: conversacion.id }
       }
 
-      const systemPromptOrq = buildSystemPromptLite({
+      // Cargar perfil del cliente y resumen previo de contexto
+      const [{ data: clienteFull }, { data: convFull }] = await Promise.all([
+        supabase
+          .from('clientes')
+          .select('perfil')
+          .eq('id', conversacion.cliente_id)
+          .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
+          .single(),
+        supabase
+          .from('conversaciones')
+          .select('resumen_contexto')
+          .eq('id', conversacion.id)
+          .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
+          .single(),
+      ])
+      const perfilCliente = (clienteFull?.perfil as Record<string, unknown> | null) ?? null
+      const resumenPrevio = (convFull?.resumen_contexto as string | null) ?? null
+
+      // Compaction: si el historial es largo, resumir los viejos
+      const { mensajesRecientes, resumenContexto } = await aplicarCompaction(
+        supabase,
+        conversacion.id,
+        ferreteria.id,
+        historialParaAI,
+        resumenPrevio
+      )
+
+      const systemPromptOrq = buildOrchestratorSystemPrompt({
         ferreteria,
         zonas: zonas ?? [],
         config,
+        nombreCliente: nombreClienteGuardado,
+        perfilCliente,
+        resumenContexto,
       })
 
       const resultado = await ejecutarOrquestador(
         systemPromptOrq,
-        historialParaAI.map((m) => ({
+        mensajesRecientes.map((m) => ({
           role: m.role === 'cliente' ? 'user' : 'assistant',
           content: m.contenido,
         })),
@@ -577,6 +609,45 @@ export async function handleIncomingMessage({
         .update({ nombre: dp.nombre_cliente })
         .eq('id', conversacion.cliente_id)
         .is('nombre', null)
+
+      // F2: actualizar perfil del cliente con datos inferidos del pedido real
+      // Solo agregamos lo que efectivamente ocurrió — nunca inventamos.
+      try {
+        const { data: clienteActual } = await supabase
+          .from('clientes')
+          .select('perfil')
+          .eq('id', conversacion.cliente_id)
+          .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
+          .single()
+
+        const perfilBase = (clienteActual?.perfil as Record<string, unknown> | null) ?? {}
+        const comprasPrevias = Array.isArray(perfilBase.compras_frecuentes)
+          ? (perfilBase.compras_frecuentes as string[])
+          : []
+        const nombresNuevos = itemsParaPedido
+          .map((i: typeof itemsParaPedido[number]) => i.nombre_producto as string)
+          .filter(Boolean)
+        // Mantener únicos, con tope de 20
+        const comprasUnicas = Array.from(new Set([...nombresNuevos, ...comprasPrevias])).slice(0, 20)
+
+        const perfilNuevo: Record<string, unknown> = {
+          ...perfilBase,
+          compras_frecuentes: comprasUnicas,
+          modalidad_preferida: dp.modalidad,
+        }
+        if (dp.modalidad === 'delivery' && dp.zona_nombre) {
+          perfilNuevo.zona_habitual = dp.zona_nombre
+        }
+
+        await supabase
+          .from('clientes')
+          .update({ perfil: perfilNuevo })
+          .eq('id', conversacion.cliente_id)
+          .eq('ferreteria_id', ferreteria.id)  // FERRETERÍA AISLADA
+      } catch (e) {
+        // No bloquear la confirmación del pedido si falla el perfil
+        console.error('[F2] Error actualizando perfil cliente:', e)
+      }
 
       // Limpiar flujo de la conversación
       await supabase.from('conversaciones')

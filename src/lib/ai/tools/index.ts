@@ -112,6 +112,41 @@ export const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
+      name: 'historial_cliente',
+      description:
+        'Devuelve el perfil del cliente (lo que ya sabemos de él) y sus últimos pedidos. ' +
+        'Úsalo cuando sea útil recordar qué suele comprar, su modalidad preferida o su zona. ' +
+        'IMPORTANTE: este contexto es PASIVO — no se lo menciones al cliente a menos que él ' +
+        'traiga el tema primero (ej: no digas "¿como siempre, 4 bolsas de cemento?").',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'guardar_dato_cliente',
+      description:
+        'Guarda un dato del cliente que él mismo mencionó EXPLÍCITAMENTE. ' +
+        'Solo úsalo si la confianza es alta (el cliente lo dijo claramente, no inferido). ' +
+        'Ejemplos válidos: "soy maestro de obra", "estoy construyendo mi casa", ' +
+        '"vivo en San Juan de Lurigancho". No lo uses para datos de contacto ni para inventar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          campo: {
+            type: 'string',
+            enum: ['tipo_cliente', 'obra_actual', 'zona_habitual', 'modalidad_preferida'],
+            description: 'Campo del perfil a actualizar.',
+          },
+          valor: { type: 'string', description: 'Valor explícito mencionado por el cliente.' },
+        },
+        required: ['campo', 'valor'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'escalar_humano',
       description:
         'Pausa el bot y notifica al dueño para que atienda manualmente. ' +
@@ -207,12 +242,72 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
         .single(),
       ctx.supabase
         .from('zonas_delivery')
-        .select('nombre, costo, tiempo_estimado_min')
+        .select('nombre, tiempo_estimado_min')
         .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
         .eq('activo', true),
     ])
     if (!ferreteria) return { ok: false, error: 'Ferretería no encontrada' }
     return { ok: true, data: { ferreteria, zonas_delivery: zonas ?? [] } }
+  },
+
+  historial_cliente: async (ctx) => {
+    requireTenant(ctx)
+    const [{ data: cliente }, { data: pedidos }] = await Promise.all([
+      ctx.supabase
+        .from('clientes')
+        .select('nombre, perfil')
+        .eq('id', ctx.clienteId)
+        .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+        .single(),
+      ctx.supabase
+        .from('pedidos')
+        .select('numero_pedido, modalidad, total, estado, created_at, items_pedido(nombre_producto, cantidad)')
+        .eq('cliente_id', ctx.clienteId)
+        .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ])
+    return {
+      ok: true,
+      data: {
+        perfil: cliente?.perfil ?? {},
+        nombre: cliente?.nombre ?? null,
+        pedidos_recientes: pedidos ?? [],
+      },
+    }
+  },
+
+  guardar_dato_cliente: async (ctx, args) => {
+    requireTenant(ctx)
+    const campo = args.campo as string
+    const valor = (args.valor as string | undefined)?.trim()
+    const camposPermitidos = ['tipo_cliente', 'obra_actual', 'zona_habitual', 'modalidad_preferida']
+    if (!campo || !camposPermitidos.includes(campo)) {
+      return { ok: false, error: 'campo no permitido' }
+    }
+    if (!valor || valor.length < 2 || valor.length > 200) {
+      return { ok: false, error: 'valor inválido' }
+    }
+
+    // Merge JSONB sin pisar el resto del perfil
+    const { data: clienteActual } = await ctx.supabase
+      .from('clientes')
+      .select('perfil')
+      .eq('id', ctx.clienteId)
+      .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+      .single()
+
+    const perfilActual = (clienteActual?.perfil ?? {}) as Record<string, unknown>
+    const perfilNuevo = { ...perfilActual, [campo]: valor }
+
+    const { error } = await ctx.supabase
+      .from('clientes')
+      .update({ perfil: perfilNuevo })
+      .eq('id', ctx.clienteId)
+      .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, data: { guardado: { [campo]: valor } } }
   },
 
   escalar_humano: async (ctx, args) => {
