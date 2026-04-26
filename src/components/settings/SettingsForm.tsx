@@ -358,7 +358,7 @@ export default function SettingsForm({
   return (
     <div className="max-w-2xl">
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
+      <div className="flex gap-1 border-b border-zinc-200 mb-6">
         {TABS.map(({ key, label }) => (
           <button
             key={key}
@@ -366,8 +366,8 @@ export default function SettingsForm({
             className={cn(
               'px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition',
               tab === key
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-zinc-950 text-zinc-950'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700'
             )}
           >
             {label}
@@ -379,30 +379,30 @@ export default function SettingsForm({
       {tab === 'negocio' && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Nombre de la ferretería <span className="text-red-500">*</span>
             </label>
             <input
               name="nombre"
               value={form.nombre}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">Dirección</label>
             <input
               name="direccion"
               value={form.direccion}
               onChange={handleChange}
               placeholder="Jr. Los Ferreros 123, Lima"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Número de WhatsApp
             </label>
             <input
@@ -410,13 +410,13 @@ export default function SettingsForm({
               value={form.telefono_whatsapp}
               onChange={handleChange}
               placeholder="51987654321"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+              className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
             />
-            <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
+            <p className="text-xs text-zinc-400 mt-1">Con código de país, sin el +</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
               Formas de pago aceptadas
             </label>
             <div className="flex gap-2 mb-2">
@@ -425,23 +425,23 @@ export default function SettingsForm({
                 onChange={(e) => setNuevaFormaPago(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), agregarFormaPago())}
                 placeholder="Ej: Yape, Efectivo, Transferencia..."
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="flex-1 px-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
               <button
                 type="button"
                 onClick={agregarFormaPago}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition"
+                className="px-3 py-2 bg-zinc-900 text-white rounded-lg text-sm hover:bg-zinc-800 transition"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {form.formas_pago.map((pago) => (
-                <span key={pago} className="inline-flex items-center gap-1 bg-orange-50 text-orange-700 text-xs px-2.5 py-1 rounded-full">
+                <span key={pago} className="inline-flex items-center gap-1 bg-zinc-100 text-zinc-700 text-xs px-2.5 py-1 rounded-full">
                   {pago}
                   <button
                     onClick={() => setForm((p) => ({ ...p, formas_pago: p.formas_pago.filter((x) => x !== pago) }))}
-                    className="hover:text-orange-900"
+                    className="hover:text-zinc-900"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -451,10 +451,10 @@ export default function SettingsForm({
           </div>
 
           {/* Resumen diario */}
-          <div className="border-t border-gray-100 pt-5">
-            <p className="text-sm font-medium text-gray-700 mb-3">Resumen diario por WhatsApp</p>
+          <div className="border-t border-zinc-100 pt-5">
+            <p className="text-sm font-medium text-zinc-700 mb-3">Resumen diario por WhatsApp</p>
             <div className="mb-3">
-              <label className="block text-xs text-gray-500 mb-1">
+              <label className="block text-xs text-zinc-500 mb-1">
                 Tu número personal (para recibir el resumen)
               </label>
               <input
@@ -462,9 +462,9 @@ export default function SettingsForm({
                 value={form.telefono_dueno}
                 onChange={handleChange}
                 placeholder="51987654321"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
+              <p className="text-xs text-zinc-400 mt-1">Con código de país, sin el +</p>
             </div>
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <button
@@ -474,7 +474,7 @@ export default function SettingsForm({
                 onClick={() => setForm((p) => ({ ...p, resumen_diario_activo: !p.resumen_diario_activo }))}
                 className={cn(
                   'relative w-10 h-6 rounded-full transition-colors flex-shrink-0',
-                  form.resumen_diario_activo ? 'bg-orange-500' : 'bg-gray-200'
+                  form.resumen_diario_activo ? 'bg-zinc-900' : 'bg-zinc-200'
                 )}
               >
                 <span className={cn(
@@ -482,7 +482,7 @@ export default function SettingsForm({
                   form.resumen_diario_activo ? 'translate-x-4' : 'translate-x-0.5'
                 )} />
               </button>
-              <span className="text-sm text-gray-700">
+              <span className="text-sm text-zinc-700">
                 Recibir resumen cada día a las 8pm
               </span>
             </label>
@@ -494,7 +494,7 @@ export default function SettingsForm({
       {tab === 'horario' && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Días de atención</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-2">Días de atención</label>
             <div className="flex gap-2 flex-wrap">
               {DIAS.map((dia) => (
                 <button
@@ -504,8 +504,8 @@ export default function SettingsForm({
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-sm font-medium transition',
                     form.dias_atencion.includes(dia)
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-zinc-900 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                   )}
                 >
                   {DIAS_LABEL[dia]}
@@ -516,29 +516,29 @@ export default function SettingsForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hora de apertura</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Hora de apertura</label>
               <input
                 type="time"
                 name="horario_apertura"
                 value={form.horario_apertura}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hora de cierre</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Hora de cierre</label>
               <input
                 type="time"
                 name="horario_cierre"
                 value={form.horario_cierre}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Reactivar bot tras inactividad del dueño
             </label>
             <div className="flex items-center gap-3">
@@ -549,11 +549,11 @@ export default function SettingsForm({
                 onChange={handleChange}
                 min={1}
                 max={1440}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <span className="text-sm text-gray-600">minutos sin respuesta del dueño</span>
+              <span className="text-sm text-zinc-600">minutos sin respuesta del dueño</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-zinc-400 mt-1">
               El bot se reactiva automáticamente si el dueño no escribe durante este tiempo.
             </p>
           </div>
@@ -563,17 +563,17 @@ export default function SettingsForm({
       {/* ── TAB: ZONAS DE DELIVERY ── */}
       {tab === 'zonas' && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-zinc-500">
             El bot usará estas zonas al confirmar pedidos con delivery.
           </p>
 
           {zonas.length === 0 && (
-            <p className="text-sm text-gray-400 italic">Sin zonas configuradas</p>
+            <p className="text-sm text-zinc-400 italic">Sin zonas configuradas</p>
           )}
 
           <div className="space-y-2">
             {zonas.map((zona) => (
-              <div key={zona.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
+              <div key={zona.id} className="flex items-center gap-3 bg-zinc-50 rounded-lg px-3 py-2">
                 <input
                   value={zona.nombre}
                   onChange={(e) => actualizarZona(zona.id, 'nombre', e.target.value)}
@@ -586,13 +586,13 @@ export default function SettingsForm({
                     value={zona.tiempo_estimado_min}
                     onChange={(e) => actualizarZona(zona.id, 'tiempo_estimado_min', parseInt(e.target.value) || 60)}
                     min={1}
-                    className="w-16 px-2 py-1 border border-gray-200 rounded text-sm text-gray-900 text-center bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
+                    className="w-16 px-2 py-1 border border-zinc-200 rounded text-sm text-zinc-900 text-center bg-white focus:outline-none focus:ring-1 focus:ring-zinc-300"
                   />
-                  <span className="text-xs text-gray-400">min</span>
+                  <span className="text-xs text-zinc-400">min</span>
                 </div>
                 <button
                   onClick={() => eliminarZona(zona.id)}
-                  className="text-gray-400 hover:text-red-500 transition shrink-0"
+                  className="text-zinc-400 hover:text-red-500 transition shrink-0"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -601,15 +601,15 @@ export default function SettingsForm({
           </div>
 
           {/* Agregar nueva zona */}
-          <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs font-medium text-gray-600 mb-2">Nueva zona</p>
+          <div className="border-t border-zinc-100 pt-4">
+            <p className="text-xs font-medium text-zinc-600 mb-2">Nueva zona</p>
             <div className="flex items-center gap-3">
               <input
                 value={nuevaZona.nombre}
                 onChange={(e) => setNuevaZona((p) => ({ ...p, nombre: e.target.value }))}
                 onKeyDown={(e) => e.key === 'Enter' && agregarZona()}
                 placeholder="Nombre del distrito o zona"
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="flex-1 px-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
               <div className="flex items-center gap-1.5 shrink-0">
                 <input
@@ -617,14 +617,14 @@ export default function SettingsForm({
                   value={nuevaZona.tiempo_estimado_min}
                   onChange={(e) => setNuevaZona((p) => ({ ...p, tiempo_estimado_min: parseInt(e.target.value) || 60 }))}
                   min={1}
-                  className="w-16 px-2 py-2 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="w-16 px-2 py-2 border border-zinc-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-zinc-300"
                 />
-                <span className="text-xs text-gray-400">min</span>
+                <span className="text-xs text-zinc-400">min</span>
               </div>
               <button
                 onClick={agregarZona}
                 disabled={agregandoZona}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition disabled:opacity-50"
+                className="px-3 py-2 bg-zinc-900 text-white rounded-lg text-sm hover:bg-zinc-800 transition disabled:opacity-50"
               >
                 {agregandoZona ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               </button>
@@ -638,7 +638,7 @@ export default function SettingsForm({
       {tab === 'bot' && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Mensaje de bienvenida
             </label>
             <textarea
@@ -647,12 +647,12 @@ export default function SettingsForm({
               onChange={handleChange}
               rows={4}
               placeholder="Ej: ¡Hola! Soy el asistente de {nombre}. ¿En qué le puedo ayudar?"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 transition resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Mensaje fuera de horario
             </label>
             <textarea
@@ -661,12 +661,12 @@ export default function SettingsForm({
               onChange={handleChange}
               rows={4}
               placeholder="Ej: Gracias por escribirnos. Estamos cerrados en este momento. Atendemos de Lun–Sáb 8am–6pm."
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 transition resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Margen mínimo de utilidad
             </label>
             <div className="flex items-center gap-3">
@@ -678,17 +678,17 @@ export default function SettingsForm({
                 min={0}
                 max={100}
                 step={1}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <span className="text-sm text-gray-600">% de margen mínimo</span>
+              <span className="text-sm text-zinc-600">% de margen mínimo</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-zinc-400 mt-1">
               El sistema te alertará cuando el precio de una cotización o producto esté por debajo de este margen.
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Debounce de mensajes
             </label>
             <div className="flex items-center gap-3">
@@ -700,17 +700,17 @@ export default function SettingsForm({
                 min={0}
                 max={30}
                 step={1}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <span className="text-sm text-gray-600">segundos de espera tras el último mensaje</span>
+              <span className="text-sm text-zinc-600">segundos de espera tras el último mensaje</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-zinc-400 mt-1">
               Si el cliente envía varios mensajes seguidos, el bot espera N segundos desde el último antes de responder, y los procesa juntos. 0 = responder de inmediato.
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Ventana de gracia post-confirmación
             </label>
             <div className="flex items-center gap-3">
@@ -722,11 +722,11 @@ export default function SettingsForm({
                 min={0}
                 max={120}
                 step={1}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <span className="text-sm text-gray-600">minutos para agregar items al pedido</span>
+              <span className="text-sm text-zinc-600">minutos para agregar items al pedido</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-zinc-400 mt-1">
               Dentro de esta ventana el cliente puede agregar productos al pedido recién confirmado (siempre que no esté despachado ni pagado). 0 = desactivado.
             </p>
           </div>
@@ -742,12 +742,12 @@ export default function SettingsForm({
         <div className="space-y-7">
           {/* Logo */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Logo de la ferretería</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-3">Logo de la ferretería</label>
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
+              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden bg-zinc-50 shrink-0">
                 {logoUrl
                   ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
-                  : <ImageOff className="w-7 h-7 text-gray-400" />
+                  : <ImageOff className="w-7 h-7 text-zinc-400" />
                 }
               </div>
               <div className="space-y-2">
@@ -762,7 +762,7 @@ export default function SettingsForm({
                   type="button"
                   disabled={subiendoLogo}
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-zinc-200 text-sm text-zinc-700 rounded-lg hover:bg-zinc-50 transition disabled:opacity-50"
                 >
                   {subiendoLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                   {subiendoLogo ? 'Subiendo…' : 'Subir imagen'}
@@ -777,7 +777,7 @@ export default function SettingsForm({
                     <X className="w-3.5 h-3.5" /> Eliminar logo
                   </button>
                 )}
-                <p className="text-xs text-gray-400">PNG, JPG o WebP. Máx 2 MB.</p>
+                <p className="text-xs text-zinc-400">PNG, JPG o WebP. Máx 2 MB.</p>
                 {logoError && <p className="text-xs text-red-500">{logoError}</p>}
               </div>
             </div>
@@ -785,7 +785,7 @@ export default function SettingsForm({
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Color principal del comprobante</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-3">Color principal del comprobante</label>
             <div className="flex flex-wrap gap-2 mb-3">
               {COLORES_PRESET.map((c) => (
                 <button
@@ -795,7 +795,7 @@ export default function SettingsForm({
                   onClick={() => setForm((p) => ({ ...p, color_comprobante: c.value }))}
                   className={cn(
                     'w-8 h-8 rounded-full border-2 transition',
-                    form.color_comprobante === c.value ? 'border-gray-800 scale-110' : 'border-transparent hover:border-gray-300'
+                    form.color_comprobante === c.value ? 'border-zinc-800 scale-110' : 'border-transparent hover:border-zinc-300'
                   )}
                   style={{ backgroundColor: c.value }}
                 />
@@ -806,7 +806,7 @@ export default function SettingsForm({
                 type="color"
                 value={form.color_comprobante}
                 onChange={(e) => setForm((p) => ({ ...p, color_comprobante: e.target.value }))}
-                className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"
+                className="w-10 h-10 rounded-lg border border-zinc-200 cursor-pointer p-0.5"
               />
               <input
                 type="text"
@@ -816,7 +816,7 @@ export default function SettingsForm({
                   if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setForm((p) => ({ ...p, color_comprobante: v }))
                 }}
                 maxLength={7}
-                className="w-28 px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-28 px-3 py-2 rounded-lg border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
               <div
                 className="flex-1 h-9 rounded-lg"
@@ -827,7 +827,7 @@ export default function SettingsForm({
 
           {/* Mensaje pie */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Mensaje al pie del comprobante
             </label>
             <textarea
@@ -836,13 +836,13 @@ export default function SettingsForm({
               onChange={handleChange}
               rows={3}
               placeholder="Ej: Gracias por su compra. Puede reclamar su garantía presentando este comprobante."
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 transition resize-none"
             />
-            <p className="text-xs text-gray-400 mt-1">Aparece en la parte inferior de cada comprobante PDF.</p>
+            <p className="text-xs text-zinc-400 mt-1">Aparece en la parte inferior de cada comprobante PDF.</p>
           </div>
 
           {/* Preview band */}
-          <div className="rounded-xl overflow-hidden border border-gray-100">
+          <div className="rounded-xl overflow-hidden border border-zinc-100">
             <div
               className="px-4 py-3 text-white text-sm font-semibold flex items-center gap-2"
               style={{ backgroundColor: form.color_comprobante }}
@@ -850,7 +850,7 @@ export default function SettingsForm({
               <span>COMPROBANTE DE PAGO</span>
               <span className="opacity-70 font-normal text-xs ml-auto">CP-000001</span>
             </div>
-            <div className="bg-white px-4 py-3 text-xs text-gray-500">
+            <div className="bg-white px-4 py-3 text-xs text-zinc-500">
               Vista previa del encabezado del PDF
             </div>
           </div>
@@ -862,7 +862,7 @@ export default function SettingsForm({
         <div className="space-y-6">
           {/* Métodos activos */}
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-3">Métodos de pago aceptados</p>
+            <p className="text-sm font-medium text-zinc-700 mb-3">Métodos de pago aceptados</p>
             <div className="space-y-2">
               {TODOS_METODOS.map(({ key, label, desc }) => {
                 const activo = metodosActivos.includes(key)
@@ -872,7 +872,7 @@ export default function SettingsForm({
                     key={key}
                     className={cn(
                       'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition',
-                      activo ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-white',
+                      activo ? 'border-zinc-300 bg-zinc-50' : 'border-zinc-200 bg-white',
                       bloqueado && 'cursor-default opacity-70'
                     )}
                   >
@@ -884,7 +884,7 @@ export default function SettingsForm({
                       onClick={() => toggleMetodo(key)}
                       className={cn(
                         'relative w-9 h-5 rounded-full border-2 border-transparent transition-colors shrink-0',
-                        activo ? 'bg-orange-500' : 'bg-gray-200'
+                        activo ? 'bg-zinc-900' : 'bg-zinc-200'
                       )}
                     >
                       <span className={cn(
@@ -893,11 +893,11 @@ export default function SettingsForm({
                       )} />
                     </button>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800">{label}</p>
-                      <p className="text-xs text-gray-500">{desc}</p>
+                      <p className="text-sm font-medium text-zinc-800">{label}</p>
+                      <p className="text-xs text-zinc-500">{desc}</p>
                     </div>
                     {bloqueado && (
-                      <span className="ml-auto text-xs text-gray-400 shrink-0">Siempre activo</span>
+                      <span className="ml-auto text-xs text-zinc-400 shrink-0">Siempre activo</span>
                     )}
                   </label>
                 )
@@ -907,26 +907,26 @@ export default function SettingsForm({
 
           {/* Yape */}
           {metodosActivos.includes('yape') && (
-            <div className="border-t border-gray-100 pt-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Datos de Yape</p>
+            <div className="border-t border-zinc-100 pt-5">
+              <p className="text-sm font-semibold text-zinc-700 mb-3">Datos de Yape</p>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Número Yape</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Número Yape</label>
                   <input
                     value={datosYape.numero}
                     onChange={(e) => setDatosYape((p) => ({ ...p, numero: e.target.value }))}
                     placeholder="51987654321"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Con código de país, sin el +</p>
+                  <p className="text-xs text-zinc-400 mt-1">Con código de país, sin el +</p>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-2 block">Código QR de Yape</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-2 block">Código QR de Yape</label>
                   <div className="flex items-start gap-4">
-                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 shrink-0">
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden bg-zinc-50 shrink-0">
                       {datosYape.qr_url
                         ? <img src={datosYape.qr_url} alt="QR Yape" className="w-full h-full object-contain p-1" />
-                        : <QrCode className="w-7 h-7 text-gray-400" />
+                        : <QrCode className="w-7 h-7 text-zinc-400" />
                       }
                     </div>
                     <div className="space-y-2">
@@ -941,7 +941,7 @@ export default function SettingsForm({
                         type="button"
                         disabled={subiendoQR}
                         onClick={() => qrInputRef.current?.click()}
-                        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-zinc-200 text-sm text-zinc-700 rounded-lg hover:bg-zinc-50 transition disabled:opacity-50"
                       >
                         {subiendoQR ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                         {subiendoQR ? 'Subiendo…' : 'Subir QR'}
@@ -956,11 +956,11 @@ export default function SettingsForm({
                           <X className="w-3.5 h-3.5" /> Eliminar QR
                         </button>
                       )}
-                      <p className="text-xs text-gray-400">PNG o JPG. Máx 2 MB.</p>
+                      <p className="text-xs text-zinc-400">PNG o JPG. Máx 2 MB.</p>
                       {qrError && <p className="text-xs text-red-500">{qrError}</p>}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-xs text-zinc-400 mt-2">
                     El bot enviará el QR automáticamente cuando el cliente elija pagar por Yape.
                   </p>
                 </div>
@@ -970,26 +970,26 @@ export default function SettingsForm({
 
           {/* Plin */}
           {metodosActivos.includes('plin') && (
-            <div className="border-t border-gray-100 pt-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Datos de Plin</p>
+            <div className="border-t border-zinc-100 pt-5">
+              <p className="text-sm font-semibold text-zinc-700 mb-3">Datos de Plin</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Número Plin *</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Número Plin *</label>
                   <input
                     value={datosPlin.numero}
                     onChange={(e) => setDatosPlin((p) => ({ ...p, numero: e.target.value }))}
                     placeholder="987654321"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
-                  <p className="text-xs text-gray-400 mt-1">Número de celular asociado a Plin</p>
+                  <p className="text-xs text-zinc-400 mt-1">Número de celular asociado a Plin</p>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Titular *</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Titular *</label>
                   <input
                     value={datosPlin.nombre}
                     onChange={(e) => setDatosPlin((p) => ({ ...p, nombre: e.target.value }))}
                     placeholder="Juan Pérez"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
                 </div>
               </div>
@@ -998,58 +998,58 @@ export default function SettingsForm({
 
           {/* Transferencia */}
           {metodosActivos.includes('transferencia') && (
-            <div className="border-t border-gray-100 pt-5">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Datos bancarios</p>
+            <div className="border-t border-zinc-100 pt-5">
+              <p className="text-sm font-semibold text-zinc-700 mb-3">Datos bancarios</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Banco *</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Banco *</label>
                   <input
                     value={datosTransferencia.banco}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, banco: e.target.value }))}
                     placeholder="BCP, Interbank, BBVA…"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Titular *</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Titular *</label>
                   <input
                     value={datosTransferencia.titular}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, titular: e.target.value }))}
                     placeholder="Nombre del titular"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Número de cuenta *</label>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">Número de cuenta *</label>
                   <input
                     value={datosTransferencia.cuenta}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, cuenta: e.target.value }))}
                     placeholder="000-00000000-0-00"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">
-                    CCI <span className="text-gray-400 font-normal">(opcional)</span>
+                  <label className="text-xs font-medium text-zinc-500 mb-1 block">
+                    CCI <span className="text-zinc-400 font-normal">(opcional)</span>
                   </label>
                   <input
                     value={datosTransferencia.cci ?? ''}
                     onChange={(e) => setDatosTransferencia((p) => ({ ...p, cci: e.target.value || null }))}
                     placeholder="00200000000000000000"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-zinc-400 mt-2">
                 El bot enviará estos datos automáticamente cuando el cliente elija pago por transferencia.
               </p>
             </div>
           )}
 
           {/* Tolerancia de días para detección de pagos */}
-          <div className="border-t border-gray-100 pt-5">
-            <p className="text-sm font-semibold text-gray-700 mb-1">Detección automática de comprobantes</p>
-            <p className="text-xs text-gray-500 mb-3">
+          <div className="border-t border-zinc-100 pt-5">
+            <p className="text-sm font-semibold text-zinc-700 mb-1">Detección automática de comprobantes</p>
+            <p className="text-xs text-zinc-500 mb-3">
               Cuando el cliente envía una captura de pago, el bot busca pedidos sin pagar dentro de este rango.
             </p>
             <div className="flex items-center gap-3">
@@ -1060,11 +1060,11 @@ export default function SettingsForm({
                 min={0}
                 max={365}
                 step={1}
-                className="w-24 px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-24 px-3 py-2.5 rounded-lg border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <span className="text-sm text-gray-600">días hacia atrás para buscar pedidos</span>
+              <span className="text-sm text-zinc-600">días hacia atrás para buscar pedidos</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-zinc-400 mt-1">
               30 días recomendado. Cubre casos de clientes que pagan semanas después del pedido.
             </p>
           </div>
@@ -1077,7 +1077,7 @@ export default function SettingsForm({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition"
+            className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white font-medium rounded-xl text-sm transition"
           >
             {saving
               ? <Loader2 className="w-4 h-4 animate-spin" />

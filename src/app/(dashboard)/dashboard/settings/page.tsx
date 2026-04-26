@@ -66,37 +66,37 @@ export default async function SettingsPage({
   }
 
   const TABS = [
-    { id: 'general',        label: 'General' },
-    { id: 'facturacion',    label: '🧾 Facturación' },
-    { id: 'whatsapp',       label: 'WhatsApp' },
-    { id: 'pagos',          label: 'Pagos' },
-    { id: 'equipo',         label: 'Equipo' },
-    { id: 'repartidores',   label: 'Repartidores' },
-    { id: 'complementarios', label: '🔗 Complementarios' },
+    { id: 'general',         label: 'General' },
+    { id: 'facturacion',     label: 'Facturación' },
+    { id: 'whatsapp',        label: 'WhatsApp' },
+    { id: 'pagos',           label: 'Pagos' },
+    { id: 'equipo',          label: 'Equipo' },
+    { id: 'repartidores',    label: 'Repartidores' },
+    { id: 'complementarios', label: 'Complementarios' },
   ]
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center">
-          <Settings className="w-5 h-5 text-orange-600" />
+        <div className="w-9 h-9 bg-zinc-100 border border-zinc-200 rounded-2xl flex items-center justify-center">
+          <Settings className="w-4 h-4 text-zinc-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Configuración</h1>
-          <p className="text-xs text-gray-500">Ajusta los datos de tu ferretería y el comportamiento del bot</p>
+          <h1 className="text-lg font-bold text-zinc-950 tracking-tight">Configuración</h1>
+          <p className="text-xs text-zinc-400">Ajusta los datos de tu ferretería y el comportamiento del bot</p>
         </div>
       </div>
 
       {/* Nav de pestañas */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
+      <div className="flex gap-1 border-b border-zinc-200 mb-6 overflow-x-auto">
         {TABS.map((tab) => (
           <a
             key={tab.id}
             href={`/dashboard/settings?tab=${tab.id}`}
             className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
               tabActivo === tab.id
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'border-zinc-950 text-zinc-950'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
             }`}
           >
             {tab.label}
