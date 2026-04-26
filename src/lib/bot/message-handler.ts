@@ -251,6 +251,7 @@ export async function handleIncomingMessage({
 
       const systemPromptOrq = buildOrchestratorSystemPrompt({
         ferreteria,
+        productos: productos ?? [],
         zonas: zonas ?? [],
         config,
         nombreCliente: nombreClienteGuardado,

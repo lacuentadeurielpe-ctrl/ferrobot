@@ -7,11 +7,12 @@
 // - Upsell solo si es realmente complementario y el cliente ya compró algo relacionado
 // - Múltiples mensajes cortos OK si mejora legibilidad; no spam
 
-import type { Ferreteria, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido } from '@/types/database'
+import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido } from '@/types/database'
 import { formatHora } from '@/lib/utils'
 
 interface BuildOrchestratorPromptParams {
   ferreteria: Ferreteria
+  productos: Producto[]
   zonas: ZonaDelivery[]
   config: ConfiguracionBot | null
   nombreCliente: string | null
@@ -20,8 +21,43 @@ interface BuildOrchestratorPromptParams {
   datosFlujo?: DatosFlujoPedido | null
 }
 
+// Catálogo compacto: muestra nombre, precio, stock.
+// Productos sin stock aparecen marcados — así el modelo sabe que existen pero no están disponibles.
+function buildCatalogoCompacto(productos: Producto[]): string {
+  if (productos.length === 0) return '(sin productos cargados aún)'
+
+  const porCategoria: Record<string, Producto[]> = {}
+  for (const p of productos) {
+    const cat = (p.categorias as unknown as { nombre?: string } | null)?.nombre ?? 'General'
+    if (!porCategoria[cat]) porCategoria[cat] = []
+    porCategoria[cat].push(p)
+  }
+
+  const lineas: string[] = []
+  for (const [categoria, prods] of Object.entries(porCategoria)) {
+    lineas.push(`[${categoria}]`)
+    for (const p of prods) {
+      if (p.stock === 0) {
+        lineas.push(`  ${p.nombre} — SIN STOCK`)
+        continue
+      }
+      let linea = `  ${p.nombre} | S/${p.precio_base.toFixed(2)}/${p.unidad} | stk:${p.stock}`
+      if (p.reglas_descuento?.length) {
+        const rangos = p.reglas_descuento
+          .sort((a, b) => a.cantidad_min - b.cantidad_min)
+          .map((r) => `≥${r.cantidad_min}→S/${r.precio_unitario.toFixed(2)}`)
+          .join(', ')
+        linea += ` | vol:[${rangos}]`
+      }
+      lineas.push(linea)
+    }
+  }
+  return lineas.join('\n')
+}
+
 export function buildOrchestratorSystemPrompt({
   ferreteria,
+  productos,
   zonas,
   config,
   nombreCliente,
@@ -75,6 +111,8 @@ Datos acumulados: ${partes.length > 0 ? partes.join(' | ') : '(ninguno aún)'}
 
   const tono = (config as unknown as { tono_bot?: string } | null)?.tono_bot ?? 'amigable_peruano'
 
+  const catalogoTexto = buildCatalogoCompacto(productos)
+
   return `Eres el asistente de WhatsApp de *${ferreteria.nombre}*, una ferretería en Perú.
 Tu rol: ayudar al cliente con cotizaciones, pedidos, estado de pedidos, dudas sobre horario/delivery/pagos.
 
@@ -88,16 +126,25 @@ ${zonasText}
 
 ${nombreText}${perfilText}${resumenText}${flujoText}
 
+# CATÁLOGO ACTUAL (nombre | precio/unidad | stock)
+IMPORTANTE: Este catálogo es la ÚNICA fuente de verdad sobre qué productos tenemos.
+- Productos listados aquí = SÍ tenemos (salvo "SIN STOCK")
+- Productos NO listados aquí = NO tenemos en catálogo → dilo claramente
+- Para obtener precios exactos, descuentos por volumen y confirmación de stock en tiempo real → usa \`buscar_producto\`
+
+${catalogoTexto}
+
 # REGLAS CRÍTICAS — LEER ANTES DE CADA RESPUESTA
 
 ## 1. NUNCA inventes información
-- Si el cliente pregunta por un producto → usa \`buscar_producto\` antes de responder precio o stock.
+- Si el cliente pregunta por un producto que SÍ está en el catálogo → usa \`buscar_producto\` para confirmar precio y stock actuales.
+- Si el producto NO está en el catálogo → responde directamente que no lo tenemos, sin llamar tools.
 - NUNCA inventes precios, marcas, modelos, medidas ni disponibilidad.
-- NUNCA prometas tiempos de entrega que no estén en \`info_ferreteria\`.
+- NUNCA prometas tiempos de entrega que no estén en las zonas de delivery.
 - Si no sabes algo y ninguna tool lo responde → usa \`escalar_humano\`.
 
 ## 2. Usa las tools cuando correspondan
-- Producto/precio/stock → \`buscar_producto\`
+- Producto que SÍ está en catálogo → precio/stock exacto → \`buscar_producto\`
 - Guardar cotización en BD → \`guardar_cotizacion\` (después de buscar_producto)
 - Crear pedido → \`crear_pedido\` (cuando ya tienes nombre + modalidad + dirección si delivery)
 - Estado de un pedido → \`consultar_pedido\`
