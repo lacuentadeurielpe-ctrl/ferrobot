@@ -3,9 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { formatPEN, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
 import {
-  ShoppingCart, MessageSquare, AlertTriangle,
-  Clock, CheckCircle2, Truck, Package, DollarSign,
-  ChevronRight, ArrowRight,
+  ShoppingCart, MessageSquare,
+  Clock, CheckCircle2, Truck, Package, TrendingUp, TrendingDown,
+  ChevronRight, ArrowRight, AlertCircle, AlertTriangle, Info,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -296,17 +296,27 @@ export default async function DashboardPage({
     })
   }
 
-  const colorAlerta = { rojo: 'bg-red-50 border-red-200 text-red-800', naranja: 'bg-orange-50 border-orange-200 text-orange-800', amarillo: 'bg-yellow-50 border-yellow-200 text-yellow-800' }
-  const iconoAlerta = { rojo: '🔴', naranja: '🟠', amarillo: '🟡' }
+  const colorAlerta = {
+    rojo:     'bg-red-50    border-red-200    text-red-800',
+    naranja:  'bg-amber-50  border-amber-200  text-amber-800',
+    amarillo: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+  }
+  const iconAlerta = {
+    rojo:     AlertCircle,
+    naranja:  AlertTriangle,
+    amarillo: Info,
+  }
 
   return (
-    <div className="p-4 sm:p-8 space-y-5 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 space-y-6 max-w-6xl mx-auto">
 
       {/* ── Encabezado ───────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{session.nombreFerreteria}</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{etiquetaFechaLima()}</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-zinc-950 tracking-tight">
+            {session.nombreFerreteria}
+          </h1>
+          <p className="text-zinc-400 text-sm mt-0.5">{etiquetaFechaLima()}</p>
         </div>
         <Suspense>
           <PeriodSelector />
@@ -316,37 +326,47 @@ export default async function DashboardPage({
       {/* ── BLOQUE 1: Alertas ─────────────────────────────────────────────── */}
       {alertas.length > 0 && (
         <div className="space-y-2">
-          {alertas.map((alerta, i) => (
-            <Link
-              key={i}
-              href={alerta.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition hover:opacity-80 ${colorAlerta[alerta.nivel]}`}
-            >
-              <span className="text-base">{iconoAlerta[alerta.nivel]}</span>
-              <span className="flex-1">{alerta.texto}</span>
-              <ChevronRight className="w-4 h-4 shrink-0 opacity-60" />
-            </Link>
-          ))}
+          {alertas.map((alerta, i) => {
+            const IconAlerta = iconAlerta[alerta.nivel]
+            return (
+              <Link
+                key={i}
+                href={alerta.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-sm font-medium transition hover:opacity-80 ${colorAlerta[alerta.nivel]}`}
+              >
+                <IconAlerta className="w-4 h-4 shrink-0" />
+                <span className="flex-1">{alerta.texto}</span>
+                <ChevronRight className="w-4 h-4 shrink-0 opacity-50" />
+              </Link>
+            )
+          })}
         </div>
       )}
 
       {/* ── BLOQUE 2: KPIs del período seleccionado ──────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{per.label}</p>
-        <div className={`grid gap-3 ${esVendedor ? 'grid-cols-2' : 'grid-cols-3'}`}>
+        <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+          {per.label}
+        </p>
+        <div className={`grid gap-3 ${esVendedor ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
 
           {/* Pedidos */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <ShoppingCart className="w-4 h-4 text-green-500" />
-              <p className="text-xs text-gray-500">Pedidos</p>
+          <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-zinc-400">Pedidos</p>
+              <div className="w-7 h-7 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center justify-center">
+                <ShoppingCart className="w-3.5 h-3.5 text-zinc-500" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{totalPerPedidos}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-gray-400">{perEntregados} entregados</p>
+            <p className="text-3xl font-bold text-zinc-950 tracking-tight">{totalPerPedidos}</p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <p className="text-xs text-zinc-400">{perEntregados} entregados</p>
               {cmbPedidos && (
-                <span className={`text-xs font-medium ${cmbPedidos.sube ? 'text-green-600' : 'text-red-500'}`}>
-                  {cmbPedidos.sube ? '↑' : '↓'}{cmbPedidos.pct}%
+                <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${cmbPedidos.sube ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {cmbPedidos.sube
+                    ? <TrendingUp className="w-3 h-3" />
+                    : <TrendingDown className="w-3 h-3" />}
+                  {cmbPedidos.pct}%
                 </span>
               )}
             </div>
@@ -354,19 +374,26 @@ export default async function DashboardPage({
 
           {/* Ingresos — solo dueño */}
           {!esVendedor && (
-            <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-orange-500" />
-                <p className="text-xs text-gray-500">Ingresos</p>
+            <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-medium text-zinc-400">Ingresos</p>
+                <div className="w-7 h-7 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center justify-center">
+                  <span className="text-[11px] font-bold text-zinc-500">S/</span>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{formatPEN(perIngresos)}</p>
-              <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-2xl font-bold text-zinc-950 tracking-tight tabular-nums">
+                {formatPEN(perIngresos)}
+              </p>
+              <div className="flex items-center gap-2 mt-1.5">
                 {perGanancia > 0 && (
-                  <p className="text-xs text-gray-400">Gan: {formatPEN(perGanancia)}</p>
+                  <p className="text-xs text-zinc-400">Gan: {formatPEN(perGanancia)}</p>
                 )}
                 {cmbIngresos && (
-                  <span className={`text-xs font-medium ${cmbIngresos.sube ? 'text-green-600' : 'text-red-500'}`}>
-                    {cmbIngresos.sube ? '↑' : '↓'}{cmbIngresos.pct}%
+                  <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${cmbIngresos.sube ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {cmbIngresos.sube
+                      ? <TrendingUp className="w-3 h-3" />
+                      : <TrendingDown className="w-3 h-3" />}
+                    {cmbIngresos.pct}%
                   </span>
                 )}
               </div>
@@ -374,17 +401,22 @@ export default async function DashboardPage({
           )}
 
           {/* Conversaciones */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
-              <MessageSquare className="w-4 h-4 text-blue-500" />
-              <p className="text-xs text-gray-500">Conversaciones</p>
+          <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-zinc-400">Conversaciones</p>
+              <div className="w-7 h-7 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center justify-center">
+                <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
+              </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900">{convPer ?? 0}</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <p className="text-xs text-gray-400">chats activos</p>
+            <p className="text-3xl font-bold text-zinc-950 tracking-tight">{convPer ?? 0}</p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <p className="text-xs text-zinc-400">chats activos</p>
               {cmbConv && (
-                <span className={`text-xs font-medium ${cmbConv.sube ? 'text-green-600' : 'text-red-500'}`}>
-                  {cmbConv.sube ? '↑' : '↓'}{cmbConv.pct}%
+                <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${cmbConv.sube ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {cmbConv.sube
+                    ? <TrendingUp className="w-3 h-3" />
+                    : <TrendingDown className="w-3 h-3" />}
+                  {cmbConv.pct}%
                 </span>
               )}
             </div>
@@ -392,20 +424,25 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* ── BLOQUE 3: Hoy — Pipeline + Cobros ────────────────────────────── */}
+      {/* ── BLOQUE 3: Pipeline + Cobros ──────────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Hoy</p>
+        <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">Hoy</p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* Pipeline de pedidos */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900">Estado de pedidos</h3>
-              <Link href="/dashboard/orders" className="text-xs text-orange-500 hover:underline flex items-center gap-0.5">
+          <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Estado de pedidos</h3>
+              <Link
+                href="/dashboard/orders"
+                className="text-xs text-zinc-400 hover:text-zinc-900 transition flex items-center gap-0.5 font-medium"
+              >
                 Ver todos <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
-            <div className="flex items-center gap-1 mb-4">
+
+            {/* Barra de pipeline */}
+            <div className="flex items-stretch gap-1 mb-4">
               {ESTADOS_PIPELINE.map((estado, i) => {
                 const count = pipeline[estado.key] ?? 0
                 const activo = count > 0
@@ -413,30 +450,38 @@ export default async function DashboardPage({
                   <div key={estado.key} className="flex items-center gap-1 flex-1">
                     <Link
                       href={`/dashboard/orders?estado=${estado.key}`}
-                      className={`flex-1 rounded-lg px-2 py-2.5 text-center transition ${activo ? 'bg-orange-50 hover:bg-orange-100' : 'bg-gray-50'}`}
+                      className={`flex-1 rounded-xl px-2 py-3 text-center transition ${
+                        activo ? 'bg-zinc-950 hover:bg-zinc-800' : 'bg-zinc-50 hover:bg-zinc-100'
+                      }`}
                     >
-                      <p className={`text-xl font-bold ${activo ? 'text-orange-600' : 'text-gray-400'}`}>{count}</p>
-                      <p className={`text-xs mt-0.5 ${activo ? 'text-gray-600' : 'text-gray-400'}`}>{estado.label}</p>
+                      <p className={`text-lg font-bold leading-none ${activo ? 'text-white' : 'text-zinc-300'}`}>
+                        {count}
+                      </p>
+                      <p className={`text-[10px] mt-1 leading-tight ${activo ? 'text-zinc-400' : 'text-zinc-300'}`}>
+                        {estado.label}
+                      </p>
                     </Link>
                     {i < ESTADOS_PIPELINE.length - 1 && (
-                      <ChevronRight className="w-3 h-3 text-gray-200 shrink-0" />
+                      <ChevronRight className="w-3 h-3 text-zinc-200 shrink-0" />
                     )}
                   </div>
                 )
               })}
             </div>
+
             {/* Pedidos recientes */}
-            <div className="space-y-1.5 border-t border-gray-50 pt-3">
+            <div className="space-y-1.5 border-t border-zinc-50 pt-3">
               {pedidosRecientes.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-2">Sin pedidos activos</p>
+                <p className="text-xs text-zinc-300 text-center py-2">Sin pedidos activos</p>
               ) : (
                 pedidosRecientes.map(p => (
-                  <div key={p.id} className="flex items-center justify-between text-xs">
-                    <div className="min-w-0">
-                      <span className="font-medium text-gray-700 truncate">{p.nombre_cliente}</span>
-                      <span className="text-gray-400 ml-1.5">{p.numero_pedido}</span>
+                  <div key={p.id} className="flex items-center justify-between text-xs py-0.5">
+                    <div className="min-w-0 flex items-center gap-1.5">
+                      <span className="font-medium text-zinc-700 truncate">{p.nombre_cliente}</span>
+                      <span className="text-zinc-300">·</span>
+                      <span className="text-zinc-400 shrink-0">{p.numero_pedido}</span>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full font-medium shrink-0 ml-2 ${colorEstadoPedido(p.estado)}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ml-2 ${colorEstadoPedido(p.estado)}`}>
                       {labelEstadoPedido(p.estado)}
                     </span>
                   </div>
@@ -446,36 +491,39 @@ export default async function DashboardPage({
           </div>
 
           {/* Cobros pendientes */}
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900">Cobros pendientes hoy</h3>
+          <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Cobros pendientes</h3>
               {(cobrosPendientes ?? []).length > 0 && (
-                <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-yellow-100 text-yellow-700 font-semibold px-2 py-0.5 rounded-full border border-yellow-200">
                   {(cobrosPendientes ?? []).length} sin cobrar
                 </span>
               )}
             </div>
             {(cobrosPendientes ?? []).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-6 text-center">
-                <CheckCircle2 className="w-8 h-8 text-green-300 mb-2" />
-                <p className="text-sm text-gray-400">Todo cobrado por hoy 🎉</p>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                </div>
+                <p className="text-sm font-medium text-zinc-700">Todo cobrado por hoy</p>
+                <p className="text-xs text-zinc-400 mt-0.5">Buen trabajo 🎉</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {(cobrosPendientes ?? []).map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
+                  <div key={p.id} className="flex items-center justify-between bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{p.nombre_cliente}</p>
-                      <p className="text-xs text-gray-500">{p.numero_pedido} · {p.metodo_pago ?? 'sin método'}</p>
+                      <p className="text-sm font-semibold text-zinc-800 truncate">{p.nombre_cliente}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">{p.numero_pedido} · {p.metodo_pago ?? 'sin método'}</p>
                     </div>
                     {!esVendedor && (
-                      <p className="text-sm font-bold text-gray-800 shrink-0 ml-2">{formatPEN(p.total)}</p>
+                      <p className="text-sm font-bold text-zinc-900 shrink-0 ml-3 tabular-nums">{formatPEN(p.total)}</p>
                     )}
                   </div>
                 ))}
                 <Link
                   href="/dashboard/orders"
-                  className="block text-center text-xs text-orange-500 hover:underline pt-1"
+                  className="block text-center text-xs text-zinc-500 hover:text-zinc-900 transition font-medium pt-1"
                 >
                   Gestionar cobros →
                 </Link>
@@ -487,32 +535,41 @@ export default async function DashboardPage({
 
       {/* ── BLOQUE 4: Gráfico + Top productos ────────────────────────────── */}
       <div>
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Últimos 30 días</p>
+        <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+          Últimos 30 días
+        </p>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Actividad</h3>
+
+          {/* Gráfico de actividad */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-zinc-100 p-5">
+            <h3 className="text-sm font-semibold text-zinc-900 mb-4">Actividad</h3>
             <ActivityChart datos={chartData} />
           </div>
-          <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Productos más pedidos (30d)</h3>
+
+          {/* Top productos */}
+          <div className="bg-white rounded-2xl border border-zinc-100 p-5">
+            <h3 className="text-sm font-semibold text-zinc-900 mb-4">Más pedidos (30d)</h3>
             {topProductos.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">Sin datos aún</p>
+              <p className="text-xs text-zinc-300 text-center py-4">Sin datos aún</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 {topProductos.map(([nombre, cantidad], i) => {
                   const max = topProductos[0][1]
                   const pct = Math.round((cantidad / max) * 100)
                   return (
                     <div key={nombre}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs text-gray-700 truncate flex-1 mr-2">
-                          <span className="text-gray-400 mr-1">#{i + 1}</span>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-zinc-600 truncate flex-1 mr-2 leading-tight">
+                          <span className="text-zinc-300 mr-1.5 font-medium">#{i + 1}</span>
                           {nombre}
                         </span>
-                        <span className="text-xs font-semibold text-gray-600 shrink-0">{cantidad}</span>
+                        <span className="text-xs font-bold text-zinc-700 shrink-0 tabular-nums">{cantidad}</span>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5">
-                        <div className="bg-orange-400 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                      <div className="w-full bg-zinc-100 rounded-full h-1">
+                        <div
+                          className="bg-zinc-900 h-1 rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
                   )

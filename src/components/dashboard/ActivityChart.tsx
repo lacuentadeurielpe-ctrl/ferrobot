@@ -18,14 +18,16 @@ interface ActivityChartProps {
 
 const TOOLTIP_STYLE = {
   fontSize: 12,
-  borderRadius: 8,
-  border: '1px solid #e5e7eb',
-  boxShadow: '0 1px 4px rgba(0,0,0,.08)',
+  borderRadius: 10,
+  border: '1px solid #e4e4e7',
+  boxShadow: '0 1px 6px rgba(0,0,0,.07)',
 }
 
 const LEGEND_FORMATTER = (value: string) => (
-  <span style={{ fontSize: 12, color: '#6b7280' }}>{value}</span>
+  <span style={{ fontSize: 12, color: '#71717a' }}>{value}</span>
 )
+
+const TICK_STYLE = { fontSize: 11, fill: '#a1a1aa' }
 
 export default function ActivityChart({ datos }: ActivityChartProps) {
   // ≤7 puntos → barras verticales; más → área suavizada
@@ -33,13 +35,13 @@ export default function ActivityChart({ datos }: ActivityChartProps) {
     return (
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={datos} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-          <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#9ca3af' }} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#f9fafb' }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+          <XAxis dataKey="dia" tick={TICK_STYLE} />
+          <YAxis allowDecimals={false} tick={TICK_STYLE} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: '#fafafa' }} />
           <Legend iconType="square" iconSize={10} formatter={LEGEND_FORMATTER} />
-          <Bar dataKey="cotizaciones" name="Cotizaciones" fill="#93c5fd" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="pedidos"      name="Pedidos"      fill="#fb923c" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="cotizaciones" name="Cotizaciones" fill="#a1a1aa" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="pedidos"      name="Pedidos"      fill="#18181b" radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     )
@@ -51,23 +53,23 @@ export default function ActivityChart({ datos }: ActivityChartProps) {
       <AreaChart data={datos} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
         <defs>
           <linearGradient id="gCot" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor="#93c5fd" stopOpacity={0.4} />
-            <stop offset="95%" stopColor="#93c5fd" stopOpacity={0}   />
+            <stop offset="5%"  stopColor="#a1a1aa" stopOpacity={0.35} />
+            <stop offset="95%" stopColor="#a1a1aa" stopOpacity={0}    />
           </linearGradient>
           <linearGradient id="gPed" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor="#fb923c" stopOpacity={0.4} />
-            <stop offset="95%" stopColor="#fb923c" stopOpacity={0}   />
+            <stop offset="5%"  stopColor="#18181b" stopOpacity={0.2}  />
+            <stop offset="95%" stopColor="#18181b" stopOpacity={0}    />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-        <XAxis dataKey="dia" tick={{ fontSize: 10, fill: '#9ca3af' }} interval="preserveStartEnd" />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+        <XAxis dataKey="dia" tick={{ fontSize: 10, fill: '#a1a1aa' }} interval="preserveStartEnd" />
+        <YAxis allowDecimals={false} tick={TICK_STYLE} />
         <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Legend iconType="square" iconSize={10} formatter={LEGEND_FORMATTER} />
         <Area type="monotone" dataKey="cotizaciones" name="Cotizaciones"
-          stroke="#93c5fd" strokeWidth={2} fill="url(#gCot)" />
+          stroke="#a1a1aa" strokeWidth={2} fill="url(#gCot)" />
         <Area type="monotone" dataKey="pedidos" name="Pedidos"
-          stroke="#fb923c" strokeWidth={2} fill="url(#gPed)" />
+          stroke="#18181b" strokeWidth={2} fill="url(#gPed)" />
       </AreaChart>
     </ResponsiveContainer>
   )
