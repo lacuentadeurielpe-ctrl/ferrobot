@@ -81,7 +81,7 @@ const ESTADOS_PIPELINE: Array<{ key: string; label: string; icon: React.ElementT
   { key: 'pendiente',      label: 'Pendiente',    icon: Clock,         color: 'text-yellow-500' },
   { key: 'confirmado',     label: 'Confirmado',   icon: CheckCircle2,  color: 'text-blue-500'   },
   { key: 'en_preparacion', label: 'Preparando',   icon: Package,       color: 'text-purple-500' },
-  { key: 'enviado',        label: 'Enviado',      icon: Truck,         color: 'text-orange-500' },
+  { key: 'enviado',        label: 'Enviado',      icon: Truck,         color: 'text-zinc-600' },
   { key: 'entregado',      label: 'Entregado',    icon: CheckCircle2,  color: 'text-green-500'  },
 ]
 

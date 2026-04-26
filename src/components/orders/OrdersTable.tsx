@@ -695,7 +695,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
                   <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                     {actualizando === pedido.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
                     ) : (
                       <select
                         value={pedido.estado}
@@ -745,7 +745,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                           const positivo = ganancia >= 0
                           return (
                             <tr>
-                              <td colSpan={3} className="pt-1 text-right text-xs text-gray-400">Ganancia</td>
+                              <td colSpan={3} className="pt-1 text-right text-xs text-zinc-400">Ganancia</td>
                               <td className={cn('pt-1 text-right text-xs font-semibold', positivo ? 'text-green-600' : 'text-red-500')}>
                                 {positivo ? '+' : ''}{formatPEN(ganancia)}
                                 <span className="ml-1 font-normal opacity-70">({margen.toFixed(0)}%)</span>
@@ -784,9 +784,9 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
                           {/* Acciones según método y estado de pago */}
                           {pagando === pedido.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
                           ) : !pedido.metodo_pago ? (
-                            <span className="text-xs text-gray-400">Sin método definido</span>
+                            <span className="text-xs text-zinc-400">Sin método definido</span>
                           ) : pedido.estado_pago === 'pagado' ? (
                             <span className="flex items-center gap-1 text-xs font-medium text-green-700">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Pago confirmado
@@ -855,7 +855,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     {/* Asignar repartidor — solo para delivery, solo para dueño/vendedor */}
                     {pedido.modalidad === 'delivery' && repartidores.length > 0 && (
                       <div className="mb-2 flex items-center gap-2">
-                        <span className="text-xs text-gray-500 shrink-0">🚚 Repartidor:</span>
+                        <span className="text-xs text-zinc-500 shrink-0">🚚 Repartidor:</span>
                         <select
                           value={pedido.repartidor_id ?? ''}
                           disabled={asignando === pedido.id}

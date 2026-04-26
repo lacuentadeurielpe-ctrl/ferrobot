@@ -30,10 +30,10 @@ interface Miembro {
 
 const COLOR_PLANTILLA: Record<PlantillaPermiso, string> = {
   solo_reparte:   'bg-blue-50 text-blue-700',
-  atiende_tienda: 'bg-orange-50 text-orange-700',
+  atiende_tienda: 'bg-zinc-100 text-zinc-700',
   hace_de_todo:   'bg-purple-50 text-purple-700',
   de_confianza:   'bg-green-50 text-green-700',
-  personalizado:  'bg-gray-100 text-gray-600',
+  personalizado:  'bg-zinc-100 text-zinc-600',
 }
 
 // ── Toggle switch reutilizable ────────────────────────────────────────────────
@@ -52,7 +52,7 @@ function Toggle({ checked, onChange, disabled }: {
       onClick={() => onChange(!checked)}
       className={cn(
         'relative w-9 h-5 rounded-full transition-colors flex-shrink-0',
-        checked ? 'bg-orange-500' : 'bg-gray-200',
+        checked ? 'bg-zinc-900' : 'bg-zinc-200',
         disabled && 'opacity-40 cursor-not-allowed'
       )}
     >
@@ -119,22 +119,22 @@ function ModalNuevoEmpleado({
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">Nuevo empleado</h3>
-          <button onClick={onCerrar} className="text-gray-400 hover:text-gray-600 transition">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
+          <h3 className="font-semibold text-zinc-900">Nuevo empleado</h3>
+          <button onClick={onCerrar} className="text-zinc-400 hover:text-zinc-600 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tabs paso */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-zinc-100">
           {(['datos', 'permisos'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPaso(p)}
               className={cn(
                 'flex-1 py-2.5 text-sm font-medium transition border-b-2 -mb-px',
-                paso === p ? 'border-orange-500 text-orange-600' : 'border-transparent text-gray-400'
+                paso === p ? 'border-zinc-950 text-zinc-950' : 'border-transparent text-zinc-400'
               )}
             >
               {p === 'datos' ? '1. Datos' : '2. Permisos'}
@@ -147,18 +147,18 @@ function ModalNuevoEmpleado({
           {paso === 'datos' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
                   Nombre completo <span className="text-red-500">*</span>
                 </label>
                 <input
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
                   placeholder="Juan Pérez"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
                   Correo electrónico <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -166,11 +166,11 @@ function ModalNuevoEmpleado({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="juan@ejemplo.com"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
                   Contraseña temporal <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -179,21 +179,21 @@ function ModalNuevoEmpleado({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Mín. 6 caracteres"
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                    className="w-full px-3 py-2.5 pr-10 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                   />
                   <button
                     type="button"
                     onClick={() => setVerPassword(!verPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
                   >
                     {verPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">El empleado podrá cambiarla después</p>
+                <p className="text-xs text-zinc-400 mt-1">El empleado podrá cambiarla después</p>
               </div>
 
               {error && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
               )}
             </div>
           )}
@@ -203,7 +203,7 @@ function ModalNuevoEmpleado({
             <div className="space-y-4">
               {/* Selector de plantilla */}
               <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Plantilla de inicio</p>
+                <p className="text-sm font-medium text-zinc-700 mb-2">Plantilla de inicio</p>
                 <div className="space-y-2">
                   {(Object.keys(PLANTILLAS) as PlantillaPermiso[]).map((p) => (
                     <button
@@ -213,17 +213,17 @@ function ModalNuevoEmpleado({
                       className={cn(
                         'w-full text-left px-3 py-2.5 rounded-xl border transition',
                         plantilla === p
-                          ? 'border-orange-400 bg-orange-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                          ? 'border-zinc-900 bg-zinc-50'
+                          : 'border-zinc-200 hover:border-zinc-300'
                       )}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-zinc-900">
                           {ETIQUETAS_PLANTILLA[p]}
                         </span>
-                        {plantilla === p && <Check className="w-4 h-4 text-orange-500" />}
+                        {plantilla === p && <Check className="w-4 h-4 text-zinc-950" />}
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5">{DESCRIPCIONES_PLANTILLA[p]}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">{DESCRIPCIONES_PLANTILLA[p]}</p>
                     </button>
                   ))}
                 </div>
@@ -231,17 +231,17 @@ function ModalNuevoEmpleado({
 
               {/* Ajuste individual */}
               <div>
-                <p className="text-xs text-gray-400 mb-3">Ajusta los permisos individuales si necesitas</p>
+                <p className="text-xs text-zinc-400 mb-3">Ajusta los permisos individuales si necesitas</p>
                 <div className="space-y-4">
                   {GRUPOS_PERMISOS.map((grupo) => (
                     <div key={grupo.label}>
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
                         {grupo.label}
                       </p>
                       <div className="space-y-2">
                         {grupo.permisos.map(({ key, label }) => (
                           <div key={key} className="flex items-center justify-between gap-3">
-                            <span className="text-sm text-gray-700">{label}</span>
+                            <span className="text-sm text-zinc-700">{label}</span>
                             <Toggle
                               checked={permisos[key] ?? false}
                               onChange={(v) => togglePermiso(key, v)}
@@ -258,10 +258,10 @@ function ModalNuevoEmpleado({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-t border-zinc-100 flex items-center justify-between gap-3">
           {paso === 'datos' ? (
             <>
-              <button onClick={onCerrar} className="text-sm text-gray-500 hover:text-gray-700 transition">
+              <button onClick={onCerrar} className="text-sm text-zinc-500 hover:text-zinc-700 transition">
                 Cancelar
               </button>
               <button
@@ -273,20 +273,20 @@ function ModalNuevoEmpleado({
                   setError(null)
                   setPaso('permisos')
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-xl transition"
               >
                 Siguiente → Permisos
               </button>
             </>
           ) : (
             <>
-              <button onClick={() => setPaso('datos')} className="text-sm text-gray-500 hover:text-gray-700 transition">
+              <button onClick={() => setPaso('datos')} className="text-sm text-zinc-500 hover:text-zinc-700 transition">
                 ← Volver
               </button>
               <button
                 onClick={guardar}
                 disabled={guardando}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white text-sm font-medium rounded-xl transition"
               >
                 {guardando && <Loader2 className="w-4 h-4 animate-spin" />}
                 {guardando ? 'Creando…' : 'Crear empleado'}
@@ -407,14 +407,14 @@ function EmpleadoCard({
   return (
     <div className={cn(
       'rounded-xl border transition',
-      miembro.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50'
+      miembro.activo ? 'border-zinc-200 bg-white' : 'border-zinc-100 bg-zinc-50'
     )}>
       {/* Cabecera de la card */}
       <div className="flex items-center gap-3 p-4">
         {/* Avatar */}
         <div className={cn(
           'w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0',
-          miembro.activo ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-500'
+          miembro.activo ? 'bg-zinc-100 text-zinc-700' : 'bg-zinc-200 text-zinc-500'
         )}>
           {iniciales(miembro.nombre || miembro.email)}
         </div>
@@ -422,7 +422,7 @@ function EmpleadoCard({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium text-gray-900 truncate">{miembro.nombre || '—'}</p>
+            <p className="text-sm font-medium text-zinc-900 truncate">{miembro.nombre || '—'}</p>
             <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', COLOR_PLANTILLA[plantilla])}>
               {ETIQUETAS_PLANTILLA[plantilla]}
             </span>
@@ -432,13 +432,13 @@ function EmpleadoCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-400 truncate mt-0.5">{miembro.email}</p>
+          <p className="text-xs text-zinc-400 truncate mt-0.5">{miembro.email}</p>
         </div>
 
         {/* Botón expandir */}
         <button
           onClick={() => setExpandido(!expandido)}
-          className="text-gray-400 hover:text-gray-600 transition flex-shrink-0"
+          className="text-zinc-400 hover:text-zinc-600 transition flex-shrink-0"
         >
           {expandido ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
@@ -446,7 +446,7 @@ function EmpleadoCard({
 
       {/* Panel expandido */}
       {expandido && (
-        <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4">
+        <div className="border-t border-zinc-100 px-4 pb-4 pt-3 space-y-4">
 
           {/* Acciones rápidas */}
           <div className="flex flex-wrap gap-2">
@@ -455,7 +455,7 @@ function EmpleadoCard({
               onClick={toggleActivo}
               disabled={accionando}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition',
                 miembro.activo
                   ? 'bg-red-50 text-red-600 hover:bg-red-100'
                   : 'bg-green-50 text-green-600 hover:bg-green-100'
@@ -473,7 +473,7 @@ function EmpleadoCard({
             {/* Resetear contraseña */}
             <button
               onClick={() => { setResetMode(!resetMode); setResetError(null); setNuevaPass('') }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition"
             >
               <KeyRound className="w-3.5 h-3.5" />
               Cambiar contraseña
@@ -483,7 +483,7 @@ function EmpleadoCard({
             {!eliminandoConfirm ? (
               <button
                 onClick={() => setEliminandoConfirm(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500 transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-zinc-100 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Eliminar
@@ -494,13 +494,13 @@ function EmpleadoCard({
                 <button
                   onClick={eliminar}
                   disabled={accionando}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition"
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition"
                 >
                   Sí, eliminar
                 </button>
                 <button
                   onClick={() => setEliminandoConfirm(false)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-medium bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition"
                 >
                   Cancelar
                 </button>
@@ -510,17 +510,17 @@ function EmpleadoCard({
 
           {/* Reset password inline */}
           {resetMode && (
-            <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-              <p className="text-xs font-medium text-gray-600">Nueva contraseña</p>
+            <div className="bg-zinc-50 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-medium text-zinc-600">Nueva contraseña</p>
               <div className="relative">
                 <input
                   type={verPass ? 'text' : 'password'}
                   value={nuevaPass}
                   onChange={(e) => setNuevaPass(e.target.value)}
                   placeholder="Mín. 6 caracteres"
-                  className="w-full px-3 py-2 pr-9 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-full px-3 py-2 pr-9 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                 />
-                <button type="button" onClick={() => setVerPass(!verPass)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                <button type="button" onClick={() => setVerPass(!verPass)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400">
                   {verPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
@@ -529,12 +529,12 @@ function EmpleadoCard({
                 <button
                   onClick={resetearPassword}
                   disabled={accionando}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition disabled:opacity-60"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-xl transition disabled:opacity-60"
                 >
                   {accionando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   Guardar
                 </button>
-                <button onClick={() => setResetMode(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition">
+                <button onClick={() => setResetMode(false)} className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 transition">
                   Cancelar
                 </button>
               </div>
@@ -544,9 +544,9 @@ function EmpleadoCard({
           {/* Selector rápido de plantilla */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Plantilla</p>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Plantilla</p>
               {guardandoPermisos && (
-                <span className="text-xs text-gray-400 flex items-center gap-1">
+                <span className="text-xs text-zinc-400 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" /> Guardando…
                 </span>
               )}
@@ -560,7 +560,7 @@ function EmpleadoCard({
                     'text-xs px-2.5 py-1 rounded-full font-medium transition border',
                     plantilla === p
                       ? `${COLOR_PLANTILLA[p]} border-current`
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      : 'border-zinc-200 text-zinc-500 hover:border-zinc-300'
                   )}
                 >
                   {ETIQUETAS_PLANTILLA[p]}
@@ -573,13 +573,13 @@ function EmpleadoCard({
           <div className="space-y-3">
             {GRUPOS_PERMISOS.map((grupo) => (
               <div key={grupo.label}>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-1.5">
                   {grupo.label}
                 </p>
                 <div className="space-y-1.5">
                   {grupo.permisos.map(({ key, label }) => (
                     <div key={key} className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-gray-600">{label}</span>
+                      <span className="text-xs text-zinc-600">{label}</span>
                       <Toggle
                         checked={permisos[key] ?? false}
                         onChange={(v) => cambiarPermiso(key, v)}
@@ -630,21 +630,21 @@ export default function EmpleadosSection() {
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
+      <div className="bg-white rounded-2xl border border-zinc-200 p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-gray-600" />
-            <h2 className="font-semibold text-gray-900">Empleados</h2>
+            <Users className="w-5 h-5 text-zinc-600" />
+            <h2 className="font-semibold text-zinc-900">Empleados</h2>
             {miembros.length > 0 && (
-              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">
                 {miembros.filter(m => m.activo).length} activo{miembros.filter(m => m.activo).length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
           <button
             onClick={() => setModalAbierto(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition"
+            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-xl transition"
           >
             <Plus className="w-4 h-4" />
             Nuevo empleado
@@ -653,15 +653,15 @@ export default function EmpleadosSection() {
 
         {/* Lista */}
         {cargando ? (
-          <div className="flex items-center gap-2 text-sm text-gray-400 py-6 justify-center">
+          <div className="flex items-center gap-2 text-sm text-zinc-400 py-6 justify-center">
             <Loader2 className="w-4 h-4 animate-spin" />
             Cargando empleados…
           </div>
         ) : miembros.length === 0 ? (
           <div className="text-center py-8">
-            <ShieldCheck className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">Aún no hay empleados.</p>
-            <p className="text-xs text-gray-400 mt-1">Crea el primero con el botón de arriba.</p>
+            <ShieldCheck className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
+            <p className="text-sm text-zinc-400">Aún no hay empleados.</p>
+            <p className="text-xs text-zinc-400 mt-1">Crea el primero con el botón de arriba.</p>
           </div>
         ) : (
           <div className="space-y-2">

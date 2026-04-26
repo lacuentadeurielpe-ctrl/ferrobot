@@ -199,32 +199,32 @@ export default function DeliveryView({
     return (
       <div className={cn(
         'bg-white rounded-2xl border shadow-sm overflow-hidden',
-        tieneIncidencia ? 'border-amber-300' : 'border-gray-200'
+        tieneIncidencia ? 'border-amber-300' : 'border-zinc-200'
       )}>
         <div className="px-4 py-3.5 cursor-pointer" onClick={() => setExpandido(isOpen ? null : pedido.id)}>
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <div className={cn(
                 'w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0',
-                tieneIncidencia ? 'bg-amber-100 text-amber-600' : 'bg-orange-100 text-orange-600'
+                tieneIncidencia ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-600'
               )}>
                 {idx + 1}
               </div>
               <div>
-                <p className="font-semibold text-gray-900 text-sm">{nombre}</p>
-                <p className="text-xs text-gray-400 font-mono">{pedido.numero_pedido}</p>
+                <p className="font-semibold text-zinc-900 text-sm">{nombre}</p>
+                <p className="text-xs text-zinc-400 font-mono">{pedido.numero_pedido}</p>
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className="font-bold text-gray-900 text-sm">{formatPEN(pedido.total)}</p>
-              <ChevronDown className={cn('w-4 h-4 text-gray-400 ml-auto transition-transform', isOpen && 'rotate-180')} />
+              <p className="font-bold text-zinc-900 text-sm">{formatPEN(pedido.total)}</p>
+              <ChevronDown className={cn('w-4 h-4 text-zinc-400 ml-auto transition-transform', isOpen && 'rotate-180')} />
             </div>
           </div>
 
           {pedido.direccion_entrega && (
             <div className="flex items-center gap-1.5 mt-2">
-              <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <p className="text-xs text-gray-600 truncate">{pedido.direccion_entrega}</p>
+              <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              <p className="text-xs text-zinc-600 truncate">{pedido.direccion_entrega}</p>
             </div>
           )}
 
@@ -237,7 +237,7 @@ export default function DeliveryView({
         </div>
 
         {isOpen && (
-          <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-3">
+          <div className="border-t border-zinc-100 px-4 py-3 bg-zinc-50 space-y-3">
             {telefono && (
               <a href={`tel:${telefono}`} className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
                 <Phone className="w-4 h-4" />
@@ -245,25 +245,25 @@ export default function DeliveryView({
               </a>
             )}
             {pedido.zonas_delivery && (
-              <p className="text-xs text-gray-500"><span className="font-medium">Zona:</span> {pedido.zonas_delivery.nombre}</p>
+              <p className="text-xs text-zinc-500"><span className="font-medium">Zona:</span> {pedido.zonas_delivery.nombre}</p>
             )}
             {pedido.notas && (
-              <p className="text-xs text-gray-500"><span className="font-medium">Notas:</span> {pedido.notas}</p>
+              <p className="text-xs text-zinc-500"><span className="font-medium">Notas:</span> {pedido.notas}</p>
             )}
 
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-1.5">Productos:</p>
+              <p className="text-xs font-medium text-zinc-500 mb-1.5">Productos:</p>
               <div className="space-y-1">
                 {pedido.items_pedido.map((item) => (
                   <div key={item.id} className="flex items-center justify-between text-xs">
-                    <span className="text-gray-700">{item.cantidad}× {item.nombre_producto}</span>
-                    <span className="text-gray-500">{formatPEN(item.precio_unitario * item.cantidad)}</span>
+                    <span className="text-zinc-700">{item.cantidad}× {item.nombre_producto}</span>
+                    <span className="text-zinc-500">{formatPEN(item.precio_unitario * item.cantidad)}</span>
                   </div>
                 ))}
               </div>
-              <div className="border-t border-gray-200 mt-2 pt-2 flex justify-between text-sm font-semibold">
-                <span className="text-gray-700">Total a cobrar</span>
-                <span className="text-gray-900">{formatPEN(pedido.total)}</span>
+              <div className="border-t border-zinc-200 mt-2 pt-2 flex justify-between text-sm font-semibold">
+                <span className="text-zinc-700">Total a cobrar</span>
+                <span className="text-zinc-900">{formatPEN(pedido.total)}</span>
               </div>
             </div>
 
@@ -290,7 +290,7 @@ export default function DeliveryView({
                 <div className="flex gap-2">
                   <button
                     onClick={() => abrirModal(pedido.id, 'retorno')}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-xl text-xs transition"
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-medium py-2 rounded-xl text-xs transition"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     Retornar
@@ -325,21 +325,21 @@ export default function DeliveryView({
   return (
     <>
       {/* Tabs */}
-      <div className="flex bg-white rounded-xl border border-gray-200 p-1 mb-4 gap-1">
+      <div className="flex bg-white rounded-xl border border-zinc-200 p-1 mb-4 gap-1">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={cn(
               'flex-1 py-2 text-xs font-medium rounded-lg transition relative',
-              tab === t.id ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === t.id ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
             )}
           >
             {t.label}
             {t.count !== undefined && t.count > 0 && (
               <span className={cn(
                 'ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold',
-                tab === t.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                tab === t.id ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-600'
               )}>
                 {t.count}
               </span>
@@ -353,12 +353,12 @@ export default function DeliveryView({
         <div className="space-y-3">
           {pedidos.length === 0 ? (
             <div className="text-center py-16">
-              <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-400 font-medium">Sin entregas asignadas</p>
+              <Package className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+              <p className="text-zinc-400 font-medium">Sin entregas asignadas</p>
               {modo === 'libre' && disponibles.length > 0 && (
                 <button
                   onClick={() => setTab('disponibles')}
-                  className="mt-3 text-sm text-orange-500 hover:text-orange-600 font-medium"
+                  className="mt-3 text-sm text-zinc-600 hover:text-zinc-900 font-medium underline"
                 >
                   Ver pedidos disponibles →
                 </button>
@@ -377,19 +377,19 @@ export default function DeliveryView({
         <div className="space-y-3">
           {disponibles.length === 0 ? (
             <div className="text-center py-16">
-              <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-400 font-medium">No hay pedidos disponibles</p>
-              <p className="text-sm text-gray-500 mt-1">Regresa en unos momentos</p>
+              <Inbox className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+              <p className="text-zinc-400 font-medium">No hay pedidos disponibles</p>
+              <p className="text-sm text-zinc-500 mt-1">Regresa en unos momentos</p>
             </div>
           ) : (
             disponibles.map((p, i) => (
-              <div key={p.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div key={p.id} className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
                 <TarjetaPedido pedido={p} idx={i} showAcciones={false} />
-                <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+                <div className="border-t border-zinc-100 px-4 py-3 bg-zinc-50">
                   <button
                     onClick={() => aceptarPedido(p.id)}
                     disabled={aceptando === p.id}
-                    className="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition"
+                    className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white font-semibold py-3 rounded-xl text-sm transition"
                   >
                     {aceptando === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     Tomar este pedido
@@ -405,15 +405,15 @@ export default function DeliveryView({
       {tab === 'rendicion' && (
         <div className="space-y-3">
           {/* Resumen */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <div className="bg-white rounded-2xl border border-zinc-200 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <BarChart2 className="w-4 h-4 text-gray-500" />
-              <p className="text-sm font-semibold text-gray-900">Resumen del día</p>
+              <BarChart2 className="w-4 h-4 text-zinc-500" />
+              <p className="text-sm font-semibold text-zinc-900">Resumen del día</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xs text-gray-400 mb-1">Entregas</p>
-                <p className="text-2xl font-bold text-gray-900">{cobrosHoy.length}</p>
+              <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                <p className="text-xs text-zinc-400 mb-1">Entregas</p>
+                <p className="text-2xl font-bold text-zinc-900">{cobrosHoy.length}</p>
               </div>
               <div className="bg-green-50 rounded-xl p-3 text-center">
                 <p className="text-xs text-green-600 mb-1">Cobrado</p>
@@ -432,22 +432,22 @@ export default function DeliveryView({
 
           {/* Lista de entregas */}
           {cobrosHoy.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 text-zinc-400">
               <p className="text-sm">Aún no hay entregas completadas hoy</p>
             </div>
           ) : (
             cobrosHoy.map((c) => (
-              <div key={c.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center justify-between">
+              <div key={c.id} className="bg-white rounded-xl border border-zinc-200 px-4 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{c.clientes?.nombre ?? 'Cliente'}</p>
-                  <p className="text-xs text-gray-400 font-mono">{c.numero_pedido}</p>
+                  <p className="text-sm font-medium text-zinc-900">{c.clientes?.nombre ?? 'Cliente'}</p>
+                  <p className="text-xs text-zinc-400 font-mono">{c.numero_pedido}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-green-700">
                     {c.cobrado_monto != null ? formatPEN(c.cobrado_monto) : '—'}
                   </p>
                   {c.cobrado_metodo && (
-                    <p className="text-xs text-gray-400">{
+                    <p className="text-xs text-zinc-400">{
                       { efectivo: '💵', yape: '📱', transferencia: '🏦' }[c.cobrado_metodo] ?? ''
                     } {c.cobrado_metodo}</p>
                   )}
@@ -465,28 +465,28 @@ export default function DeliveryView({
 
             {/* Header del modal */}
             <div className="flex items-center justify-between mb-4">
-              {modal.tipo === 'entregado' && <h3 className="font-bold text-gray-900 flex items-center gap-2"><CheckCircle className="w-5 h-5 text-green-500" /> Registrar entrega</h3>}
-              {modal.tipo === 'incidencia' && <h3 className="font-bold text-gray-900 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-500" /> Reportar problema</h3>}
-              {modal.tipo === 'retorno' && <h3 className="font-bold text-gray-900 flex items-center gap-2"><RotateCcw className="w-5 h-5 text-gray-500" /> Retornar pedido</h3>}
-              {modal.tipo === 'emergencia' && <h3 className="font-bold text-gray-900 flex items-center gap-2"><Siren className="w-5 h-5 text-red-500" /> Emergencia</h3>}
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              {modal.tipo === 'entregado' && <h3 className="font-bold text-zinc-900 flex items-center gap-2"><CheckCircle className="w-5 h-5 text-green-500" /> Registrar entrega</h3>}
+              {modal.tipo === 'incidencia' && <h3 className="font-bold text-zinc-900 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-500" /> Reportar problema</h3>}
+              {modal.tipo === 'retorno' && <h3 className="font-bold text-zinc-900 flex items-center gap-2"><RotateCcw className="w-5 h-5 text-zinc-500" /> Retornar pedido</h3>}
+              {modal.tipo === 'emergencia' && <h3 className="font-bold text-zinc-900 flex items-center gap-2"><Siren className="w-5 h-5 text-red-500" /> Emergencia</h3>}
+              <button onClick={() => setModal(null)} className="text-zinc-400 hover:text-zinc-600"><X className="w-4 h-4" /></button>
             </div>
 
             {/* Entregado */}
             {modal.tipo === 'entregado' && (
               <>
-                <p className="text-xs text-gray-500 mb-1 font-medium">Monto cobrado (opcional)</p>
+                <p className="text-xs text-zinc-500 mb-1 font-medium">Monto cobrado (opcional)</p>
                 <div className="relative mb-3">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                   <input
                     type="number" step="0.10" min="0"
                     value={cobradoMonto}
                     onChange={(e) => setCobradoMonto(e.target.value)}
                     placeholder="0.00"
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                    className="w-full pl-9 pr-3 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mb-2 font-medium">Método de pago</p>
+                <p className="text-xs text-zinc-500 mb-2 font-medium">Método de pago</p>
                 <div className="flex gap-2 mb-4">
                   {[
                     { value: 'efectivo', label: '💵 Efectivo' },
@@ -500,7 +500,7 @@ export default function DeliveryView({
                         'flex-1 py-2 rounded-xl text-xs font-medium border transition',
                         cobradoMetodo === value
                           ? 'bg-green-50 border-green-400 text-green-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-600'
+                          : 'bg-zinc-50 border-zinc-200 text-zinc-600'
                       )}
                     >{label}</button>
                   ))}
@@ -511,18 +511,18 @@ export default function DeliveryView({
             {/* Incidencia */}
             {modal.tipo === 'incidencia' && (
               <>
-                <p className="text-xs text-gray-500 mb-2 font-medium">¿Qué pasó?</p>
+                <p className="text-xs text-zinc-500 mb-2 font-medium">¿Qué pasó?</p>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {INCIDENCIAS.map(({ value, label }) => (
                     <button key={value} onClick={() => setIncTipo(value)}
                       className={cn('py-2 px-3 rounded-xl text-xs font-medium border transition text-left',
-                        incTipo === value ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600'
+                        incTipo === value ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-zinc-50 border-zinc-200 text-zinc-600'
                       )}>{label}</button>
                   ))}
                 </div>
                 <textarea value={incDesc} onChange={(e) => setIncDesc(e.target.value)}
                   placeholder="Detalle adicional (opcional)…" rows={2}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full text-sm border border-zinc-200 rounded-xl px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </>
             )}
@@ -530,19 +530,19 @@ export default function DeliveryView({
             {/* Retorno */}
             {modal.tipo === 'retorno' && (
               <>
-                <p className="text-sm text-gray-600 mb-3">El pedido vuelve a la tienda. Se desasignará de tu lista y el dueño será notificado.</p>
-                <p className="text-xs text-gray-500 mb-2 font-medium">¿Por qué retorna?</p>
+                <p className="text-sm text-zinc-600 mb-3">El pedido vuelve a la tienda. Se desasignará de tu lista y el dueño será notificado.</p>
+                <p className="text-xs text-zinc-500 mb-2 font-medium">¿Por qué retorna?</p>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {INCIDENCIAS.map(({ value, label }) => (
                     <button key={value} onClick={() => setIncTipo(value)}
                       className={cn('py-2 px-3 rounded-xl text-xs font-medium border transition text-left',
-                        incTipo === value ? 'bg-gray-100 border-gray-400 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-600'
+                        incTipo === value ? 'bg-zinc-100 border-zinc-400 text-zinc-700' : 'bg-zinc-50 border-zinc-200 text-zinc-600'
                       )}>{label}</button>
                   ))}
                 </div>
                 <textarea value={incDesc} onChange={(e) => setIncDesc(e.target.value)}
                   placeholder="Detalle adicional (opcional)…" rows={2}
-                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full text-sm border border-zinc-200 rounded-xl px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-gray-400"
                 />
               </>
             )}
@@ -550,7 +550,7 @@ export default function DeliveryView({
             {/* Emergencia */}
             {modal.tipo === 'emergencia' && (
               <>
-                <p className="text-sm text-gray-600 mb-3">Se enviará un mensaje de emergencia al dueño por WhatsApp.</p>
+                <p className="text-sm text-zinc-600 mb-3">Se enviará un mensaje de emergencia al dueño por WhatsApp.</p>
                 <textarea
                   value={emergMsg}
                   onChange={(e) => setEmergMsg(e.target.value)}
@@ -563,7 +563,7 @@ export default function DeliveryView({
 
             <div className="flex gap-2">
               <button onClick={() => setModal(null)}
-                className="flex-1 py-2.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-xl transition">
+                className="flex-1 py-2.5 text-sm text-zinc-600 hover:text-zinc-800 border border-zinc-200 rounded-xl transition">
                 Cancelar
               </button>
               <button
@@ -577,7 +577,7 @@ export default function DeliveryView({
                   'flex-1 py-2.5 text-sm font-semibold rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50',
                   modal.tipo === 'entregado' ? 'bg-green-500 hover:bg-green-600 text-white' :
                   modal.tipo === 'emergencia' ? 'bg-red-500 hover:bg-red-600 text-white' :
-                  modal.tipo === 'retorno' ? 'bg-gray-500 hover:bg-gray-600 text-white' :
+                  modal.tipo === 'retorno' ? 'bg-zinc-500 hover:bg-zinc-600 text-white' :
                   'bg-amber-500 hover:bg-amber-600 text-white'
                 )}
               >

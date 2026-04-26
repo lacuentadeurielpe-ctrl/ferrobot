@@ -29,12 +29,12 @@ export default async function ContabilidadPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Contabilidad</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-lg font-bold text-zinc-950 tracking-tight">Contabilidad</h1>
+        <p className="text-sm text-zinc-500 mt-1">
           Registro de Ventas mensual — exporta en CSV o formato PLE SUNAT
         </p>
         {ferreteria?.ruc && (
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs text-zinc-400 mt-0.5">
             RUC: {ferreteria.ruc} · {ferreteria.razon_social ?? ferreteria.nombre_comercial}
           </p>
         )}

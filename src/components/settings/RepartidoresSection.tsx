@@ -104,15 +104,15 @@ export default function RepartidoresSection({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 p-6">
+    <div className="bg-white rounded-2xl border border-zinc-200 p-6">
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <Truck className="w-5 h-5 text-gray-600" />
-          <h2 className="font-semibold text-gray-900">Repartidores</h2>
+          <Truck className="w-5 h-5 text-zinc-600" />
+          <h2 className="font-semibold text-zinc-900">Repartidores</h2>
         </div>
         <button
           onClick={() => setMostrarForm(!mostrarForm)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-xl transition"
         >
           <Plus className="w-3.5 h-3.5" />
           Agregar
@@ -120,18 +120,18 @@ export default function RepartidoresSection({
       </div>
 
       {/* Modo de asignación */}
-      <div className="mb-5 bg-gray-50 rounded-xl p-4">
+      <div className="mb-5 bg-zinc-50 rounded-xl p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-start gap-2.5">
             {modo === 'libre'
-              ? <Shuffle className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-              : <ListOrdered className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" />
+              ? <Shuffle className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
+              : <ListOrdered className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" />
             }
             <div>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-zinc-900">
                 Modo {modo === 'libre' ? 'libre' : 'manual'}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-zinc-500 mt-0.5">
                 {modo === 'libre'
                   ? 'Al confirmar un pedido, todos los repartidores activos reciben un WhatsApp y el primero que lo acepta se lo lleva.'
                   : 'Asignas manualmente cada pedido a un repartidor desde el panel de pedidos.'
@@ -144,7 +144,7 @@ export default function RepartidoresSection({
             disabled={guardandoModo}
             className={cn(
               'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50',
-              modo === 'libre' ? 'bg-orange-500' : 'bg-gray-200'
+              modo === 'libre' ? 'bg-zinc-900' : 'bg-zinc-200'
             )}
           >
             <span className={cn(
@@ -154,7 +154,7 @@ export default function RepartidoresSection({
           </button>
         </div>
         {modo === 'libre' && (
-          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mt-3">
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mt-3">
             ⚠️ Para que funcione el modo libre, los repartidores necesitan tener teléfono registrado y el sistema necesita WhatsApp configurado.
           </p>
         )}
@@ -162,36 +162,36 @@ export default function RepartidoresSection({
 
       {/* Formulario de nuevo repartidor */}
       {mostrarForm && (
-        <form onSubmit={agregar} className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+        <form onSubmit={agregar} className="bg-zinc-50 rounded-xl p-4 mb-4 space-y-3">
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Nombre *</label>
+            <label className="text-xs font-medium text-zinc-600 mb-1 block">Nombre *</label>
             <input
               value={form.nombre}
               onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               placeholder="Ej: Carlos Flores"
               required
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-300"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">
-              Teléfono {modo === 'libre' && <span className="text-orange-500">* requerido para modo libre</span>}
+            <label className="text-xs font-medium text-zinc-600 mb-1 block">
+              Teléfono {modo === 'libre' && <span className="text-zinc-600">* requerido para modo libre</span>}
             </label>
             <input
               value={form.telefono}
               onChange={(e) => setForm({ ...form, telefono: e.target.value })}
               placeholder="Ej: 51987654321"
               type="tel"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-300"
             />
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setMostrarForm(false)}
-              className="flex-1 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 transition">
+              className="flex-1 py-2 text-sm text-zinc-600 border border-zinc-200 rounded-xl hover:bg-zinc-100 transition">
               Cancelar
             </button>
             <button type="submit" disabled={guardando}
-              className="flex-1 py-2 text-sm font-medium bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition disabled:opacity-60 flex items-center justify-center gap-2">
+              className="flex-1 py-2 text-sm font-medium bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl transition disabled:opacity-60 flex items-center justify-center gap-2">
               {guardando && <Loader2 className="w-4 h-4 animate-spin" />}
               Guardar
             </button>
@@ -200,12 +200,12 @@ export default function RepartidoresSection({
       )}
 
       {cargando ? (
-        <div className="flex items-center gap-2 text-sm text-gray-400 py-3">
+        <div className="flex items-center gap-2 text-sm text-zinc-400 py-3">
           <Loader2 className="w-4 h-4 animate-spin" />
           Cargando…
         </div>
       ) : repartidores.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-6">
+        <p className="text-sm text-zinc-400 text-center py-6">
           No hay repartidores. Agrega uno para empezar.
         </p>
       ) : (
@@ -213,27 +213,27 @@ export default function RepartidoresSection({
           {repartidores.map((r) => (
             <div key={r.id} className={cn(
               'border rounded-xl p-3 transition',
-              r.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'
+              r.activo ? 'border-zinc-200 bg-white' : 'border-zinc-100 bg-zinc-50 opacity-60'
             )}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-900">{r.nombre}</p>
+                    <p className="text-sm font-semibold text-zinc-900">{r.nombre}</p>
                     {modo === 'libre' && !r.telefono && r.activo && (
                       <span className="text-xs text-amber-600 bg-amber-50 rounded px-1.5 py-0.5">sin tel.</span>
                     )}
                   </div>
                   {r.telefono && (
                     <div className="flex items-center gap-1 mt-0.5">
-                      <Phone className="w-3 h-3 text-gray-400" />
-                      <p className="text-xs text-gray-400">{r.telefono}</p>
+                      <Phone className="w-3 h-3 text-zinc-400" />
+                      <p className="text-xs text-zinc-400">{r.telefono}</p>
                     </div>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <span className={cn(
                     'text-xs px-2 py-0.5 rounded-full font-medium',
-                    r.activo ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                    r.activo ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'
                   )}>
                     {r.activo ? 'Activo' : 'Inactivo'}
                   </span>
@@ -241,7 +241,7 @@ export default function RepartidoresSection({
                     onClick={() => toggleActivo(r.id, r.activo)}
                     disabled={accionando === r.id}
                     title={r.activo ? 'Desactivar' : 'Activar'}
-                    className="text-gray-400 hover:text-gray-600 transition"
+                    className="text-zinc-400 hover:text-zinc-600 transition"
                   >
                     {accionando === r.id
                       ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -254,13 +254,13 @@ export default function RepartidoresSection({
               </div>
 
               {r.activo && (
-                <div className="mt-2 flex items-center gap-2 bg-orange-50 rounded-lg px-2.5 py-1.5">
-                  <p className="text-xs text-orange-700 truncate flex-1 font-mono">
+                <div className="mt-2 flex items-center gap-2 bg-zinc-100 rounded-xl px-2.5 py-1.5">
+                  <p className="text-xs text-zinc-700 truncate flex-1 font-mono">
                     {getLinkRepartidor(r.token)}
                   </p>
                   <button
                     onClick={() => copiarLink(r.token)}
-                    className="shrink-0 text-xs font-medium text-orange-600 hover:text-orange-800 flex items-center gap-1"
+                    className="shrink-0 text-xs font-medium text-zinc-600 hover:text-zinc-900 flex items-center gap-1"
                   >
                     {copiado === r.token
                       ? <><Check className="w-3.5 h-3.5 text-green-600" /> Copiado</>
@@ -274,7 +274,7 @@ export default function RepartidoresSection({
         </div>
       )}
 
-      <p className="text-xs text-gray-400 mt-4">
+      <p className="text-xs text-zinc-400 mt-4">
         Cada repartidor recibe un link único que puede abrir en su celular para ver y gestionar sus entregas.
       </p>
     </div>

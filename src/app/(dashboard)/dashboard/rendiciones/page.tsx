@@ -35,12 +35,12 @@ export default async function RendicionesPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center">
-          <ClipboardList className="w-5 h-5 text-purple-600" />
+        <div className="w-9 h-9 bg-zinc-100 border border-zinc-200 rounded-2xl flex items-center justify-center">
+          <ClipboardList className="w-4 h-4 text-zinc-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Rendiciones</h1>
-          <p className="text-xs text-gray-500">Cierre de caja de repartidores por día</p>
+          <h1 className="text-lg font-bold text-zinc-950 tracking-tight">Rendiciones</h1>
+          <p className="text-xs text-zinc-400">Cierre de caja de repartidores por día</p>
         </div>
       </div>
 

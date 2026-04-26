@@ -55,7 +55,7 @@ const COLOR_MAP: Record<string, string> = {
   green:  'bg-green-50 border-green-300 text-green-800',
   blue:   'bg-blue-50  border-blue-300  text-blue-800',
   purple: 'bg-purple-50 border-purple-300 text-purple-800',
-  gray:   'bg-gray-50  border-gray-300  text-gray-700',
+  gray:   'bg-zinc-50  border-zinc-300  text-zinc-700',
 }
 
 function AsistenteRegimen({
@@ -112,7 +112,7 @@ function AsistenteRegimen({
   }
 
   return (
-    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold text-blue-800">¿Cuánto facturas al año aproximadamente?</p>
         <button
@@ -142,16 +142,16 @@ function AsistenteRegimen({
       </div>
 
       {sugerido && (
-        <div className={`rounded-lg border p-3 ${COLOR_MAP[TRAMO_INFO[sugerido].color]}`}>
+        <div className={`rounded-xl border p-3 ${COLOR_MAP[TRAMO_INFO[sugerido].color]}`}>
           <p className="text-xs font-bold">{TRAMO_INFO[sugerido].label}</p>
           <p className="text-xs mt-0.5 opacity-80">{TRAMO_INFO[sugerido].descripcion}</p>
           {sugerido === 'nrus' && !mostrarNrus && (
-            <p className="text-xs mt-1 text-orange-700">⚠ Nuevo RUS solo aplica a personas naturales (RUC 10)</p>
+            <p className="text-xs mt-1 text-zinc-900">⚠ Nuevo RUS solo aplica a personas naturales (RUC 10)</p>
           )}
           <button
             type="button"
             onClick={() => aplicar(sugerido)}
-            className="mt-2 text-xs px-3 py-1 bg-white rounded border font-medium hover:bg-gray-50 transition"
+            className="mt-2 text-xs px-3 py-1 bg-white rounded border font-medium hover:bg-zinc-50 transition"
           >
             Usar {TRAMO_INFO[sugerido].label}
           </button>
@@ -259,38 +259,38 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
   }
 
   return (
-    <div className="p-4 bg-white border border-gray-200 rounded-xl space-y-4">
+    <div className="p-4 bg-white border border-zinc-200 rounded-xl space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-lg">🔌</span>
           <div>
-            <p className="text-sm font-semibold text-gray-800">Nubefact — Facturación electrónica</p>
-            <p className="text-xs text-gray-500">Emite boletas y facturas electrónicas ante SUNAT</p>
+            <p className="text-sm font-semibold text-zinc-800">Nubefact — Facturación electrónica</p>
+            <p className="text-xs text-zinc-500">Emite boletas y facturas electrónicas ante SUNAT</p>
           </div>
         </div>
         {configurado ? (
           <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Conectado</span>
         ) : (
-          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Sin configurar</span>
+          <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">Sin configurar</span>
         )}
       </div>
 
       {/* Modo */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Modo de operación</label>
+        <label className="block text-xs font-medium text-zinc-600 mb-1">Modo de operación</label>
         <div className="flex gap-2">
           {(['prueba', 'produccion'] as const).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setModo(m)}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg border-2 transition ${
+              className={`flex-1 py-2 text-xs font-medium rounded-xl border-2 transition ${
                 modo === m
                   ? m === 'produccion'
                     ? 'border-green-500 bg-green-50 text-green-700'
                     : 'border-blue-400 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  : 'border-zinc-200 text-zinc-500 hover:border-zinc-300'
               }`}
             >
               {m === 'prueba' ? '🧪 Prueba (sin costo)' : '🏭 Producción (documentos reales)'}
@@ -298,7 +298,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
           ))}
         </div>
         {modo === 'produccion' && (
-          <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+          <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
             <span>⚠</span>
             <span>En producción las boletas son documentos tributarios reales ante SUNAT.</span>
           </p>
@@ -306,8 +306,8 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
       </div>
 
       {/* Instrucción */}
-      <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
-        <p className="font-medium text-gray-700">¿Dónde encuentro estos datos?</p>
+      <div className="text-xs text-zinc-500 bg-zinc-50 rounded-xl p-3 space-y-1">
+        <p className="font-medium text-zinc-700">¿Dónde encuentro estos datos?</p>
         <p>En Nubefact → menú superior → <strong>Configuración → API - Integración</strong></p>
         <p>Verás una tabla con <strong>RUTA</strong> y <strong>TOKEN</strong> — copia ambos aquí.</p>
         <a
@@ -322,24 +322,24 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
 
       {/* Ruta */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">
+        <label className="block text-xs font-medium text-zinc-600 mb-1">
           Ruta <span className="text-red-500">*</span>
-          <span className="font-normal text-gray-400 ml-1">(columna RUTA en Nubefact)</span>
+          <span className="font-normal text-zinc-400 ml-1">(columna RUTA en Nubefact)</span>
         </label>
         <input
           type="text"
           value={ruta}
           onChange={(e) => setRuta(e.target.value)}
           placeholder="https://api.nubefact.com/api/v1/xxxxxxxx-xxxx-xxxx-xxxx-..."
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
       </div>
 
       {/* Token */}
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">
+        <label className="block text-xs font-medium text-zinc-600 mb-1">
           Token <span className="text-red-500">*</span>
-          <span className="font-normal text-gray-400 ml-1">(columna TOKEN en Nubefact)</span>
+          <span className="font-normal text-zinc-400 ml-1">(columna TOKEN en Nubefact)</span>
         </label>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -348,12 +348,12 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder={configurado ? '••••••••  (deja vacío para no cambiar)' : 'Pega el token aquí'}
-              className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 pr-10 rounded-xl border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
             <button
               type="button"
               onClick={() => setMostrarToken(!mostrarToken)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 text-xs"
             >
               {mostrarToken ? '🙈' : '👁'}
             </button>
@@ -362,7 +362,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
             type="button"
             onClick={probarConexion}
             disabled={testeando || !ruta.trim()}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-lg transition whitespace-nowrap"
+            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-xl transition whitespace-nowrap"
           >
             {testeando ? '...' : 'Probar'}
           </button>
@@ -387,7 +387,7 @@ function SeccionNubefact({ initialConfig }: { initialConfig: { configurado: bool
           type="button"
           onClick={guardar}
           disabled={guardando}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium rounded-xl transition"
         >
           {guardando ? 'Guardando...' : 'Guardar Nubefact'}
         </button>
@@ -507,7 +507,7 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
       {/* Tipo RUC */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de contribuyente</label>
+        <label className="block text-sm font-medium text-zinc-700 mb-2">Tipo de contribuyente</label>
         <div className="space-y-2">
           {(['sin_ruc', 'ruc10', 'ruc20'] as TipoRuc[]).map((tipo) => (
             <button
@@ -516,11 +516,11 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
               onClick={() => set('tipo_ruc', tipo)}
               className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-colors ${
                 data.tipo_ruc === tipo
-                  ? 'border-orange-400 bg-orange-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-zinc-900 bg-zinc-50'
+                  : 'border-zinc-200 hover:border-zinc-300'
               }`}
             >
-              <span className={`text-sm font-medium ${data.tipo_ruc === tipo ? 'text-orange-700' : 'text-gray-700'}`}>
+              <span className={`text-sm font-medium ${data.tipo_ruc === tipo ? 'text-zinc-900' : 'text-zinc-700'}`}>
                 {TIPO_LABEL[tipo]}
               </span>
             </button>
@@ -530,14 +530,14 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
       {/* Datos tributarios */}
       {!esSinRuc && (
-        <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Datos tributarios</p>
+        <div className="space-y-4 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Datos tributarios</p>
 
           {/* RUC + Régimen */}
           <div className="grid grid-cols-2 gap-4">
             {/* RUC */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 RUC <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-2">
@@ -547,21 +547,21 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
                   onChange={(e) => set('ruc', e.target.value.replace(/\D/g, '').slice(0, 11))}
                   placeholder="20123456789"
                   maxLength={11}
-                  className={`flex-1 px-3 py-2 rounded-lg border text-sm font-mono focus:outline-none focus:ring-2 transition ${
+                  className={`flex-1 px-3 py-2 rounded-xl border text-sm font-mono focus:outline-none focus:ring-2 transition ${
                     rucInfo
                       ? rucInfo.activo
                         ? 'border-green-400 focus:ring-green-300'
                         : 'border-yellow-400 focus:ring-yellow-300'
                       : rucError
                       ? 'border-red-400 focus:ring-red-300'
-                      : 'border-gray-200 focus:ring-orange-400'
+                      : 'border-zinc-200 focus:ring-zinc-300'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={verificarRuc}
                   disabled={rucVerificando || (data.ruc ?? '').replace(/\D/g, '').length !== 11}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-lg transition whitespace-nowrap"
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded-xl transition whitespace-nowrap"
                 >
                   {rucVerificando ? '...' : 'Verificar'}
                 </button>
@@ -578,13 +578,13 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
             {/* Régimen */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Régimen <span className="text-red-500">*</span>
               </label>
               <select
                 value={data.regimen_tributario ?? ''}
                 onChange={(e) => set('regimen_tributario', (e.target.value as RegimenTributario) || null)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
               >
                 <option value="">Seleccionar...</option>
                 {data.tipo_ruc === 'ruc10' && (
@@ -613,7 +613,7 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
             {/* Razón social */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Razón social <span className="text-red-500">*</span>
               </label>
               <input
@@ -621,7 +621,7 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
                 value={data.razon_social ?? ''}
                 onChange={(e) => set('razon_social', e.target.value)}
                 placeholder={data.tipo_ruc === 'ruc10' ? 'PÉREZ GARCÍA JUAN' : 'FERRETERÍA DON MARIO E.I.R.L.'}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300"
               />
               {rsAutocompletada && (
                 <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
@@ -645,9 +645,9 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
             {/* Nombre comercial */}
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Nombre comercial
-                <span className="text-gray-400 font-normal ml-1 text-xs">(el nombre con el que te conocen los clientes)</span>
+                <span className="text-zinc-400 font-normal ml-1 text-xs">(el nombre con el que te conocen los clientes)</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -655,7 +655,7 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
                   value={data.nombre_comercial ?? ''}
                   onChange={(e) => set('nombre_comercial', e.target.value || null)}
                   placeholder="Ej: Ferretería Don Mario"
-                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="flex-1 px-3 py-2 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
                 />
                 {/* Botón de copia solo si razón social está llena y nombre comercial está vacío */}
                 {data.razon_social?.trim() && !data.nombre_comercial?.trim() && (
@@ -663,13 +663,13 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
                     type="button"
                     onClick={() => set('nombre_comercial', data.razon_social)}
                     title="Copiar razón social"
-                    className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg border border-gray-200 transition whitespace-nowrap"
+                    className="px-3 py-2 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-xl border border-zinc-200 transition whitespace-nowrap"
                   >
                     Igual que razón social
                   </button>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-zinc-400 mt-1">
                 Opcional. Si tu tienda tiene nombre propio distinto a tu razón social (SUNAT no lo registra).
               </p>
             </div>
@@ -679,11 +679,11 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
       {/* Representante legal — solo RUC20 */}
       {esRuc20 && (
-        <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Representante legal</p>
+        <div className="space-y-4 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Representante legal</p>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Nombre completo <span className="text-red-500">*</span>
               </label>
               <input
@@ -691,27 +691,27 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
                 value={data.representante_legal_nombre ?? ''}
                 onChange={(e) => set('representante_legal_nombre', e.target.value || null)}
                 placeholder="Juan Pérez García"
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">DNI</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">DNI</label>
               <input
                 type="text"
                 value={data.representante_legal_dni ?? ''}
                 onChange={(e) => set('representante_legal_dni', e.target.value.replace(/\D/g, '').slice(0, 8) || null)}
                 placeholder="12345678"
                 maxLength={8}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Cargo</label>
               <input
                 type="text"
                 value={data.representante_legal_cargo ?? 'Gerente General'}
                 onChange={(e) => set('representante_legal_cargo', e.target.value || null)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
               />
             </div>
           </div>
@@ -719,12 +719,12 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
       )}
 
       {/* Series y configuración IGV */}
-      <div className="space-y-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Series de comprobantes</p>
+      <div className="space-y-4 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Series de comprobantes</p>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               {esSinRuc ? 'Serie Notas de Venta' : 'Serie Boletas Electrónicas'}
             </label>
             <input
@@ -733,12 +733,12 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
               onChange={(e) => set('serie_boletas', e.target.value.toUpperCase().slice(0, 4))}
               placeholder="B001"
               maxLength={4}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300"
             />
             {esSinRuc ? (
-              <p className="text-xs text-gray-400 mt-1">Ej: B001 → B001-000001</p>
+              <p className="text-xs text-zinc-400 mt-1">Ej: B001 → B001-000001</p>
             ) : (
-              <p className="text-xs text-orange-600 mt-1 flex items-start gap-1">
+              <p className="text-xs text-amber-600 mt-1 flex items-start gap-1">
                 <span>⚠</span>
                 <span>
                   Debe coincidir <strong>exactamente</strong> con la serie configurada en tu cuenta Nubefact.
@@ -758,8 +758,8 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
           {!esSinRuc && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Serie Facturas {data.tipo_ruc !== 'ruc20' && <span className="text-gray-400 font-normal">(solo RUC20)</span>}
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Serie Facturas {data.tipo_ruc !== 'ruc20' && <span className="text-zinc-400 font-normal">(solo RUC20)</span>}
               </label>
               <input
                 type="text"
@@ -768,7 +768,7 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
                 placeholder="F001"
                 maxLength={4}
                 disabled={data.tipo_ruc !== 'ruc20'}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-50 disabled:bg-gray-100"
+                className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:opacity-50 disabled:bg-zinc-100"
               />
             </div>
           )}
@@ -781,11 +781,11 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
             id="igv_incluido"
             checked={data.igv_incluido_en_precios}
             onChange={(e) => set('igv_incluido_en_precios', e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+            className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-300"
           />
-          <label htmlFor="igv_incluido" className="text-sm text-gray-700 cursor-pointer">
+          <label htmlFor="igv_incluido" className="text-sm text-zinc-700 cursor-pointer">
             <span className="font-medium">Los precios de mis productos ya incluyen IGV (18%)</span>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-zinc-400 mt-0.5">
               Si activas esto, el sistema no agregará IGV adicional al calcular comprobantes.
             </p>
           </label>
@@ -797,17 +797,17 @@ export default function FacturacionTab({ inicial, nubefactConfig }: Props) {
 
       {/* Feedback */}
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>
       )}
       {success && (
-        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{success}</p>
+        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">{success}</p>
       )}
 
       <div className="flex justify-end">
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition"
+          className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white font-medium rounded-xl text-sm transition"
         >
           {loading ? 'Guardando...' : 'Guardar facturación'}
         </button>
