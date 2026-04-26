@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatFecha, formatHora } from '@/lib/utils'
-import { Send, RefreshCw, ArrowLeft } from 'lucide-react'
+import { Send, RefreshCw, ArrowLeft, Bot } from 'lucide-react'
 
 interface Mensaje {
   id: string
@@ -27,21 +27,52 @@ interface ChatViewProps {
   ferreteriaId: string
 }
 
-// ── Estilos de burbuja por rol ─────────────────────────────────────────────────
-function getBubbleStyle(role: string): string {
+// ── Estilos de burbuja por rol ────────────────────────────────────────────────
+function getBubbleStyle(role: string) {
   if (role === 'cliente')
-    return 'bg-zinc-100 text-zinc-900 self-start rounded-2xl rounded-tl-sm'
+    return {
+      wrap:   'mr-12 items-start',
+      bubble: 'bg-white border border-zinc-200 text-zinc-900 rounded-2xl rounded-tl-none shadow-sm',
+      time:   'text-zinc-400',
+    }
   if (role === 'dueno')
-    return 'bg-zinc-900 text-white self-end rounded-2xl rounded-tr-sm'
+    return {
+      wrap:   'ml-12 items-end',
+      bubble: 'bg-zinc-900 text-white rounded-2xl rounded-tr-none',
+      time:   'text-zinc-500',
+    }
   // bot
-  return 'bg-white border border-zinc-200 text-zinc-700 self-start rounded-2xl rounded-tl-sm'
+  return {
+    wrap:   'mr-12 items-start',
+    bubble: 'bg-zinc-50 border border-zinc-200 text-zinc-700 rounded-2xl rounded-tl-none',
+    time:   'text-zinc-400',
+  }
 }
 
 function getRoleLabel(role: string, primerNombre: string): string {
   if (role === 'cliente') return primerNombre
-  if (role === 'bot')     return '🤖 Bot'
+  if (role === 'bot')     return 'Bot'
   if (role === 'dueno')   return 'Tú'
   return role
+}
+
+// Cola de la burbuja (triángulo estilo WhatsApp)
+function BubbleTail({ role }: { role: string }) {
+  if (role === 'dueno') {
+    return (
+      <div className="absolute -right-[7px] top-0 w-0 h-0
+        border-l-[8px] border-l-zinc-900
+        border-b-[8px] border-b-transparent" />
+    )
+  }
+  const color = role === 'bot' ? 'border-r-zinc-200' : 'border-r-white'
+  return (
+    <div className={cn(
+      'absolute -left-[7px] top-0 w-0 h-0',
+      'border-r-[8px]', color,
+      'border-b-[8px] border-b-transparent'
+    )} />
+  )
 }
 
 export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId }: ChatViewProps) {
@@ -125,7 +156,6 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
   async function handleResumir() {
     setResumiendo(true)
     setError(null)
-
     try {
       const res = await fetch(`/api/conversations/${conversacion.id}/resume`, { method: 'POST' })
       if (!res.ok) throw new Error('Error al reactivar el bot')
@@ -145,7 +175,6 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
     }
   }
 
-  // Auto-resize del textarea
   function autoResize(el: HTMLTextAreaElement) {
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 128) + 'px'
@@ -154,8 +183,12 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
   const nombreCliente = conversacion.clientes?.nombre ?? conversacion.clientes?.telefono ?? 'Cliente'
   const primerNombre  = nombreCliente.split(' ')[0]
   const telefono      = conversacion.clientes?.telefono ?? ''
+  const iniciales     = nombreCliente.trim().split(' ').filter(Boolean)
+    .slice(0, 2).map((w: string) => w[0].toUpperCase()).join('')
 
-  let lastDate = ''
+  // Agrupación de mensajes consecutivos del mismo rol
+  let lastDate  = ''
+  let lastRole  = ''
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -174,10 +207,8 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
           </button>
 
           {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 select-none">
-            <span className="text-xs font-semibold text-zinc-600">
-              {nombreCliente[0]?.toUpperCase() ?? '?'}
-            </span>
+          <div className="w-9 h-9 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 select-none">
+            <span className="text-xs font-bold text-zinc-600">{iniciales || '?'}</span>
           </div>
 
           <div className="min-w-0">
@@ -185,7 +216,7 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
               {nombreCliente}
             </p>
             {telefono && (
-              <p className="text-xs text-zinc-400 tabular-nums">{telefono}</p>
+              <p className="text-[11px] text-zinc-400 tabular-nums">+{telefono}</p>
             )}
           </div>
         </div>
@@ -194,7 +225,7 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
         <div className="flex items-center gap-2 shrink-0">
           {botPausado ? (
             <>
-              <span className="hidden sm:inline text-xs text-zinc-500 bg-zinc-100
+              <span className="hidden sm:inline text-[11px] text-zinc-500 bg-zinc-100
                               px-2.5 py-1 rounded-full font-medium border border-zinc-200">
                 Tú al control
               </span>
@@ -210,54 +241,88 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
               </button>
             </>
           ) : (
-            <span className="text-xs text-zinc-400 bg-zinc-50 px-2.5 py-1 rounded-full
-                            border border-zinc-100 font-medium">
-              🤖 Bot activo
+            <span className="flex items-center gap-1.5 text-[11px] text-zinc-400 bg-zinc-50
+                            px-2.5 py-1 rounded-full border border-zinc-100 font-medium">
+              <Bot className="w-3 h-3" />
+              <span className="hidden sm:inline">Bot activo</span>
             </span>
           )}
         </div>
       </div>
 
       {/* ── Mensajes ───────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-1">
-
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4"
+        style={{ background: 'linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%)' }}
+      >
         {mensajes.length === 0 && (
-          <p className="text-center text-xs text-zinc-300 mt-12 select-none">
+          <p className="text-center text-xs text-zinc-300 mt-16 select-none">
             Sin mensajes aún
           </p>
         )}
 
-        {mensajes.map((msg) => {
-          const fechaStr = formatFecha(msg.created_at)
-          const showDate = fechaStr !== lastDate
+        {mensajes.map((msg, idx) => {
+          const fechaStr  = formatFecha(msg.created_at)
+          const showDate  = fechaStr !== lastDate
+          const isFirst   = msg.role !== lastRole  // primer mensaje del grupo
+          const isLast    = idx === mensajes.length - 1 || mensajes[idx + 1]?.role !== msg.role
+
           lastDate = fechaStr
+          lastRole = msg.role
+
+          const styles = getBubbleStyle(msg.role)
+          const isDueno = msg.role === 'dueno'
 
           return (
             <div key={msg.id}>
               {/* Separador de fecha */}
               {showDate && (
                 <div className="flex items-center gap-3 my-5">
-                  <div className="flex-1 h-px bg-zinc-100" />
-                  <span className="text-[11px] text-zinc-400 font-medium select-none">
+                  <div className="flex-1 h-px bg-zinc-200/60" />
+                  <span className="text-[10px] text-zinc-400 font-medium bg-white
+                                   px-2.5 py-1 rounded-full border border-zinc-200 select-none">
                     {fechaStr}
                   </span>
-                  <div className="flex-1 h-px bg-zinc-100" />
+                  <div className="flex-1 h-px bg-zinc-200/60" />
                 </div>
               )}
 
               {/* Burbuja */}
               <div className={cn(
-                'flex flex-col max-w-[72%] mb-1',
-                msg.role === 'dueno' ? 'ml-auto items-end' : 'mr-auto items-start'
+                'flex flex-col mb-0.5',
+                isLast && 'mb-3',
+                styles.wrap
               )}>
-                <span className="text-[10px] text-zinc-400 mb-1 px-1 select-none">
-                  {getRoleLabel(msg.role, primerNombre)} · {formatHora(msg.created_at)}
-                </span>
-                <div className={cn(
-                  'px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words leading-relaxed',
-                  getBubbleStyle(msg.role)
-                )}>
-                  {msg.contenido}
+                {/* Label del emisor — solo en el primer mensaje del grupo */}
+                {isFirst && (
+                  <span className={cn(
+                    'text-[10px] font-semibold mb-1 px-1 select-none flex items-center gap-1',
+                    isDueno ? 'self-end text-zinc-400' : 'text-zinc-400'
+                  )}>
+                    {msg.role === 'bot' && <Bot className="w-2.5 h-2.5" />}
+                    {getRoleLabel(msg.role, primerNombre)}
+                  </span>
+                )}
+
+                {/* Burbuja con cola */}
+                <div className={cn('relative', isDueno ? 'self-end' : 'self-start')}>
+                  {/* Cola — solo en primer mensaje del grupo */}
+                  {isFirst && <BubbleTail role={msg.role} />}
+
+                  <div className={cn(
+                    'px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words leading-relaxed',
+                    'max-w-[min(400px,72vw)]',
+                    styles.bubble
+                  )}>
+                    {msg.contenido}
+                    {/* Hora inline al final del mensaje */}
+                    <span className={cn(
+                      'text-[10px] ml-2 float-right mt-1 tabular-nums select-none',
+                      styles.time
+                    )}>
+                      {formatHora(msg.created_at)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -269,7 +334,7 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
 
       {/* ── Error ──────────────────────────────────────────────────────────── */}
       {error && (
-        <div className="mx-4 mb-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-xs text-red-600">
+        <div className="mx-4 mb-2 px-3 py-2 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600">
           {error}
         </div>
       )}
@@ -277,8 +342,8 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
       {/* ── Input ──────────────────────────────────────────────────────────── */}
       <div className="px-4 py-3 border-t border-zinc-100 bg-white shrink-0">
         {botPausado && (
-          <p className="text-xs text-zinc-400 mb-2 select-none">
-            El bot no responderá hasta que lo reactives
+          <p className="text-[11px] text-zinc-400 mb-2 select-none">
+            El bot está pausado — tus mensajes llegan directamente al cliente
           </p>
         )}
         <div className="flex items-end gap-2">
@@ -287,23 +352,29 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
             value={texto}
             onChange={(e) => { setTexto(e.target.value); autoResize(e.target) }}
             onKeyDown={handleKeyDown}
-            placeholder="Escribe un mensaje..."
+            placeholder="Escribe un mensaje… (Enter para enviar)"
             rows={1}
-            className="flex-1 resize-none bg-zinc-50 border border-zinc-200 rounded-xl
-                       px-3.5 py-2.5 text-sm text-zinc-900
+            className="flex-1 resize-none bg-zinc-50 border border-zinc-200 rounded-2xl
+                       px-4 py-2.5 text-sm text-zinc-900
                        focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900
                        transition placeholder:text-zinc-400 min-h-[44px] max-h-32 leading-relaxed"
           />
           <button
             onClick={handleEnviar}
             disabled={!texto.trim() || enviando}
-            className="w-11 h-11 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white
+            className="w-11 h-11 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-white
                        flex items-center justify-center transition
                        disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
           >
-            <Send className="w-4 h-4" />
+            {enviando
+              ? <RefreshCw className="w-4 h-4 animate-spin" />
+              : <Send className="w-4 h-4" />
+            }
           </button>
         </div>
+        <p className="text-[10px] text-zinc-300 mt-1.5 select-none">
+          Shift+Enter para nueva línea
+        </p>
       </div>
 
     </div>

@@ -5,9 +5,8 @@ import { createClient }    from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import ConversationsList   from '@/components/conversations/ConversationsList'
 import ChatView            from '@/components/conversations/ChatView'
+import ContextPanel        from '@/components/conversations/ContextPanel'
 import { getSessionInfo }  from '@/lib/auth/roles'
-import Link                from 'next/link'
-import { Phone, ExternalLink, ShoppingCart, User } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,7 +81,23 @@ export default async function ConversationPage({ params }: Props) {
     : conversacion.clientes
   const cliente      = clienteRaw as { nombre: string | null; telefono: string } | null
   const clienteId    = (conversacion as Record<string, unknown>).cliente_id as string | null
-  const nombreCliente = cliente?.nombre ?? cliente?.telefono ?? 'Cliente'
+
+  // Últimos pedidos del cliente para el panel CRM
+  const { data: pedidosCliente } = clienteId
+    ? await supabase
+        .from('pedidos')
+        .select('id, numero_pedido, estado, total, created_at, modalidad')
+        .eq('ferreteria_id', session.ferreteriaId)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false })
+        .limit(4)
+    : { data: null }
+
+  // Total de mensajes para stats
+  const { count: totalMensajes } = await supabase
+    .from('mensajes')
+    .select('*', { count: 'exact', head: true })
+    .eq('conversacion_id', id)
 
   return (
     <div className="absolute inset-0 flex overflow-hidden">
@@ -105,88 +120,17 @@ export default async function ConversationPage({ params }: Props) {
       </div>
 
       {/* ── Panel contextual — solo xl+ ───────────────────────────────────── */}
-      <aside className="hidden xl:flex w-64 shrink-0 border-l border-zinc-100 bg-white flex-col">
-
-        {/* Cliente */}
-        <div className="px-5 pt-5 pb-4 border-b border-zinc-100">
-          <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-3 select-none">
-            Cliente
-          </p>
-
-          {/* Avatar + nombre */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 select-none">
-              <span className="text-sm font-semibold text-zinc-600">
-                {nombreCliente[0]?.toUpperCase() ?? '?'}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-zinc-950 truncate">{nombreCliente}</p>
-              {cliente?.telefono && (
-                <p className="text-xs text-zinc-400 tabular-nums">{cliente.telefono}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Links rápidos */}
-          <div className="space-y-1">
-            {cliente?.telefono && (
-              <a
-                href={`tel:${cliente.telefono}`}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium
-                           text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 transition"
-              >
-                <Phone className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                Llamar
-              </a>
-            )}
-            {clienteId && (
-              <Link
-                href={`/dashboard/clientes/${clienteId}`}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium
-                           text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 transition"
-              >
-                <User className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                Ver perfil completo
-                <ExternalLink className="w-3 h-3 ml-auto text-zinc-300" />
-              </Link>
-            )}
-          </div>
-        </div>
-
-        {/* Pedidos */}
-        <div className="px-5 pt-4 pb-4 border-b border-zinc-100">
-          <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-3 select-none">
-            Pedidos
-          </p>
-          <Link
-            href={`/dashboard/orders${clienteId ? `?cliente=${clienteId}` : ''}`}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium
-                       text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 transition"
-          >
-            <ShoppingCart className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-            Ver pedidos del cliente
-            <ExternalLink className="w-3 h-3 ml-auto text-zinc-300" />
-          </Link>
-        </div>
-
-        {/* Estado del bot */}
-        <div className="px-5 pt-4">
-          <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 select-none">
-            Estado
-          </p>
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium
-            ${conversacion.bot_pausado
-              ? 'bg-zinc-100 text-zinc-600 border border-zinc-200'
-              : 'bg-zinc-50 text-zinc-500 border border-zinc-100'
-            }`}
-          >
-            <span>{conversacion.bot_pausado ? '⏸' : '🤖'}</span>
-            {conversacion.bot_pausado ? 'Tú al control' : 'Bot activo'}
-          </div>
-        </div>
-
-      </aside>
+      <ContextPanel
+        conversacion={{
+          id,
+          bot_pausado: conversacion.bot_pausado,
+          created_at: (conversacion as Record<string, unknown>).created_at as string,
+        }}
+        cliente={cliente}
+        clienteId={clienteId}
+        pedidos={pedidosCliente ?? []}
+        totalMensajes={totalMensajes ?? 0}
+      />
 
     </div>
   )

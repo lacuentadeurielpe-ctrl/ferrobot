@@ -35,42 +35,40 @@ export async function getOrCreateSession(
     cliente = nuevoCliente
   }
 
-  // 2. Buscar conversación activa dentro del timeout
-  const limiteTimeout = new Date(Date.now() - timeoutSesionMinutos * 60 * 1000).toISOString()
-
+  // 2. Buscar la conversación más reciente del cliente — modelo WhatsApp:
+  //    una sola conversación por número de teléfono, permanente, nunca expira.
   const { data: conversacionExistente } = await supabase
     .from('conversaciones')
     .select('*')
     .eq('ferreteria_id', ferreteriaId)
     .eq('cliente_id', cliente.id)
-    .in('estado', ['activa', 'intervenida_dueno'])
-    .gte('ultima_actividad', limiteTimeout)
     .order('ultima_actividad', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (conversacionExistente) {
-    // Actualizar última actividad
+    // Si estaba cerrada, reabrirla
+    const esCerrada = conversacionExistente.estado === 'cerrada'
     await supabase
       .from('conversaciones')
-      .update({ ultima_actividad: new Date().toISOString() })
+      .update({
+        ultima_actividad: new Date().toISOString(),
+        ...(esCerrada ? { estado: 'activa', bot_pausado: false } : {}),
+      })
       .eq('id', conversacionExistente.id)
 
     return {
-      conversacion: { ...conversacionExistente, ultima_actividad: new Date().toISOString() },
+      conversacion: {
+        ...conversacionExistente,
+        ultima_actividad: new Date().toISOString(),
+        ...(esCerrada ? { estado: 'activa', bot_pausado: false } : {}),
+      },
       cliente,
       esNueva: false,
     }
   }
 
-  // 3. Crear nueva conversación (cerrar las anteriores por si quedan abiertas)
-  await supabase
-    .from('conversaciones')
-    .update({ estado: 'cerrada' })
-    .eq('ferreteria_id', ferreteriaId)
-    .eq('cliente_id', cliente.id)
-    .eq('estado', 'activa')
-
+  // 3. Crear conversación (solo si no existe ninguna para este cliente)
   const { data: nuevaConversacion, error: errConv } = await supabase
     .from('conversaciones')
     .insert({
