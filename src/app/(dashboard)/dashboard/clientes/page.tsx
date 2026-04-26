@@ -44,12 +44,12 @@ export default async function ClientesPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 bg-orange-100 rounded-lg flex items-center justify-center">
-          <Users className="w-5 h-5 text-orange-600" />
+        <div className="w-9 h-9 bg-zinc-100 border border-zinc-200 rounded-2xl flex items-center justify-center">
+          <Users className="w-4 h-4 text-zinc-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Clientes</h1>
-          <p className="text-xs text-gray-500">{clientesConMetricas.length} clientes registrados</p>
+          <h1 className="text-lg font-bold text-zinc-950 tracking-tight">Clientes</h1>
+          <p className="text-xs text-zinc-400">{clientesConMetricas.length} clientes registrados</p>
         </div>
       </div>
 
