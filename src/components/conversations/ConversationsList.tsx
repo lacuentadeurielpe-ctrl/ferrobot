@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, truncar } from '@/lib/utils'
-import { Bot, MessageSquare, Search, X } from 'lucide-react'
+import { MessageSquare, Search, X } from 'lucide-react'
 
 interface ConversacionItem {
   id: string
@@ -21,141 +21,206 @@ interface ConversationsListProps {
   ferreteriaId: string
 }
 
+type Filtro = 'todos' | 'pausado' | 'bot'
+
+function getInitials(nombre: string | null, telefono: string): string {
+  if (nombre) {
+    const words = nombre.trim().split(' ').filter(Boolean)
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
+    return words[0]?.[0]?.toUpperCase() ?? '?'
+  }
+  return telefono.slice(-2)
+}
+
+const FILTROS: { id: Filtro; label: string }[] = [
+  { id: 'todos',   label: 'Todos' },
+  { id: 'pausado', label: 'Tú al control' },
+  { id: 'bot',     label: 'Bot activo' },
+]
+
 export default function ConversationsList({ inicial, ferreteriaId }: ConversationsListProps) {
-  const router = useRouter()
-  const params = useParams()
-  const conversacionActiva = params?.id as string | undefined
+  const router               = useRouter()
+  const params               = useParams()
+  const conversacionActiva   = params?.id as string | undefined
 
   const [conversaciones, setConversaciones] = useState(inicial)
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda]             = useState('')
+  const [filtro,   setFiltro]               = useState<Filtro>('todos')
 
+  // ── Filtrado local ──────────────────────────────────────────────────────────
   const conversacionesFiltradas = useMemo(() => {
-    const q = busqueda.toLowerCase().trim()
-    if (!q) return conversaciones
-    return conversaciones.filter((conv) => {
-      const nombre = conv.clientes?.nombre?.toLowerCase() ?? ''
-      const tel = conv.clientes?.telefono ?? ''
-      return nombre.includes(q) || tel.includes(q)
-    })
-  }, [conversaciones, busqueda])
+    let lista = conversaciones
+    const q   = busqueda.toLowerCase().trim()
 
-  // Suscripción Realtime a nuevos mensajes y cambios en conversaciones
+    if (q) {
+      lista = lista.filter((conv) => {
+        const nombre = conv.clientes?.nombre?.toLowerCase() ?? ''
+        const tel    = conv.clientes?.telefono ?? ''
+        return nombre.includes(q) || tel.includes(q)
+      })
+    }
+
+    if (filtro === 'pausado') lista = lista.filter(c =>  c.bot_pausado)
+    if (filtro === 'bot')     lista = lista.filter(c => !c.bot_pausado)
+
+    return lista
+  }, [conversaciones, busqueda, filtro])
+
+  // ── Realtime ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient()
-
-    const channel = supabase
+    const channel  = supabase
       .channel(`conversaciones-${ferreteriaId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'conversaciones',
-          filter: `ferreteria_id=eq.${ferreteriaId}`,
-        },
-        () => {
-          // Recargar la lista cuando cambia una conversación
-          router.refresh()
-        }
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'conversaciones', filter: `ferreteria_id=eq.${ferreteriaId}` },
+        () => { router.refresh() }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'mensajes',
-        },
-        () => {
-          router.refresh()
-        }
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mensajes' },
+        () => { router.refresh() }
       )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [ferreteriaId, router])
 
+  // ── Helpers ─────────────────────────────────────────────────────────────────
   function getNombreCliente(conv: ConversacionItem) {
     return conv.clientes?.nombre ?? conv.clientes?.telefono ?? 'Cliente'
   }
 
   function getTimeAgo(fecha: string) {
     const diff = Date.now() - new Date(fecha).getTime()
-    const min = Math.floor(diff / 60000)
-    if (min < 1) return 'ahora'
+    const min  = Math.floor(diff / 60_000)
+    if (min < 1)  return 'ahora'
     if (min < 60) return `${min}m`
     const h = Math.floor(min / 60)
-    if (h < 24) return `${h}h`
+    if (h < 24)   return `${h}h`
     return `${Math.floor(h / 24)}d`
   }
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-3 py-3 border-b border-gray-100 space-y-2">
-        <h2 className="text-sm font-semibold text-gray-700 px-1">Conversaciones</h2>
+    <div className="flex flex-col h-full bg-white">
+
+      {/* Header */}
+      <div className="px-4 pt-5 pb-3 border-b border-zinc-100">
+        <h2 className="text-sm font-semibold text-zinc-950 mb-3">Conversaciones</h2>
+
         {/* Búsqueda */}
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar cliente…"
-            className="w-full pl-8 pr-7 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 transition"
+            placeholder="Buscar..."
+            className="w-full pl-9 pr-8 py-2 text-sm bg-zinc-50 border border-zinc-200 rounded-xl
+                       focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900
+                       transition placeholder:text-zinc-400"
           />
           {busqueda && (
-            <button onClick={() => setBusqueda('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-              <X className="w-3 h-3" />
+            <button
+              onClick={() => setBusqueda('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 transition"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-      </div>
 
-      <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-        {conversacionesFiltradas.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">
-            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            {busqueda ? 'Sin resultados' : 'Sin conversaciones aún'}
-          </div>
-        ) : (
-          conversacionesFiltradas.map((conv) => (
+        {/* Filtros */}
+        <div className="flex gap-1.5 mt-2.5">
+          {FILTROS.map(f => (
             <button
-              key={conv.id}
-              onClick={() => router.push(`/dashboard/conversations/${conv.id}`)}
+              key={f.id}
+              onClick={() => setFiltro(f.id)}
               className={cn(
-                'w-full text-left px-4 py-3 hover:bg-gray-50 transition',
-                conversacionActiva === conv.id && 'bg-orange-50 border-r-2 border-orange-500'
+                'px-2.5 py-1 rounded-full text-xs font-medium transition',
+                filtro === f.id
+                  ? 'bg-zinc-900 text-white'
+                  : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700'
               )}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  {/* Indicador de estado del bot */}
-                  <div className={cn(
-                    'w-2 h-2 rounded-full shrink-0 mt-1',
-                    conv.bot_pausado ? 'bg-orange-400' : 'bg-green-400'
-                  )} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {getNombreCliente(conv)}
-                    </p>
-                    {conv.ultimo_mensaje && (
-                      <p className="text-xs text-gray-400 truncate mt-0.5">
-                        {conv.rol_ultimo === 'dueno' ? '(Tú) ' : ''}
-                        {truncar(conv.ultimo_mensaje, 40)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className="text-xs text-gray-400">{getTimeAgo(conv.ultima_actividad)}</span>
-                  {conv.bot_pausado && (
-                    <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded font-medium">
-                      Tú
-                    </span>
-                  )}
-                </div>
-              </div>
+              {f.label}
             </button>
-          ))
+          ))}
+        </div>
+      </div>
+
+      {/* Lista */}
+      <div className="flex-1 overflow-y-auto">
+        {conversacionesFiltradas.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+            <MessageSquare className="w-8 h-8 text-zinc-200 mb-3" />
+            <p className="text-sm text-zinc-400">
+              {busqueda
+                ? 'Sin resultados para esa búsqueda'
+                : filtro !== 'todos'
+                  ? 'Sin conversaciones en este filtro'
+                  : 'Sin conversaciones aún'}
+            </p>
+          </div>
+        ) : (
+          conversacionesFiltradas.map((conv) => {
+            const nombre   = getNombreCliente(conv)
+            const initials = getInitials(conv.clientes?.nombre ?? null, conv.clientes?.telefono ?? '')
+            const isActive = conversacionActiva === conv.id
+
+            return (
+              <button
+                key={conv.id}
+                onClick={() => router.push(`/dashboard/conversations/${conv.id}`)}
+                className={cn(
+                  'w-full text-left px-4 py-3 transition-colors border-b border-zinc-50 last:border-0',
+                  isActive ? 'bg-zinc-100' : 'hover:bg-zinc-50'
+                )}
+              >
+                <div className="flex items-center gap-3">
+
+                  {/* Avatar con iniciales */}
+                  <div className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold select-none',
+                    isActive ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+                  )}>
+                    {initials}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={cn(
+                        'text-sm truncate',
+                        isActive ? 'font-semibold text-zinc-950' : 'font-medium text-zinc-900'
+                      )}>
+                        {nombre}
+                      </p>
+                      <span className="text-[11px] text-zinc-400 shrink-0 tabular-nums">
+                        {getTimeAgo(conv.ultima_actividad)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <p className="text-xs text-zinc-400 truncate">
+                        {conv.rol_ultimo === 'dueno' && (
+                          <span className="text-zinc-500">Tú: </span>
+                        )}
+                        {conv.ultimo_mensaje
+                          ? truncar(conv.ultimo_mensaje, 36)
+                          : <span className="italic">Sin mensajes</span>
+                        }
+                      </p>
+                      {conv.bot_pausado && (
+                        <span className="shrink-0 text-[10px] font-medium bg-zinc-100 text-zinc-500
+                                        px-1.5 py-0.5 rounded-full border border-zinc-200">
+                          Tú
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </button>
+            )
+          })
         )}
       </div>
     </div>

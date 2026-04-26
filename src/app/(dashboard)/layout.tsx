@@ -69,6 +69,11 @@ export default async function DashboardLayout({
       sidebar={sidebarNode}
       nombreFerreteria={session.nombreFerreteria}
       logoUrl={ferreteriaData?.logo_url ?? null}
+      ferreteriaId={session.ferreteriaId}
+      pedidosPendientes={pedidosPendientes ?? 0}
+      conversacionesActivas={conversacionesActivas ?? 0}
+      rol={session.rol}
+      permisos={session.permisos}
     >
       {children}
     </MobileSidebarWrapper>
