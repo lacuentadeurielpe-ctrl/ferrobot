@@ -85,17 +85,27 @@ interface HandleMessageResult {
   mensajesExtra?: MensajeExtra[]
 }
 
-/** Heurística rápida: ¿el mensaje podría necesitar el catálogo? */
+/** Heurística rápida: ¿el mensaje podría necesitar el catálogo?
+ *  Por defecto carga el catálogo, excepto mensajes muy cortos que son claramente
+ *  solo saludos o preguntas de horario/dirección sin mención de productos. */
 function mensajeNecesitaCatalogo(texto: string): boolean {
+  // Mensajes largos: siempre cargar (pueden tener nombres de producto)
+  if (texto.length > 40) return true
+
   const lower = texto.toLowerCase()
-  // Palabras que sugieren consulta de producto o cotización
-  const keywordsCatalogo = [
-    'precio', 'stock', 'cuánto', 'cuanto', 'tiene', 'tengo', 'quiero',
-    'cotiz', 'pedido', 'comprar', 'boleta', 'factura', 'fierro', 'cemento',
-    'caño', 'tubo', 'cable', 'pintura', 'clavo', 'tornillo', 'madera',
-    'unidad', 'kilo', 'metro', 'varilla', 'saco', 'bolsa', 'caja',
+
+  // Indicios explícitos de que NO necesita catálogo (saludo puro o FAQ)
+  const soloPreguntaAdmin = [
+    'hola', 'buenos días', 'buenas tardes', 'buenas noches', 'buenas',
+    'horario', 'direccion', 'dirección', 'dónde', 'donde están', 'abierto',
+    'gracias', 'ok', 'listo', 'perfecto', 'entendido',
   ]
-  return keywordsCatalogo.some(k => lower.includes(k)) || texto.length > 80
+  // Si el texto es solo un saludo/faq, no necesita catálogo
+  const esSoloSaludo = soloPreguntaAdmin.some(k => lower === k || lower.startsWith(k + ' '))
+  if (esSoloSaludo && texto.length < 30) return false
+
+  // En cualquier otro caso cargar el catálogo — el AI lo ignorará si no aplica
+  return true
 }
 
 function estaEnHorario(ferreteria: Ferreteria): boolean {
@@ -211,9 +221,11 @@ export async function handleIncomingMessage({
   const historialParaAI = historial.slice(0, -1)
 
   // ── 8a. F1: Orquestador v2 (tool-calling) — gated por feature flag ────────
-  // Si el tenant tiene usar_orquestador_v2 = true, usamos el nuevo flujo con
-  // tools en vez del intent-switch clásico. Arranque seguro: flag default false.
-  const usarOrquestador = (config as any)?.usar_orquestador_v2 === true
+  // Si el tenant tiene usar_orquestador_v2 = true, usamos el nuevo flujo.
+  // También se activa automáticamente cuando ANTHROPIC_API_KEY está presente
+  // (Claude como motor principal — más capaz y más barato que DeepSeek para tools).
+  const usarOrquestador =
+    claudeDisponible() || (config as any)?.usar_orquestador_v2 === true
   if (usarOrquestador) {
     try {
       console.log(`[Bot] Usando orquestador v2 — ferreteria=${ferreteria.id}`)

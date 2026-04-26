@@ -17,11 +17,38 @@ export interface ResultadoBusqueda {
   modo_aplicado: 'base' | 'descuento' | 'negociacion'
 }
 
-// Busca un producto en el catálogo por nombre (búsqueda aproximada)
+// Normaliza texto: minúsculas, sin tildes, solo alfanumérico
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // quitar tildes
+    .replace(/[^a-z0-9\s]/g, ' ')   // no-alfanumérico → espacio (ej: "3/8" → "3 8")
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Divide texto en tokens significativos (≥2 chars — incluye "38" de "3/8")
+function tokenizar(texto: string): string[] {
+  return texto.split(/\s+/).filter((t) => t.length >= 2)
+}
+
+// Verifica si un token coincide con un texto, con soporte plural/singular
+function matchToken(token: string, texto: string): boolean {
+  if (texto.includes(token)) return true
+  // "ladrillos" → buscar "ladrillo" (quitar -s final)
+  if (token.endsWith('s') && token.length > 3 && texto.includes(token.slice(0, -1))) return true
+  // "paredes" → buscar "pared" (quitar -es final)
+  if (token.endsWith('es') && token.length > 4 && texto.includes(token.slice(0, -2))) return true
+  return false
+}
+
+// Busca un producto en el catálogo por nombre (búsqueda aproximada con scoring)
 function buscarProducto(nombreBuscado: string, productos: Producto[]): Producto | null {
   const termino = normalizar(nombreBuscado)
+  if (!termino) return null
 
-  // 1. Coincidencia exacta
+  // 1. Coincidencia exacta normalizada
   const exacto = productos.find((p) => normalizar(p.nombre) === termino)
   if (exacto) return exacto
 
@@ -33,27 +60,25 @@ function buscarProducto(nombreBuscado: string, productos: Producto[]): Producto 
   const invertido = productos.find((p) => termino.includes(normalizar(p.nombre)))
   if (invertido) return invertido
 
-  // 4. Al menos 2 palabras coinciden (búsqueda por tokens)
-  const tokensTermino = termino.split(' ').filter((t) => t.length > 2)
-  if (tokensTermino.length >= 2) {
-    const porTokens = productos.find((p) => {
-      const nombProd = normalizar(p.nombre)
-      const coincidencias = tokensTermino.filter((t) => nombProd.includes(t))
-      return coincidencias.length >= Math.min(2, tokensTermino.length)
-    })
-    if (porTokens) return porTokens
+  // 4. Scoring por tokens — funciona con 1 o más tokens, con soporte plural/singular
+  const tokensTermino = tokenizar(termino)
+  if (tokensTermino.length === 0) return null
+
+  let mejorMatch: Producto | null = null
+  let mejorScore = 0
+
+  for (const p of productos) {
+    const nombNorm = normalizar(p.nombre)
+    const coincidencias = tokensTermino.filter((t) => matchToken(t, nombNorm))
+    if (coincidencias.length === 0) continue
+    const score = coincidencias.length / tokensTermino.length
+    if (score > mejorScore) { mejorScore = score; mejorMatch = p }
   }
 
-  return null
-}
+  // Aceptar si cubre ≥50% de tokens, o si solo había 1 token (búsqueda simple como "cemento")
+  if (mejorMatch && (mejorScore >= 0.5 || tokensTermino.length === 1)) return mejorMatch
 
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')  // quitar tildes
-    .replace(/[^a-z0-9\s]/g, '')      // solo alfanumérico
-    .trim()
+  return null
 }
 
 // Determina el precio aplicable según cantidad y reglas de descuento
