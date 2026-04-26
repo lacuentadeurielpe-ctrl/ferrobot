@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/debounce-cleanup",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 4 * * *"
     }
   ]
 }
