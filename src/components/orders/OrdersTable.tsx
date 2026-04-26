@@ -81,14 +81,14 @@ function labelEstadoPago(estado: string): string {
 
 function colorEstadoPago(estado: string): string {
   const colors: Record<string, string> = {
-    pendiente: 'bg-gray-100 text-gray-500',
+    pendiente: 'bg-zinc-100 text-zinc-500',
     verificando: 'bg-amber-100 text-amber-700',
     pagado: 'bg-green-100 text-green-700',
     credito_activo: 'bg-blue-100 text-blue-700',
     credito_vencido: 'bg-red-100 text-red-600',
     reembolso_pendiente: 'bg-purple-100 text-purple-700',
   }
-  return colors[estado] ?? 'bg-gray-100 text-gray-500'
+  return colors[estado] ?? 'bg-zinc-100 text-zinc-500'
 }
 
 interface Producto {
@@ -460,14 +460,14 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
     <div>
       {/* Alerta de nuevo pedido (Realtime) */}
       {nuevoPedidoAlert && (
-        <div className="mb-4 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 animate-pulse-once">
-          <span className="flex items-center gap-2 text-sm font-medium text-orange-800">
+        <div className="mb-4 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <span className="flex items-center gap-2 text-sm font-medium text-amber-800">
             <Bell className="w-4 h-4" />
             ¡Llegó un nuevo pedido!
           </span>
           <button
             onClick={() => { router.refresh(); setNuevoPedidoAlert(false) }}
-            className="text-xs font-semibold text-orange-600 hover:text-orange-800 bg-orange-100 hover:bg-orange-200 px-3 py-1.5 rounded-lg transition"
+            className="text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-white px-3 py-1.5 rounded-lg transition"
           >
             Ver ahora
           </button>
@@ -478,9 +478,9 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       {cancelDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="font-semibold text-gray-900 mb-1">Cancelar pedido</h3>
-            <p className="text-sm text-gray-500 mb-4">¿Por qué se cancela este pedido? (opcional)</p>
-            <div className="flex gap-2 mb-4">
+            <h3 className="font-semibold text-zinc-900 mb-1">Cancelar pedido</h3>
+            <p className="text-sm text-zinc-500 mb-4">¿Por qué se cancela este pedido? (opcional)</p>
+            <div className="flex gap-2 mb-4 flex-wrap">
               {['Cliente desistió', 'Sin stock', 'Error en el pedido', 'Otro'].map((m) => (
                 <button
                   key={m}
@@ -489,7 +489,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     'px-2.5 py-1 rounded-full text-xs font-medium border transition',
                     cancelDialog.motivo === m
                       ? 'bg-red-100 border-red-300 text-red-700'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                      : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
                   )}
                 >{m}</button>
               ))}
@@ -499,12 +499,12 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
               onChange={(e) => setCancelDialog((d) => d ? { ...d, motivo: e.target.value } : d)}
               placeholder="O escribe el motivo aquí…"
               rows={2}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-red-300"
+              className="w-full text-sm border border-zinc-200 rounded-xl px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-zinc-300"
             />
             <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setCancelDialog(null)}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
+                className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-800 transition"
               >Volver</button>
               <button
                 onClick={() => cambiarEstado(cancelDialog.pedidoId, 'cancelado', cancelDialog.motivo || undefined)}
@@ -519,32 +519,32 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       {creditoDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="font-semibold text-gray-900 mb-1">Aprobar crédito</h3>
-            <p className="text-sm text-gray-500 mb-4">El cliente pagará en un plazo acordado. Define la fecha límite.</p>
+            <h3 className="font-semibold text-zinc-900 mb-1">Aprobar crédito</h3>
+            <p className="text-sm text-zinc-500 mb-4">El cliente pagará en un plazo acordado. Define la fecha límite.</p>
             <div className="space-y-3 mb-5">
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Fecha límite de pago *</label>
+                <label className="text-xs font-medium text-zinc-500 mb-1 block">Fecha límite de pago *</label>
                 <input
                   type="date"
                   value={creditoDialog.fechaLimite}
                   min={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setCreditoDialog((d) => d ? { ...d, fechaLimite: e.target.value } : d)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Notas (opcional)</label>
+                <label className="text-xs font-medium text-zinc-500 mb-1 block">Notas (opcional)</label>
                 <input
                   type="text"
                   value={creditoDialog.notas}
                   onChange={(e) => setCreditoDialog((d) => d ? { ...d, notas: e.target.value } : d)}
                   placeholder="Condiciones del crédito…"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
                 />
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setCreditoDialog(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition">
+              <button onClick={() => setCreditoDialog(null)} className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-800 transition">
                 Cancelar
               </button>
               <button
@@ -564,14 +564,14 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       <div className="flex justify-end gap-2 mb-4">
         <button
           onClick={exportarCSV}
-          className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition"
+          className="flex items-center gap-2 px-3 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-medium rounded-xl transition"
         >
           <Download className="w-4 h-4" />
           Exportar CSV
         </button>
         <button
           onClick={() => setModalNuevo(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition"
+          className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-xl transition"
         >
           <Plus className="w-4 h-4" />
           Nuevo pedido
@@ -582,16 +582,16 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         {/* Búsqueda */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por cliente, teléfono o N° pedido…"
-            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 transition"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 transition"
           />
           {busqueda && (
             <button onClick={() => setBusqueda('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
@@ -601,10 +601,10 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
         <div className="flex gap-1">
           {RANGOS_FECHA.map(({ label, value }) => (
             <button key={value} onClick={() => setFiltroFecha(value)}
-              className={cn('px-3 py-2 rounded-lg text-xs font-medium transition',
+              className={cn('px-3 py-2 rounded-xl text-xs font-medium transition',
                 filtroFecha === value
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+                  ? 'bg-zinc-950 text-white'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
               {label}
             </button>
           ))}
@@ -614,8 +614,8 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       {/* Filtros por estado */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button onClick={() => setFiltroEstado('')}
-          className={cn('px-3 py-1 rounded-full text-xs font-medium transition',
-            !filtroEstado ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+          className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition',
+            !filtroEstado ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
           Todos ({pedidos.length})
         </button>
         {ESTADOS.map((e) => {
@@ -623,15 +623,15 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
           if (!count) return null
           return (
             <button key={e} onClick={() => setFiltroEstado(e)}
-              className={cn('px-3 py-1 rounded-full text-xs font-medium transition',
-                filtroEstado === e ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+              className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition',
+                filtroEstado === e ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
               {labelEstadoPedido(e)} ({count})
             </button>
           )
         })}
         {hayFiltros && (
           <button onClick={() => { setBusqueda(''); setFiltroEstado(''); setFiltroFecha('') }}
-            className="ml-auto text-xs text-orange-500 hover:text-orange-600 flex items-center gap-1">
+            className="ml-auto text-xs text-zinc-400 hover:text-zinc-700 flex items-center gap-1 transition">
             <X className="w-3 h-3" /> Limpiar filtros
           </button>
         )}
@@ -639,14 +639,14 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
       {/* Resultados */}
       {filtrados.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">
+        <div className="text-center py-16 text-zinc-300">
+          <Package className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm text-zinc-400">
             {hayFiltros ? 'No hay pedidos con estos filtros' : 'No hay pedidos aún'}
           </p>
           {hayFiltros && (
             <button onClick={() => { setBusqueda(''); setFiltroEstado(''); setFiltroFecha('') }}
-              className="mt-2 text-xs text-orange-500 hover:underline">
+              className="mt-2 text-xs text-zinc-500 hover:text-zinc-700 transition">
               Limpiar filtros
             </button>
           )}
@@ -658,16 +658,16 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
             const nombreCliente = pedido.clientes?.nombre ?? pedido.nombre_cliente ?? 'Cliente'
 
             return (
-              <div key={pedido.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div key={pedido.id} className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
                 <div
-                  className="flex items-center gap-4 px-4 py-3 cursor-pointer hover:bg-gray-50 transition"
+                  className="flex items-center gap-4 px-4 py-3.5 cursor-pointer hover:bg-zinc-50 transition"
                   onClick={() => setExpandido(isOpen ? null : pedido.id)}
                 >
-                  <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform shrink-0', isOpen && 'rotate-180')} />
+                  <ChevronDown className={cn('w-4 h-4 text-zinc-400 transition-transform shrink-0', isOpen && 'rotate-180')} />
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{nombreCliente}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-sm font-semibold text-zinc-900 truncate">{nombreCliente}</p>
+                    <p className="text-xs text-zinc-400 mt-0.5">
                       <span className="font-mono">{pedido.numero_pedido}</span>
                       {' · '}{formatFecha(pedido.created_at)}
                       {' · '}{pedido.modalidad === 'delivery' ? '🚚 Delivery' : '🏪 Recojo'}
@@ -675,7 +675,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     </p>
                   </div>
 
-                  <p className="text-sm font-semibold text-gray-900 shrink-0">
+                  <p className="text-sm font-bold text-zinc-900 shrink-0 tabular-nums">
                     {formatPEN(pedido.total)}
                   </p>
 
@@ -701,7 +701,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                         value={pedido.estado}
                         onChange={(e) => cambiarEstado(pedido.id, e.target.value)}
                         className={cn(
-                          'text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-300',
+                          'text-xs font-semibold px-2.5 py-1 rounded-full border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-zinc-300',
                           colorEstadoPedido(pedido.estado)
                         )}
                       >
@@ -714,30 +714,30 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                 </div>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+                  <div className="border-t border-zinc-100 px-4 py-4 bg-zinc-50">
                     <table className="w-full text-sm mb-3">
                       <thead>
-                        <tr className="text-xs text-gray-400 border-b border-gray-200">
+                        <tr className="text-xs text-zinc-400 border-b border-zinc-200">
                           <th className="text-left pb-1.5 font-medium">Producto</th>
                           <th className="text-right pb-1.5 font-medium">Cant.</th>
                           <th className="text-right pb-1.5 font-medium">P. Unit.</th>
                           <th className="text-right pb-1.5 font-medium">Subtotal</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-zinc-100">
                         {pedido.items_pedido.map((item) => (
                           <tr key={item.id}>
-                            <td className="py-1.5 text-gray-800">{item.nombre_producto}</td>
-                            <td className="py-1.5 text-right text-gray-600">{item.cantidad}</td>
-                            <td className="py-1.5 text-right text-gray-600">{formatPEN(item.precio_unitario)}</td>
-                            <td className="py-1.5 text-right font-medium text-gray-800">{formatPEN(item.subtotal)}</td>
+                            <td className="py-1.5 text-zinc-800">{item.nombre_producto}</td>
+                            <td className="py-1.5 text-right text-zinc-500">{item.cantidad}</td>
+                            <td className="py-1.5 text-right text-zinc-500">{formatPEN(item.precio_unitario)}</td>
+                            <td className="py-1.5 text-right font-semibold text-zinc-800">{formatPEN(item.subtotal)}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
-                        <tr className="border-t border-gray-200">
-                          <td colSpan={3} className="pt-2 text-right font-semibold text-gray-700">Total</td>
-                          <td className="pt-2 text-right font-bold text-gray-900">{formatPEN(pedido.total)}</td>
+                        <tr className="border-t border-zinc-200">
+                          <td colSpan={3} className="pt-2 text-right font-semibold text-zinc-500">Total</td>
+                          <td className="pt-2 text-right font-bold text-zinc-950 tabular-nums">{formatPEN(pedido.total)}</td>
                         </tr>
                         {esDueno && pedido.costo_total != null && pedido.costo_total > 0 && (() => {
                           const ganancia = pedido.total - pedido.costo_total
@@ -756,22 +756,22 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       </tfoot>
                     </table>
                     {pedido.notas && (
-                      <p className="text-xs text-gray-500 mb-2">
+                      <p className="text-xs text-zinc-500 mb-2">
                         <span className="font-medium">Notas:</span> {pedido.notas}
                       </p>
                     )}
 
                     {/* ── Sección de pago ───────────────────────────────────── */}
                     {pedido.estado !== 'cancelado' && (
-                      <div className="mb-3 border border-gray-100 rounded-xl p-3 bg-white">
+                      <div className="mb-3 border border-zinc-200 rounded-xl p-3 bg-white">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-medium text-gray-500">Método de pago:</span>
+                            <span className="text-xs font-medium text-zinc-500">Método de pago:</span>
                             <select
                               value={pedido.metodo_pago ?? ''}
                               disabled={pagando === pedido.id || pedido.estado === 'entregado'}
                               onChange={(e) => actualizarPago(pedido.id, { metodo_pago: e.target.value || undefined })}
-                              className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50"
+                              className="text-xs border border-zinc-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-300 disabled:opacity-50"
                             >
                               <option value="">— Sin definir —</option>
                               <option value="efectivo">💵 Efectivo</option>
@@ -842,7 +842,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                             /* efectivo / yape / transferencia — contra entrega, registro opcional */
                             <button
                               onClick={() => actualizarPago(pedido.id, { estado_pago: 'verificando' })}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 transition"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-zinc-50 hover:bg-zinc-100 text-zinc-600 text-xs font-medium rounded-lg border border-zinc-200 transition"
                             >
                               <CreditCard className="w-3.5 h-3.5" />
                               Marcar cobrado
@@ -863,7 +863,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                             const val = e.target.value
                             if (val) asignarRepartidor(pedido.id, val)
                           }}
-                          className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                          className="flex-1 text-xs border border-zinc-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-zinc-300 bg-white"
                         >
                           <option value="">— Sin asignar —</option>
                           {repartidores.filter(r => r.activo).map((r) => (
@@ -901,7 +901,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       const cp = estadoComprobante(pedido.id)
                       const boletaEmitida = boletasEmitidas[pedido.id]
                       return (
-                        <div className="border-t border-gray-200 pt-3 flex items-center gap-2 flex-wrap">
+                        <div className="border-t border-zinc-200 pt-3 flex items-center gap-2 flex-wrap">
                           <button
                             onClick={() => verComprobante(pedido.id)}
                             disabled={cp.cargando}
@@ -918,7 +918,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                           <button
                             onClick={() => reenviarComprobante(pedido.id)}
                             disabled={cp.reenviando}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-lg transition disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-medium rounded-lg transition disabled:opacity-50"
                           >
                             {cp.reenviando
                               ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -999,7 +999,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
           {/* Contador de resultados filtrados */}
           {hayFiltros && (
-            <p className="text-xs text-gray-400 text-center pt-2">
+            <p className="text-xs text-zinc-400 text-center pt-2">
               Mostrando {filtrados.length} de {pedidos.length} pedidos
             </p>
           )}
