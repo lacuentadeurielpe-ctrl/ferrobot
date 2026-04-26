@@ -40,10 +40,10 @@ const METODO_LABEL: Record<string, string> = {
 
 const TABS = [
   { key: '',                   label: 'Todos' },
-  { key: 'pendiente_revision', label: '⚠️ Por revisar' },
-  { key: 'confirmado_auto',    label: '✅ Confirmados' },
-  { key: 'a_favor',            label: '🎁 Créditos' },
-  { key: 'rechazado',          label: '❌ Rechazados' },
+  { key: 'pendiente_revision', label: 'Por revisar' },
+  { key: 'confirmado_auto',    label: 'Confirmados' },
+  { key: 'a_favor',            label: 'Créditos' },
+  { key: 'rechazado',          label: 'Rechazados' },
 ]
 
 export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDueno: boolean }) {
@@ -77,10 +77,10 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
 
   if (pagosState.length === 0) {
     return (
-      <div className="text-center py-16 text-gray-400">
-        <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">Aún no hay pagos registrados</p>
-        <p className="text-xs mt-1">Los comprobantes que envíen los clientes por WhatsApp aparecerán aquí</p>
+      <div className="text-center py-16">
+        <CreditCard className="w-10 h-10 mx-auto mb-3 text-zinc-200" />
+        <p className="text-sm text-zinc-500">Aún no hay pagos registrados</p>
+        <p className="text-xs text-zinc-400 mt-1">Los comprobantes que envíen los clientes por WhatsApp aparecerán aquí</p>
       </div>
     )
   }
@@ -88,20 +88,20 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
   return (
     <div>
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-4 overflow-x-auto">
+      <div className="flex gap-1 border-b border-zinc-200 mb-4 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTabActivo(t.key)}
             className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
               tabActivo === t.key
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-zinc-950 text-zinc-950'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700'
             }`}
           >
             {t.label}
             {t.key && (
-              <span className="ml-1.5 text-[10px] bg-gray-100 rounded-full px-1.5 py-0.5">
+              <span className="ml-1.5 text-[10px] bg-zinc-100 text-zinc-500 rounded-full px-1.5 py-0.5 font-medium">
                 {pagosState.filter((p) => p.estado === t.key).length}
               </span>
             )}
@@ -112,7 +112,7 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
       {/* Lista */}
       <div className="space-y-2">
         {filtrados.length === 0 && (
-          <p className="text-center text-sm text-gray-400 py-8">Sin pagos en esta categoría</p>
+          <p className="text-center text-sm text-zinc-400 py-8">Sin pagos en esta categoría</p>
         )}
         {filtrados.map((pago) => {
           const est = ESTADO_CONFIG[pago.estado] ?? ESTADO_CONFIG.rechazado
@@ -120,10 +120,10 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
           const abierto = expandido === pago.id
 
           return (
-            <div key={pago.id} className="border border-gray-200 rounded-xl overflow-hidden">
+            <div key={pago.id} className="border border-zinc-200 rounded-2xl overflow-hidden">
               {/* Fila resumen */}
               <button
-                className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition text-left"
+                className="w-full flex items-center gap-3 p-4 hover:bg-zinc-50 transition text-left"
                 onClick={() => setExpandido(abierto ? null : pago.id)}
               >
                 {/* Estado icon */}
@@ -134,17 +134,17 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
                 {/* Info principal */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span className="text-sm font-bold text-zinc-900 tabular-nums">
                       {formatPEN(pago.monto)}
                     </span>
-                    <span className="text-xs text-gray-500">{METODO_LABEL[pago.metodo] ?? pago.metodo}</span>
+                    <span className="text-xs text-zinc-500">{METODO_LABEL[pago.metodo] ?? pago.metodo}</span>
                     {pago.pedido && (
-                      <span className="text-xs bg-gray-100 rounded px-1.5 py-0.5 text-gray-600">
+                      <span className="text-xs bg-zinc-100 rounded-full px-1.5 py-0.5 text-zinc-600 font-medium">
                         {pago.pedido.numero_pedido}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5 truncate">
+                  <div className="text-xs text-zinc-400 mt-0.5 truncate">
                     {pago.cliente?.nombre ?? pago.cliente?.telefono ?? 'Cliente desconocido'}
                     {pago.nombre_pagador && ` · ${pago.nombre_pagador}`}
                     {' · '}
@@ -154,52 +154,52 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
 
                 {/* Estado badge + chevron */}
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${est.bg} ${est.color}`}>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${est.bg} ${est.color}`}>
                     {est.label}
                   </span>
-                  {abierto ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                  {abierto ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
                 </div>
               </button>
 
               {/* Detalle expandible */}
               {abierto && (
-                <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-3">
+                <div className="border-t border-zinc-100 bg-zinc-50 p-4 space-y-3">
                   {/* Datos del pago */}
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {pago.numero_operacion && (
                       <div>
-                        <span className="text-gray-400">N° operación</span>
-                        <p className="font-mono text-gray-700">{pago.numero_operacion}</p>
+                        <span className="text-zinc-400">N° operación</span>
+                        <p className="font-mono text-zinc-700">{pago.numero_operacion}</p>
                       </div>
                     )}
                     {pago.banco_origen && (
                       <div>
-                        <span className="text-gray-400">Banco</span>
-                        <p className="text-gray-700">{pago.banco_origen}</p>
+                        <span className="text-zinc-400">Banco</span>
+                        <p className="text-zinc-700">{pago.banco_origen}</p>
                       </div>
                     )}
                     {pago.ultimos_digitos && (
                       <div>
-                        <span className="text-gray-400">Últimos dígitos</span>
-                        <p className="font-mono text-gray-700">…{pago.ultimos_digitos}</p>
+                        <span className="text-zinc-400">Últimos dígitos</span>
+                        <p className="font-mono text-zinc-700">…{pago.ultimos_digitos}</p>
                       </div>
                     )}
                     {pago.confianza_extraccion !== null && (
                       <div>
-                        <span className="text-gray-400">Confianza Vision</span>
-                        <p className="text-gray-700">{Math.round(pago.confianza_extraccion * 100)}%</p>
+                        <span className="text-zinc-400">Confianza Vision</span>
+                        <p className="text-zinc-700">{Math.round(pago.confianza_extraccion * 100)}%</p>
                       </div>
                     )}
                     {pago.pedido && (
                       <div>
-                        <span className="text-gray-400">Pedido vinculado</span>
-                        <p className="text-gray-700">{pago.pedido.numero_pedido} — {formatPEN(pago.pedido.total)}</p>
+                        <span className="text-zinc-400">Pedido vinculado</span>
+                        <p className="text-zinc-700">{pago.pedido.numero_pedido} — {formatPEN(pago.pedido.total)}</p>
                       </div>
                     )}
                     {pago.notas && (
                       <div className="col-span-2">
-                        <span className="text-gray-400">Notas</span>
-                        <p className="text-gray-600">{pago.notas}</p>
+                        <span className="text-zinc-400">Notas</span>
+                        <p className="text-zinc-600">{pago.notas}</p>
                       </div>
                     )}
                   </div>
@@ -210,7 +210,7 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
                       href={pago.url_captura}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                      className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 transition"
                     >
                       <ExternalLink className="w-3 h-3" />
                       Ver captura original
@@ -223,16 +223,16 @@ export default function PagosView({ pagos, esDueno }: { pagos: PagoItem[]; esDue
                       <button
                         disabled={!!procesando}
                         onClick={() => accion(pago.id, 'aprobar', pago.pedido?.id)}
-                        className="flex-1 py-2 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition"
+                        className="flex-1 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl disabled:opacity-50 transition"
                       >
-                        {procesando === pago.id ? 'Procesando…' : '✅ Aprobar pago'}
+                        {procesando === pago.id ? 'Procesando…' : 'Aprobar pago'}
                       </button>
                       <button
                         disabled={!!procesando}
                         onClick={() => accion(pago.id, 'rechazar')}
-                        className="flex-1 py-2 bg-red-100 text-red-600 text-xs font-medium rounded-lg hover:bg-red-200 disabled:opacity-50 transition"
+                        className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-xl border border-red-200 disabled:opacity-50 transition"
                       >
-                        ❌ Rechazar
+                        Rechazar
                       </button>
                     </div>
                   )}
