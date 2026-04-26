@@ -1,16 +1,13 @@
-// Tools del orquestador — OpenAI-compatible function calling
+// Tools del orquestador — OpenAI/Anthropic compatible function calling
 //
 // REGLA CRÍTICA: ferretería aislada
 // Cada tool recibe ferreteriaId como primer parámetro y lo valida en runtime.
 // Nunca confiamos en que el modelo lo pase; el orquestador lo inyecta desde
-// la sesión autenticada. Si por alguna razón llega vacío → throw y se aborta.
-//
-// Todas las queries filtran explícitamente por ferreteria_id aunque usemos
-// admin client. Esto es defensa en profundidad.
+// la sesión autenticada.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Producto } from '@/types/database'
-import { procesarItemsSolicitados } from '@/lib/bot/catalog-search'
+import type { Producto, ZonaDelivery, DatosFlujoPedido } from '@/types/database'
+import { procesarItemsSolicitados, buscarProducto, formatearCotizacion } from '@/lib/bot/catalog-search'
 import { pausarBot } from '@/lib/bot/session'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
 
@@ -21,10 +18,11 @@ export interface ToolContext {
   ferreteriaId: string
   conversacionId: string
   clienteId: string
-  productos: Producto[]   // catálogo ya cargado (evita refetch por tool call)
-  /** Ventana de gracia configurada (en minutos) para agregar_a_pedido_reciente */
+  telefonoCliente: string
+  productos: Producto[]
+  zonas: ZonaDelivery[]
+  datosFlujo: DatosFlujoPedido | null
   ventanaGraciaMinutos?: number
-  /** api_key de YCloud del tenant (para regenerar y reenviar comprobante) */
   ycloudApiKey?: string
 }
 
@@ -32,21 +30,17 @@ export interface ToolResult {
   ok: boolean
   data?: unknown
   error?: string
-  /** Motivo estructurado de fallo (para que el modelo distinga casos) */
   motivo?: string
-  /** Mensaje orientativo para el modelo en caso de fallo controlado */
   mensaje?: string
 }
 
-// Validación obligatoria: toda tool debe tener ferreteriaId
 function requireTenant(ctx: ToolContext): void {
   if (!ctx.ferreteriaId || typeof ctx.ferreteriaId !== 'string') {
     throw new Error('TENANT_MISSING: tool invoked without ferreteriaId')
   }
 }
 
-// ── Schemas (OpenAI-compatible JSON schema) ─────────────────────────────────
-// Estos schemas se envían a DeepSeek en el parámetro `tools`.
+// ── Schemas (OpenAI/DeepSeek compatible) ──────────────────────────────────
 
 export const TOOL_SCHEMAS = [
   {
@@ -56,7 +50,7 @@ export const TOOL_SCHEMAS = [
       description:
         'Busca uno o varios productos en el catálogo de la ferretería. ' +
         'Úsalo cuando el cliente mencione productos por nombre para saber si existen, ' +
-        'qué precio tienen y cuánto stock hay. Soporta búsqueda aproximada (fuzzy).',
+        'qué precio tienen y cuánto stock hay. Soporta búsqueda aproximada.',
       parameters: {
         type: 'object',
         properties: {
@@ -67,7 +61,7 @@ export const TOOL_SCHEMAS = [
               type: 'object',
               properties: {
                 nombre_buscado: { type: 'string', description: 'Nombre del producto tal como lo dijo el cliente.' },
-                cantidad:       { type: 'number', description: 'Cantidad deseada. Usa 1 si el cliente no especificó.' },
+                cantidad:       { type: 'number', description: 'Cantidad deseada. Usa 1 si no especificó.' },
               },
               required: ['nombre_buscado', 'cantidad'],
             },
@@ -80,10 +74,66 @@ export const TOOL_SCHEMAS = [
   {
     type: 'function',
     function: {
-      name: 'obtener_stock',
+      name: 'guardar_cotizacion',
       description:
-        'Consulta el stock actual de un producto específico por ID. ' +
-        'Úsalo solo después de buscar_producto cuando necesites stock en tiempo real.',
+        'Guarda la cotización en la base de datos después de buscar los productos. ' +
+        'Llámala SIEMPRE después de buscar_producto cuando el cliente pide precios formales o quiere cotizar. ' +
+        'Esto genera el registro en BD y prepara el flujo para la confirmación del pedido.',
+      parameters: {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            description: 'Items de la cotización con los datos devueltos por buscar_producto.',
+            items: {
+              type: 'object',
+              properties: {
+                producto_id:     { type: 'string',  description: 'UUID del producto (de buscar_producto).' },
+                nombre_producto: { type: 'string',  description: 'Nombre del producto en catálogo.' },
+                unidad:          { type: 'string',  description: 'Unidad de medida.' },
+                cantidad:        { type: 'number',  description: 'Cantidad solicitada.' },
+                precio_unitario: { type: 'number',  description: 'Precio por unidad.' },
+                subtotal:        { type: 'number',  description: 'precio_unitario × cantidad.' },
+                no_disponible:   { type: 'boolean', description: 'true si el producto no tiene stock.' },
+                nota:            { type: 'string',  description: 'Nota del sistema (stock parcial, etc.).' },
+              },
+              required: ['nombre_producto', 'unidad', 'cantidad', 'precio_unitario', 'subtotal'],
+            },
+          },
+          requiere_aprobacion: {
+            type: 'boolean',
+            description: 'true si algún item requiere aprobación del encargado por precio especial.',
+          },
+        },
+        required: ['items'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crear_pedido',
+      description:
+        'Crea el pedido definitivo en la base de datos. ' +
+        'Llámala SOLO cuando ya tienes: nombre del cliente, modalidad (delivery/recojo), ' +
+        'y dirección si es delivery. Esto crea el pedido, descuenta stock y genera el comprobante.',
+      parameters: {
+        type: 'object',
+        properties: {
+          nombre_cliente:    { type: 'string', description: 'Nombre completo del cliente para el pedido.' },
+          modalidad:         { type: 'string', enum: ['delivery', 'recojo'], description: 'Modalidad de entrega.' },
+          direccion_entrega: { type: 'string', description: 'Dirección de entrega (obligatorio si modalidad=delivery).' },
+          zona_nombre:       { type: 'string', description: 'Nombre de la zona de delivery si aplica.' },
+        },
+        required: ['nombre_cliente', 'modalidad'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'obtener_stock',
+      description: 'Consulta el stock actual de un producto por ID. Úsalo solo si necesitas stock en tiempo real después de buscar_producto.',
       parameters: {
         type: 'object',
         properties: {
@@ -123,17 +173,13 @@ export const TOOL_SCHEMAS = [
     function: {
       name: 'agregar_a_pedido_reciente',
       description:
-        'Intenta agregar productos a un pedido recién confirmado del cliente (ventana de gracia). ' +
-        'Úsalo SOLO cuando el cliente pide explícitamente agregar algo ("agrega X", "olvidé Y", "también X"). ' +
-        'La tool valida automáticamente que el pedido esté dentro de la ventana de tiempo, no despachado ' +
-        'y sin comprobante tributario emitido. Si no se puede agregar, devuelve motivo y el bot ' +
-        'debe proponer crear un pedido nuevo.',
+        'Agrega productos a un pedido recién confirmado (ventana de gracia). ' +
+        'Úsalo SOLO cuando el cliente pide agregar algo a un pedido que acaba de hacer.',
       parameters: {
         type: 'object',
         properties: {
           items: {
             type: 'array',
-            description: 'Productos a agregar al pedido reciente.',
             items: {
               type: 'object',
               properties: {
@@ -154,16 +200,14 @@ export const TOOL_SCHEMAS = [
       name: 'sugerir_complementario',
       description:
         'Busca productos complementarios para lo que el cliente está comprando. ' +
-        'Úsalo SOLO después de una cotización exitosa, cuando el cliente ya tiene productos en su lista. ' +
-        'Devuelve 0, 1 o 2 sugerencias como máximo — si no hay nada realmente complementario, devuelve vacío. ' +
-        'IMPORTANTE: solo sugerir si la tool devuelve resultados; nunca inventar complementarios propios.',
+        'Úsalo SOLO después de guardar_cotizacion. Máximo 2 sugerencias. Si no hay nada complementario, devuelve vacío.',
       parameters: {
         type: 'object',
         properties: {
           producto_ids: {
             type: 'array',
             items: { type: 'string' },
-            description: 'IDs de los productos que el cliente ya tiene en esta cotización.',
+            description: 'IDs de los productos en la cotización actual.',
           },
         },
         required: ['producto_ids'],
@@ -175,10 +219,8 @@ export const TOOL_SCHEMAS = [
     function: {
       name: 'historial_cliente',
       description:
-        'Devuelve el perfil del cliente (lo que ya sabemos de él) y sus últimos pedidos. ' +
-        'Úsalo cuando sea útil recordar qué suele comprar, su modalidad preferida o su zona. ' +
-        'IMPORTANTE: este contexto es PASIVO — no se lo menciones al cliente a menos que él ' +
-        'traiga el tema primero (ej: no digas "¿como siempre, 4 bolsas de cemento?").',
+        'Devuelve el perfil y últimos pedidos del cliente. ' +
+        'IMPORTANTE: contexto PASIVO — no mencionarlo al cliente a menos que él lo traiga.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -187,19 +229,20 @@ export const TOOL_SCHEMAS = [
     function: {
       name: 'guardar_dato_cliente',
       description:
-        'Guarda un dato del cliente que él mismo mencionó EXPLÍCITAMENTE. ' +
-        'Solo úsalo si la confianza es alta (el cliente lo dijo claramente, no inferido). ' +
-        'Ejemplos válidos: "soy maestro de obra", "estoy construyendo mi casa", ' +
-        '"vivo en San Juan de Lurigancho". No lo uses para datos de contacto ni para inventar.',
+        'Guarda un dato del cliente que él mencionó EXPLÍCITAMENTE. ' +
+        'Solo cuando la confianza es alta (lo dijo claramente, no inferido).',
       parameters: {
         type: 'object',
         properties: {
           campo: {
             type: 'string',
-            enum: ['tipo_cliente', 'obra_actual', 'zona_habitual', 'modalidad_preferida'],
+            enum: [
+              'tipo_cliente', 'obra_actual', 'zona_habitual', 'modalidad_preferida',
+              'metodo_pago_preferido', 'presupuesto_obra', 'tiene_ruc', 'giro_negocio',
+            ],
             description: 'Campo del perfil a actualizar.',
           },
-          valor: { type: 'string', description: 'Valor explícito mencionado por el cliente.' },
+          valor: { type: 'string', description: 'Valor mencionado por el cliente.' },
         },
         required: ['campo', 'valor'],
       },
@@ -210,9 +253,8 @@ export const TOOL_SCHEMAS = [
     function: {
       name: 'escalar_humano',
       description:
-        'Pausa el bot y notifica al dueño para que atienda manualmente. ' +
-        'Úsalo SOLO cuando el cliente pida explícitamente hablar con una persona, ' +
-        'o cuando haya una queja/reclamo serio que no puedes resolver.',
+        'Pausa el bot y notifica al dueño para atención manual. ' +
+        'Úsalo SOLO cuando el cliente pida hablar con una persona o haya una queja seria.',
       parameters: {
         type: 'object',
         properties: {
@@ -228,15 +270,13 @@ export const TOOL_SCHEMAS = [
 
 type Executor = (ctx: ToolContext, args: Record<string, unknown>) => Promise<ToolResult>
 
-// Extrae tokens significativos de una lista de nombres de productos
-// (>3 chars, sin tildes, solo alfanumérico)
 function tokenizarProductos(nombres: string[]): Set<string> {
   const tokens = new Set<string>()
   for (const nombre of nombres) {
     nombre
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
       .filter((t) => t.length > 3)
@@ -250,24 +290,272 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
   buscar_producto: async (ctx, args) => {
     requireTenant(ctx)
     const items = args.items as Array<{ nombre_buscado: string; cantidad: number }> | undefined
-    if (!Array.isArray(items) || items.length === 0) {
-      return { ok: false, error: 'items vacío' }
-    }
+    if (!Array.isArray(items) || items.length === 0) return { ok: false, error: 'items vacío' }
+
     const resultados = procesarItemsSolicitados(items, ctx.productos)
     const resumen = resultados.map((r) => ({
-      nombre_buscado: r.nombre_buscado,
-      cantidad_solicitada: r.cantidad,
-      encontrado: !!r.producto,
-      producto_id: r.producto?.id ?? null,
-      nombre_catalogo: r.producto?.nombre ?? null,
-      unidad: r.producto?.unidad ?? null,
-      precio_unitario: r.precio_unitario,
-      stock: r.stock_disponible,
-      disponible: r.disponible,
-      nota: r.nota,
-      requiere_aprobacion: r.requiere_aprobacion,
+      nombre_buscado:       r.nombre_buscado,
+      cantidad_solicitada:  r.cantidad,
+      encontrado:           !!r.producto,
+      producto_id:          r.producto?.id ?? null,
+      nombre_catalogo:      r.producto?.nombre ?? null,
+      unidad:               r.producto?.unidad ?? null,
+      precio_unitario:      r.precio_unitario,
+      stock:                r.stock_disponible,
+      disponible:           r.disponible,
+      nota:                 r.nota,
+      requiere_aprobacion:  r.requiere_aprobacion,
     }))
     return { ok: true, data: { resultados: resumen } }
+  },
+
+  guardar_cotizacion: async (ctx, args) => {
+    requireTenant(ctx)
+
+    type ItemCotArg = {
+      producto_id?: string
+      nombre_producto: string
+      unidad: string
+      cantidad: number
+      precio_unitario: number
+      subtotal: number
+      no_disponible?: boolean
+      nota?: string
+    }
+
+    const items = args.items as ItemCotArg[] | undefined
+    if (!Array.isArray(items) || items.length === 0) return { ok: false, error: 'items vacío' }
+
+    const requiereAprobacion = (args.requiere_aprobacion as boolean | undefined) ?? false
+    const disponibles = items.filter((i) => !i.no_disponible)
+    const total = disponibles.reduce((sum, i) => sum + i.subtotal, 0)
+
+    if (disponibles.length === 0) {
+      return { ok: false, error: 'Ningún item disponible para cotizar', motivo: 'sin_disponibles' }
+    }
+
+    // Guardar cotización
+    const { data: cotizacion, error: errCot } = await ctx.supabase
+      .from('cotizaciones')
+      .insert({
+        ferreteria_id:    ctx.ferreteriaId,
+        conversacion_id:  ctx.conversacionId,
+        cliente_id:       ctx.clienteId,
+        estado:           requiereAprobacion ? 'pendiente_aprobacion' : 'enviada',
+        total,
+        requiere_aprobacion: requiereAprobacion,
+      })
+      .select().single()
+
+    if (errCot || !cotizacion) {
+      console.error('[guardar_cotizacion] Error BD:', errCot?.message)
+      return { ok: false, error: 'Error al guardar la cotización' }
+    }
+
+    const cotId = (cotizacion as unknown as { id: string }).id
+
+    // Guardar items
+    await ctx.supabase.from('items_cotizacion').insert(
+      items.map((i) => ({
+        cotizacion_id:       cotId,
+        producto_id:         i.producto_id ?? null,
+        nombre_producto:     i.nombre_producto,
+        unidad:              i.unidad,
+        cantidad:            i.cantidad,
+        precio_unitario:     i.precio_unitario,
+        precio_original:     i.precio_unitario,   // snapshot del precio base
+        subtotal:            i.subtotal,
+        no_disponible:       i.no_disponible ?? false,
+        nota_disponibilidad: i.nota ?? null,
+      }))
+    )
+
+    // Actualizar datos_flujo para saber que hay cotización esperando confirmación
+    if (!requiereAprobacion) {
+      await ctx.supabase
+        .from('conversaciones')
+        .update({ datos_flujo: { cotizacion_id: cotId, paso: 'esperando_confirmacion' } })
+        .eq('id', ctx.conversacionId)
+    }
+
+    return {
+      ok: true,
+      data: {
+        cotizacion_id:     cotId,
+        total,
+        requiere_aprobacion: requiereAprobacion,
+        items_disponibles:   disponibles.length,
+        items_no_disponibles: items.length - disponibles.length,
+      },
+    }
+  },
+
+  crear_pedido: async (ctx, args) => {
+    requireTenant(ctx)
+
+    const nombreCliente    = (args.nombre_cliente as string | undefined)?.trim()
+    const modalidad        = args.modalidad as 'delivery' | 'recojo' | undefined
+    const direccionEntrega = (args.direccion_entrega as string | undefined)?.trim() || null
+    const zonaNombre       = (args.zona_nombre as string | undefined)?.trim() || null
+
+    if (!nombreCliente) return { ok: false, error: 'nombre_cliente es requerido', motivo: 'falta_nombre' }
+    if (!modalidad)     return { ok: false, error: 'modalidad es requerida',       motivo: 'falta_modalidad' }
+    if (modalidad === 'delivery' && !direccionEntrega) {
+      return { ok: false, error: 'dirección de entrega requerida para delivery', motivo: 'falta_direccion' }
+    }
+
+    // Buscar cotización activa de esta conversación
+    const cotizacionId = ctx.datosFlujo?.cotizacion_id
+    if (!cotizacionId) {
+      return {
+        ok: false,
+        error: 'No hay cotización activa. Primero usa buscar_producto y guardar_cotizacion.',
+        motivo: 'sin_cotizacion',
+      }
+    }
+
+    const { data: cotizacion, error: errCot } = await ctx.supabase
+      .from('cotizaciones')
+      .select('*, items_cotizacion(*)')
+      .eq('id', cotizacionId)
+      .eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
+      .in('estado', ['enviada', 'aprobada'])
+      .single()
+
+    if (errCot || !cotizacion) {
+      return { ok: false, error: 'Cotización no encontrada o ya procesada', motivo: 'cotizacion_no_encontrada' }
+    }
+
+    // Buscar zona de delivery si aplica
+    let zonaId: string | null = null
+    if (modalidad === 'delivery' && zonaNombre && ctx.zonas.length > 0) {
+      const zonaMatch = ctx.zonas.find((z) =>
+        z.nombre.toLowerCase().includes(zonaNombre.toLowerCase())
+      )
+      if (zonaMatch) zonaId = zonaMatch.id
+    }
+
+    // Generar número de pedido
+    const { data: numeroPedido } = await ctx.supabase
+      .rpc('generar_numero_pedido', { p_ferreteria_id: ctx.ferreteriaId })
+
+    // Preparar items desde la cotización
+    const productoCostoMap = new Map(ctx.productos.map((p) => [p.id, p.precio_compra ?? 0]))
+    const itemsCotizacion  = (cotizacion as unknown as { items_cotizacion: Array<Record<string, unknown>> }).items_cotizacion ?? []
+    const itemsParaPedido  = itemsCotizacion
+      .filter((i) => !i.no_disponible)
+      .map((i) => ({
+        producto_id:     i.producto_id as string | null,
+        nombre_producto: i.nombre_producto as string,
+        unidad:          i.unidad as string,
+        cantidad:        i.cantidad as number,
+        precio_unitario: i.precio_unitario as number,
+        subtotal:        i.subtotal as number,
+        costo_unitario:  productoCostoMap.get(i.producto_id as string) ?? 0,
+      }))
+
+    if (itemsParaPedido.length === 0) {
+      return { ok: false, error: 'La cotización no tiene items disponibles', motivo: 'sin_items' }
+    }
+
+    const costoTotal = itemsParaPedido.reduce((sum, i) => sum + i.costo_unitario * i.cantidad, 0)
+    const total      = (cotizacion as unknown as { total: number }).total
+
+    // Crear el pedido
+    const { data: pedido, error: errPed } = await ctx.supabase
+      .from('pedidos')
+      .insert({
+        ferreteria_id:    ctx.ferreteriaId,
+        cotizacion_id:    cotizacionId,
+        cliente_id:       ctx.clienteId,
+        numero_pedido:    numeroPedido,
+        nombre_cliente:   nombreCliente,
+        telefono_cliente: ctx.telefonoCliente,
+        direccion_entrega: direccionEntrega,
+        zona_delivery_id: zonaId,
+        modalidad,
+        estado:      'confirmado',
+        total,
+        costo_total: costoTotal,
+      })
+      .select().single()
+
+    if (errPed || !pedido) {
+      console.error('[crear_pedido] Error BD:', errPed?.message)
+      return { ok: false, error: 'Error al crear el pedido en la base de datos' }
+    }
+
+    const pedidoId = (pedido as unknown as { id: string }).id
+
+    // Insertar items del pedido
+    await ctx.supabase.from('items_pedido').insert(
+      itemsParaPedido.map((i) => ({ pedido_id: pedidoId, ...i }))
+    )
+
+    // Descontar stock (fire-and-forget)
+    ctx.supabase.rpc('reducir_stock_pedido', { p_pedido_id: pedidoId })
+      .then(({ error: e }) => { if (e) console.error('[crear_pedido] Error stock:', e.message) })
+
+    // Marcar cotización como aprobada
+    await ctx.supabase
+      .from('cotizaciones')
+      .update({ estado: 'aprobada' })
+      .eq('id', cotizacionId)
+      .eq('ferreteria_id', ctx.ferreteriaId)
+
+    // Actualizar nombre del cliente si no lo tenía
+    await ctx.supabase
+      .from('clientes')
+      .update({ nombre: nombreCliente })
+      .eq('id', ctx.clienteId)
+      .is('nombre', null)
+
+    // Actualizar perfil del cliente (compras frecuentes + modalidad)
+    try {
+      const { data: clienteActual } = await ctx.supabase
+        .from('clientes').select('perfil')
+        .eq('id', ctx.clienteId).eq('ferreteria_id', ctx.ferreteriaId).single()
+
+      const perfilBase       = (clienteActual?.perfil as Record<string, unknown> | null) ?? {}
+      const comprasPrevias   = Array.isArray(perfilBase.compras_frecuentes)
+        ? (perfilBase.compras_frecuentes as string[]) : []
+      const nombresNuevos    = itemsParaPedido.map((i) => i.nombre_producto).filter(Boolean)
+      const comprasUnicas    = Array.from(new Set([...nombresNuevos, ...comprasPrevias])).slice(0, 20)
+      const perfilNuevo: Record<string, unknown> = {
+        ...perfilBase,
+        compras_frecuentes: comprasUnicas,
+        modalidad_preferida: modalidad,
+      }
+      if (modalidad === 'delivery' && zonaNombre) perfilNuevo.zona_habitual = zonaNombre
+
+      await ctx.supabase.from('clientes').update({ perfil: perfilNuevo })
+        .eq('id', ctx.clienteId).eq('ferreteria_id', ctx.ferreteriaId)
+    } catch (e) {
+      console.error('[crear_pedido] Error perfil cliente:', e)
+    }
+
+    // Limpiar flujo de la conversación
+    await ctx.supabase.from('conversaciones')
+      .update({ datos_flujo: null })
+      .eq('id', ctx.conversacionId)
+
+    // Generar y enviar comprobante (PDF + WhatsApp)
+    generarYEnviarComprobante({
+      pedidoId:     pedidoId,
+      ferreteriaId: ctx.ferreteriaId,
+      ycloudApiKey: ctx.ycloudApiKey,
+    }).catch((e) => console.error('[crear_pedido] Error comprobante:', e))
+
+    return {
+      ok: true,
+      data: {
+        numero_pedido: (pedido as unknown as { numero_pedido: string }).numero_pedido,
+        total,
+        modalidad,
+        direccion: direccionEntrega,
+        items: itemsParaPedido.map((i) => ({ nombre: i.nombre_producto, cantidad: i.cantidad })),
+      },
+    }
   },
 
   obtener_stock: async (ctx, args) => {
@@ -275,12 +563,11 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     const productoId = args.producto_id as string
     if (!productoId) return { ok: false, error: 'producto_id requerido' }
 
-    // Filtra por ferreteria_id aunque el ID sea UUID — defensa en profundidad
     const { data, error } = await ctx.supabase
       .from('productos')
       .select('id, nombre, unidad, stock, precio_base')
       .eq('id', productoId)
-      .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+      .eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
       .eq('activo', true)
       .single()
 
@@ -295,7 +582,7 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     let query = ctx.supabase
       .from('pedidos')
       .select('numero_pedido, estado, estado_pago, modalidad, total, created_at')
-      .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+      .eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
       .eq('cliente_id', ctx.clienteId)
       .order('created_at', { ascending: false })
       .limit(5)
@@ -316,12 +603,12 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
       ctx.supabase
         .from('ferreterias')
         .select('nombre, direccion, horario_apertura, horario_cierre, dias_atencion, metodos_pago_activos')
-        .eq('id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+        .eq('id', ctx.ferreteriaId)              // FERRETERÍA AISLADA
         .single(),
       ctx.supabase
         .from('zonas_delivery')
         .select('nombre, tiempo_estimado_min')
-        .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
+        .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
         .eq('activo', true),
     ])
     if (!ferreteria) return { ok: false, error: 'Ferretería no encontrada' }
@@ -331,69 +618,45 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
   agregar_a_pedido_reciente: async (ctx, args) => {
     requireTenant(ctx)
     const items = args.items as Array<{ nombre_buscado: string; cantidad: number }> | undefined
-    if (!Array.isArray(items) || items.length === 0) {
-      return { ok: false, error: 'items vacío' }
-    }
+    if (!Array.isArray(items) || items.length === 0) return { ok: false, error: 'items vacío' }
+
     const ventanaMin = ctx.ventanaGraciaMinutos ?? 30
 
-    // ── Criterio 1: buscar el pedido más reciente del cliente en estado editable
     const { data: pedidoRaw } = await ctx.supabase
       .from('pedidos')
       .select(
         'id, numero_pedido, total, estado, estado_pago, modalidad, created_at, ' +
         'modificaciones_count, nombre_cliente, direccion_entrega, items_pedido(*)'
       )
-      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+      .eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
       .eq('cliente_id', ctx.clienteId)
-      .in('estado', ['confirmado', 'en_preparacion'])  // Criterio 2: no despachado ni cancelado
+      .in('estado', ['confirmado', 'en_preparacion'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
 
-    const pedido = pedidoRaw as unknown as {
-      id: string
-      numero_pedido: string
-      total: number
-      estado: string
-      estado_pago: string | null
-      modalidad: string
-      created_at: string
-      modificaciones_count: number | null
-      items_pedido: Array<Record<string, unknown>>
-    } | null
-
-    if (!pedido) {
-      return {
-        ok: false,
-        motivo: 'sin_pedido_editable',
-        mensaje: 'No encontré un pedido reciente editable. Sugiere crear un pedido nuevo.',
-      }
+    type PedidoRaw = {
+      id: string; numero_pedido: string; total: number; estado: string
+      estado_pago: string | null; modalidad: string; created_at: string
+      modificaciones_count: number | null; items_pedido: Array<Record<string, unknown>>
     }
+    const pedido = pedidoRaw as PedidoRaw | null
 
-    // ── Criterio 3: ventana de tiempo (30 min default)
+    if (!pedido) return { ok: false, motivo: 'sin_pedido_editable', mensaje: 'No encontré un pedido reciente editable. Sugiere crear un pedido nuevo.' }
+
     const minutosTranscurridos = (Date.now() - new Date(pedido.created_at).getTime()) / 60000
     if (minutosTranscurridos > ventanaMin) {
-      return {
-        ok: false,
-        motivo: 'fuera_de_ventana',
-        mensaje: `El pedido ${pedido.numero_pedido} ya tiene ${Math.round(minutosTranscurridos)} min. Sugiere crear un pedido nuevo para lo adicional.`,
-      }
+      return { ok: false, motivo: 'fuera_de_ventana', mensaje: `El pedido ${pedido.numero_pedido} ya tiene ${Math.round(minutosTranscurridos)} min. Sugiere crear un pedido nuevo.` }
     }
 
-    // ── Criterio 4: no hay comprobante tributario ya emitido (estado_pago = pagado)
     if (pedido.estado_pago === 'pagado') {
-      return {
-        ok: false,
-        motivo: 'pedido_pagado',
-        mensaje: `El pedido ${pedido.numero_pedido} ya fue pagado, con comprobante emitido. Sugiere crear un pedido nuevo para lo adicional.`,
-      }
+      return { ok: false, motivo: 'pedido_pagado', mensaje: `El pedido ${pedido.numero_pedido} ya fue pagado. Sugiere crear un pedido nuevo.` }
     }
 
-    // ── Procesar los items a agregar (fuzzy search + cálculo de precios)
     const { data: configBot } = await ctx.supabase
       .from('configuracion_bot')
       .select('umbral_monto_negociacion')
-      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+      .eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
       .single()
 
     const resultados = procesarItemsSolicitados(
@@ -403,7 +666,7 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     )
 
     const productoCostoMap = new Map(ctx.productos.map((p) => [p.id, p.precio_compra ?? 0]))
-    const itemsActuales = pedido.items_pedido ?? []
+    const itemsActuales    = pedido.items_pedido ?? []
     const agregados: Array<{ nombre: string; cantidad: number; precio: number; subtotal: number }> = []
 
     for (const r of resultados) {
@@ -411,249 +674,131 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
 
       const existente = itemsActuales.find((i) => (i.producto_id as string) === r.producto!.id)
       if (existente) {
-        // Ya está en el pedido → sumar cantidad
         const nuevaCantidad = (existente.cantidad as number) + r.cantidad
         const nuevoSubtotal = r.precio_unitario * nuevaCantidad
-        await ctx.supabase
-          .from('items_pedido')
-          .update({
-            cantidad: nuevaCantidad,
-            precio_unitario: r.precio_unitario,
-            subtotal: nuevoSubtotal,
-          })
-          .eq('id', existente.id as string)
-        agregados.push({
-          nombre: r.producto.nombre,
-          cantidad: r.cantidad,
-          precio: r.precio_unitario,
-          subtotal: r.precio_unitario * r.cantidad,
-        })
+        await ctx.supabase.from('items_pedido').update({ cantidad: nuevaCantidad, precio_unitario: r.precio_unitario, subtotal: nuevoSubtotal }).eq('id', existente.id as string)
+        agregados.push({ nombre: r.producto.nombre, cantidad: r.cantidad, precio: r.precio_unitario, subtotal: r.precio_unitario * r.cantidad })
       } else {
-        // Nuevo item
         await ctx.supabase.from('items_pedido').insert({
-          pedido_id:       pedido.id,
-          producto_id:     r.producto.id,
-          nombre_producto: r.producto.nombre,
-          unidad:          r.producto.unidad,
-          cantidad:        r.cantidad,
-          precio_unitario: r.precio_unitario,
-          subtotal:        r.subtotal,
-          costo_unitario:  productoCostoMap.get(r.producto.id) ?? 0,
+          pedido_id: pedido.id, producto_id: r.producto.id, nombre_producto: r.producto.nombre,
+          unidad: r.producto.unidad, cantidad: r.cantidad, precio_unitario: r.precio_unitario,
+          subtotal: r.subtotal, costo_unitario: productoCostoMap.get(r.producto.id) ?? 0,
         })
-        agregados.push({
-          nombre: r.producto.nombre,
-          cantidad: r.cantidad,
-          precio: r.precio_unitario,
-          subtotal: r.subtotal,
-        })
+        agregados.push({ nombre: r.producto.nombre, cantidad: r.cantidad, precio: r.precio_unitario, subtotal: r.subtotal })
       }
     }
 
     if (agregados.length === 0) {
-      return {
-        ok: false,
-        motivo: 'productos_no_encontrados',
-        mensaje: 'No encontré esos productos en el catálogo. Verifica los nombres.',
-      }
+      return { ok: false, motivo: 'productos_no_encontrados', mensaje: 'No encontré esos productos en el catálogo. Verifica los nombres.' }
     }
 
-    // ── Recalcular total del pedido
     const { data: itemsFinal } = await ctx.supabase
-      .from('items_pedido')
-      .select('subtotal, cantidad, costo_unitario')
-      .eq('pedido_id', pedido.id)
+      .from('items_pedido').select('subtotal, cantidad, costo_unitario').eq('pedido_id', pedido.id)
 
-    const nuevoTotal = (itemsFinal ?? []).reduce((s, i) => s + (i.subtotal as number), 0)
-    const nuevoCosto = (itemsFinal ?? []).reduce(
-      (s, i) => s + ((i.costo_unitario as number) ?? 0) * (i.cantidad as number),
-      0
-    )
+    const nuevoTotal  = (itemsFinal ?? []).reduce((s, i) => s + (i.subtotal as number), 0)
+    const nuevoCosto  = (itemsFinal ?? []).reduce((s, i) => s + ((i.costo_unitario as number) ?? 0) * (i.cantidad as number), 0)
 
-    await ctx.supabase
-      .from('pedidos')
-      .update({
-        total: nuevoTotal,
-        costo_total: nuevoCosto,
-        modificado_post_confirmacion_at: new Date().toISOString(),
-        modificaciones_count: (pedido.modificaciones_count ?? 0) + 1,
-      })
-      .eq('id', pedido.id)
-      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+    await ctx.supabase.from('pedidos').update({
+      total: nuevoTotal, costo_total: nuevoCosto,
+      modificado_post_confirmacion_at: new Date().toISOString(),
+      modificaciones_count: (pedido.modificaciones_count ?? 0) + 1,
+    }).eq('id', pedido.id).eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
 
-    // ── Regenerar nota de venta (borrar la anterior + generar nueva)
     try {
       await eliminarComprobantePedido(pedido.id, ctx.ferreteriaId)
-      await generarYEnviarComprobante({
-        pedidoId:     pedido.id,
-        ferreteriaId: ctx.ferreteriaId,
-        esProforma:   false,
-        ycloudApiKey: ctx.ycloudApiKey,
-      })
-    } catch (e) {
-      console.error('[agregar_a_pedido_reciente] Error regenerando comprobante:', e)
-      // No abortar — los items ya fueron agregados
-    }
+      await generarYEnviarComprobante({ pedidoId: pedido.id, ferreteriaId: ctx.ferreteriaId, esProforma: false, ycloudApiKey: ctx.ycloudApiKey })
+    } catch (e) { console.error('[agregar_a_pedido_reciente] Error comprobante:', e) }
 
     return {
       ok: true,
-      data: {
-        pedido_numero: pedido.numero_pedido,
-        nuevo_total: nuevoTotal,
-        items_agregados: agregados,
-        comprobante_regenerado: true,
-      },
+      data: { pedido_numero: pedido.numero_pedido, nuevo_total: nuevoTotal, items_agregados: agregados, comprobante_regenerado: true },
     }
   },
 
   sugerir_complementario: async (ctx, args) => {
     requireTenant(ctx)
     const productoIds = args.producto_ids as string[] | undefined
-    if (!Array.isArray(productoIds) || productoIds.length === 0) {
-      return { ok: true, data: { sugerencias: [] } }
-    }
+    if (!Array.isArray(productoIds) || productoIds.length === 0) return { ok: true, data: { sugerencias: [] } }
 
-    // Obtener datos de los productos que el cliente está comprando
-    // (para el filtro contextual de relevancia)
     const productosActuales = ctx.productos.filter((p) => productoIds.includes(p.id))
     const categoriasActuales = new Set(productosActuales.map((p) => p.categoria_id).filter(Boolean))
     const tokensActuales = tokenizarProductos(productosActuales.map((p) => p.nombre))
 
-    // Buscar pares complementarios configurados (manual primero, luego auto)
     const { data: pares, error } = await ctx.supabase
       .from('productos_complementarios')
       .select('complementario_id, tipo, frecuencia')
-      .eq('ferreteria_id', ctx.ferreteriaId)   // FERRETERÍA AISLADA
+      .eq('ferreteria_id', ctx.ferreteriaId)    // FERRETERÍA AISLADA
       .in('producto_id', productoIds)
       .eq('activo', true)
-      .order('tipo', { ascending: true })       // 'auto' < 'manual' alfabéticamente — manual va primero con desc
+      .order('tipo', { ascending: false })
       .order('frecuencia', { ascending: false })
 
-    if (error || !pares || pares.length === 0) {
-      return { ok: true, data: { sugerencias: [] } }
-    }
+    if (error || !pares || pares.length === 0) return { ok: true, data: { sugerencias: [] } }
 
-    // Filtrar complementarios que ya están en la cotización actual
     const idsYaEnCotizacion = new Set(productoIds)
     const candidatos = pares.filter((p) => !idsYaEnCotizacion.has(p.complementario_id))
+    if (candidatos.length === 0) return { ok: true, data: { sugerencias: [] } }
 
-    if (candidatos.length === 0) {
-      return { ok: true, data: { sugerencias: [] } }
-    }
-
-    // Obtener datos de los candidatos (con stock y categoría)
     const idsCanditatos = [...new Set(candidatos.map((c) => c.complementario_id))]
-    const complementariosInfo = ctx.productos.filter(
-      (p) => idsCanditatos.includes(p.id) && p.activo && p.stock > 0
-    )
+    const complementariosInfo = ctx.productos.filter((p) => idsCanditatos.includes(p.id) && p.activo && p.stock > 0)
 
-    // ── FILTRO DE RELEVANCIA CONTEXTUAL ─────────────────────────────────────
-    // Un complementario pasa el filtro si:
-    //   (a) es tipo 'manual' — el dueño ya validó la relación, confiamos
-    //   (b) misma categoría que algún producto en la cotización actual
-    //   (c) comparte al menos 1 token significativo (>3 chars) con algún producto en cotización
-    // Este filtro previene sugerencias random aunque el modelo las detecte como frecuentes.
     const candidatosFiltrados = complementariosInfo.filter((comp) => {
       const parOrigen = candidatos.find((c) => c.complementario_id === comp.id)
       if (!parOrigen) return false
-
-      // (a) Par manual: el dueño lo aprobó explícitamente → pasa siempre
       if (parOrigen.tipo === 'manual') return true
-
-      // (b) Misma categoría
       if (comp.categoria_id && categoriasActuales.has(comp.categoria_id)) return true
-
-      // (c) Token compartido — ej: "arena" aparece en "cemento + arena" y "arena fina"
       const tokensComp = [...tokenizarProductos([comp.nombre])]
-      const hayTokenComun = tokensComp.some((t) => tokensActuales.has(t))
-      if (hayTokenComun) return true
-
-      return false
+      return tokensComp.some((t) => tokensActuales.has(t))
     })
 
-    if (candidatosFiltrados.length === 0) {
-      return { ok: true, data: { sugerencias: [] } }
-    }
+    if (candidatosFiltrados.length === 0) return { ok: true, data: { sugerencias: [] } }
 
-    // Máximo 2 sugerencias — ordenar: manuales primero, luego por frecuencia
     const ordenados = candidatosFiltrados
-      .map((comp) => {
-        const par = candidatos.find((c) => c.complementario_id === comp.id)!
-        return { comp, tipo: par.tipo, frecuencia: par.frecuencia }
-      })
-      .sort((a, b) => {
-        if (a.tipo === 'manual' && b.tipo !== 'manual') return -1
-        if (a.tipo !== 'manual' && b.tipo === 'manual') return 1
-        return b.frecuencia - a.frecuencia
-      })
+      .map((comp) => { const par = candidatos.find((c) => c.complementario_id === comp.id)!; return { comp, tipo: par.tipo, frecuencia: par.frecuencia } })
+      .sort((a, b) => { if (a.tipo === 'manual' && b.tipo !== 'manual') return -1; if (a.tipo !== 'manual' && b.tipo === 'manual') return 1; return b.frecuencia - a.frecuencia })
       .slice(0, 2)
 
-    const sugerencias = ordenados.map(({ comp }) => ({
-      id:             comp.id,
-      nombre:         comp.nombre,
-      precio_unitario: comp.precio_base,
-      unidad:         comp.unidad,
-      stock:          comp.stock,
-    }))
-
-    return { ok: true, data: { sugerencias } }
+    return {
+      ok: true,
+      data: {
+        sugerencias: ordenados.map(({ comp }) => ({
+          id: comp.id, nombre: comp.nombre, precio_unitario: comp.precio_base, unidad: comp.unidad, stock: comp.stock,
+        })),
+      },
+    }
   },
 
   historial_cliente: async (ctx) => {
     requireTenant(ctx)
     const [{ data: cliente }, { data: pedidos }] = await Promise.all([
-      ctx.supabase
-        .from('clientes')
-        .select('nombre, perfil')
-        .eq('id', ctx.clienteId)
-        .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
-        .single(),
-      ctx.supabase
-        .from('pedidos')
+      ctx.supabase.from('clientes').select('nombre, perfil')
+        .eq('id', ctx.clienteId).eq('ferreteria_id', ctx.ferreteriaId).single(),
+      ctx.supabase.from('pedidos')
         .select('numero_pedido, modalidad, total, estado, created_at, items_pedido(nombre_producto, cantidad)')
-        .eq('cliente_id', ctx.clienteId)
-        .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
-        .order('created_at', { ascending: false })
-        .limit(5),
+        .eq('cliente_id', ctx.clienteId).eq('ferreteria_id', ctx.ferreteriaId)
+        .order('created_at', { ascending: false }).limit(5),
     ])
-    return {
-      ok: true,
-      data: {
-        perfil: cliente?.perfil ?? {},
-        nombre: cliente?.nombre ?? null,
-        pedidos_recientes: pedidos ?? [],
-      },
-    }
+    return { ok: true, data: { perfil: cliente?.perfil ?? {}, nombre: cliente?.nombre ?? null, pedidos_recientes: pedidos ?? [] } }
   },
 
   guardar_dato_cliente: async (ctx, args) => {
     requireTenant(ctx)
-    const campo = args.campo as string
-    const valor = (args.valor as string | undefined)?.trim()
-    const camposPermitidos = ['tipo_cliente', 'obra_actual', 'zona_habitual', 'modalidad_preferida']
-    if (!campo || !camposPermitidos.includes(campo)) {
-      return { ok: false, error: 'campo no permitido' }
-    }
-    if (!valor || valor.length < 2 || valor.length > 200) {
-      return { ok: false, error: 'valor inválido' }
-    }
+    const campo  = args.campo as string
+    const valor  = (args.valor as string | undefined)?.trim()
+    const camposPermitidos = [
+      'tipo_cliente', 'obra_actual', 'zona_habitual', 'modalidad_preferida',
+      'metodo_pago_preferido', 'presupuesto_obra', 'tiene_ruc', 'giro_negocio',
+    ]
+    if (!campo || !camposPermitidos.includes(campo)) return { ok: false, error: 'campo no permitido' }
+    if (!valor || valor.length < 2 || valor.length > 200) return { ok: false, error: 'valor inválido' }
 
-    // Merge JSONB sin pisar el resto del perfil
-    const { data: clienteActual } = await ctx.supabase
-      .from('clientes')
-      .select('perfil')
-      .eq('id', ctx.clienteId)
-      .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
-      .single()
-
+    const { data: clienteActual } = await ctx.supabase.from('clientes').select('perfil')
+      .eq('id', ctx.clienteId).eq('ferreteria_id', ctx.ferreteriaId).single()
     const perfilActual = (clienteActual?.perfil ?? {}) as Record<string, unknown>
-    const perfilNuevo = { ...perfilActual, [campo]: valor }
+    const perfilNuevo  = { ...perfilActual, [campo]: valor }
 
-    const { error } = await ctx.supabase
-      .from('clientes')
-      .update({ perfil: perfilNuevo })
-      .eq('id', ctx.clienteId)
-      .eq('ferreteria_id', ctx.ferreteriaId)  // FERRETERÍA AISLADA
-
+    const { error } = await ctx.supabase.from('clientes').update({ perfil: perfilNuevo })
+      .eq('id', ctx.clienteId).eq('ferreteria_id', ctx.ferreteriaId)
     if (error) return { ok: false, error: error.message }
     return { ok: true, data: { guardado: { [campo]: valor } } }
   },

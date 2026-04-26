@@ -12,39 +12,39 @@ export interface ResultadoBusqueda {
   subtotal: number
   disponible: boolean
   stock_disponible: number
-  nota: string | null            // "Solo hay 5 en stock", "Precio especial", etc.
-  requiere_aprobacion: boolean   // true si va a negociación con el dueño
+  nota: string | null
+  requiere_aprobacion: boolean
   modo_aplicado: 'base' | 'descuento' | 'negociacion'
 }
 
-// Normaliza texto: minúsculas, sin tildes, solo alfanumérico
+// Normaliza texto: minúsculas, sin tildes, solo alfanumérico+espacios
 function normalizar(texto: string): string {
   return texto
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // quitar tildes
-    .replace(/[^a-z0-9\s]/g, ' ')   // no-alfanumérico → espacio (ej: "3/8" → "3 8")
+    .replace(/[̀-ͯ]/g, '')   // quitar diacríticos (tildes, etc.)
+    .replace(/[^a-z0-9\s]/g, ' ')      // no-alfanumérico → espacio (ej: "3/8" → "3 8")
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-// Divide texto en tokens significativos (≥2 chars — incluye "38" de "3/8")
+// Divide texto en tokens (≥2 chars — incluye "38" de "3/8", "1a", etc.)
 function tokenizar(texto: string): string[] {
   return texto.split(/\s+/).filter((t) => t.length >= 2)
 }
 
-// Verifica si un token coincide con un texto, con soporte plural/singular
+// Coincidencia de token con soporte plural/singular básico en español
 function matchToken(token: string, texto: string): boolean {
   if (texto.includes(token)) return true
-  // "ladrillos" → buscar "ladrillo" (quitar -s final)
+  // "ladrillos" → "ladrillo" (-s)
   if (token.endsWith('s') && token.length > 3 && texto.includes(token.slice(0, -1))) return true
-  // "paredes" → buscar "pared" (quitar -es final)
+  // "paredes" → "pared" (-es)
   if (token.endsWith('es') && token.length > 4 && texto.includes(token.slice(0, -2))) return true
   return false
 }
 
-// Busca un producto en el catálogo por nombre (búsqueda aproximada con scoring)
-function buscarProducto(nombreBuscado: string, productos: Producto[]): Producto | null {
+// Busca un producto en el catálogo por nombre — 4 niveles de fuzzy matching
+export function buscarProducto(nombreBuscado: string, productos: Producto[]): Producto | null {
   const termino = normalizar(nombreBuscado)
   if (!termino) return null
 
@@ -52,15 +52,15 @@ function buscarProducto(nombreBuscado: string, productos: Producto[]): Producto 
   const exacto = productos.find((p) => normalizar(p.nombre) === termino)
   if (exacto) return exacto
 
-  // 2. El nombre del catálogo contiene el término buscado
+  // 2. El nombre del catálogo contiene el término completo
   const contiene = productos.find((p) => normalizar(p.nombre).includes(termino))
   if (contiene) return contiene
 
-  // 3. El término buscado contiene el nombre del catálogo
+  // 3. El término contiene el nombre del catálogo (cliente dice más de lo que está en catálogo)
   const invertido = productos.find((p) => termino.includes(normalizar(p.nombre)))
   if (invertido) return invertido
 
-  // 4. Scoring por tokens — funciona con 1 o más tokens, con soporte plural/singular
+  // 4. Scoring por tokens — funciona con 1 o más tokens, con plural/singular
   const tokensTermino = tokenizar(termino)
   if (tokensTermino.length === 0) return null
 
@@ -75,7 +75,7 @@ function buscarProducto(nombreBuscado: string, productos: Producto[]): Producto 
     if (score > mejorScore) { mejorScore = score; mejorMatch = p }
   }
 
-  // Aceptar si cubre ≥50% de tokens, o si solo había 1 token (búsqueda simple como "cemento")
+  // Aceptar si ≥50% de tokens coinciden, o si era una búsqueda de 1 solo token
   if (mejorMatch && (mejorScore >= 0.5 || tokensTermino.length === 1)) return mejorMatch
 
   return null
@@ -93,7 +93,6 @@ function calcularPrecio(
 } {
   const reglas = (producto.reglas_descuento ?? []).sort((a, b) => a.cantidad_min - b.cantidad_min)
 
-  // Verificar si hay regla de descuento aplicable para esta cantidad
   const reglaAplicable = reglas.find((r) => {
     const cumpleMin = cantidad >= r.cantidad_min
     const cumpleMax = r.cantidad_max === null || cantidad <= r.cantidad_max
@@ -111,7 +110,6 @@ function calcularPrecio(
     }
   }
 
-  // Verificar modo negociación global del producto
   if (
     producto.modo_negociacion &&
     producto.umbral_negociacion_cantidad &&
@@ -163,9 +161,7 @@ export function procesarItemsSolicitados(
     const stockParcial = !stockOk && stockDisponible > 0
     const sinStock = stockDisponible === 0
 
-    // Usamos la cantidad real que se puede entregar
     const cantidadFinal = stockOk ? item.cantidad : stockDisponible
-
     const { precio_unitario, requiere_aprobacion, modo, nota } = calcularPrecio(producto, cantidadFinal)
 
     let notaFinal = nota
@@ -177,12 +173,12 @@ export function procesarItemsSolicitados(
 
     return {
       nombre_buscado: item.nombre_buscado,
-      cantidad: cantidadFinal,           // cantidad real a entregar
+      cantidad: cantidadFinal,
       producto,
       precio_unitario,
       precio_original: producto.precio_base,
       subtotal: precio_unitario * cantidadFinal,
-      disponible: !sinStock,             // disponible si hay ALGO de stock
+      disponible: !sinStock,
       stock_disponible: stockDisponible,
       nota: notaFinal,
       requiere_aprobacion,
@@ -190,7 +186,6 @@ export function procesarItemsSolicitados(
     }
   })
 
-  // Verificar umbral global de monto de negociación
   if (umbralMontoNegociacion) {
     const totalDisponibles = resultados
       .filter((r) => r.disponible)
@@ -224,13 +219,11 @@ export function formatearCotizacion(
   for (const r of disponibles) {
     texto += `\n✅ *${r.producto!.nombre}*\n`
     texto += `   ${r.cantidad} ${r.producto!.unidad}${r.cantidad !== 1 ? 's' : ''} × ${formatPEN(r.precio_unitario)}\n`
-
     if (r.nota) {
       texto += `   _${r.nota}_\n`
     } else if (r.modo_aplicado === 'descuento') {
       texto += `   _(precio por volumen)_\n`
     }
-
     if (!r.requiere_aprobacion) {
       texto += `   *Subtotal: ${formatPEN(r.subtotal)}*\n`
     }

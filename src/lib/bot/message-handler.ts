@@ -85,26 +85,10 @@ interface HandleMessageResult {
   mensajesExtra?: MensajeExtra[]
 }
 
-/** Heurística rápida: ¿el mensaje podría necesitar el catálogo?
- *  Por defecto carga el catálogo, excepto mensajes muy cortos que son claramente
- *  solo saludos o preguntas de horario/dirección sin mención de productos. */
-function mensajeNecesitaCatalogo(texto: string): boolean {
-  // Mensajes largos: siempre cargar (pueden tener nombres de producto)
-  if (texto.length > 40) return true
-
-  const lower = texto.toLowerCase()
-
-  // Indicios explícitos de que NO necesita catálogo (saludo puro o FAQ)
-  const soloPreguntaAdmin = [
-    'hola', 'buenos días', 'buenas tardes', 'buenas noches', 'buenas',
-    'horario', 'direccion', 'dirección', 'dónde', 'donde están', 'abierto',
-    'gracias', 'ok', 'listo', 'perfecto', 'entendido',
-  ]
-  // Si el texto es solo un saludo/faq, no necesita catálogo
-  const esSoloSaludo = soloPreguntaAdmin.some(k => lower === k || lower.startsWith(k + ' '))
-  if (esSoloSaludo && texto.length < 30) return false
-
-  // En cualquier otro caso cargar el catálogo — el AI lo ignorará si no aplica
+/** El catálogo siempre se incluye en el prompt.
+ *  Eliminamos el filtro por keywords — era la raíz del bug donde el bot decía
+ *  "no hay" para productos que sí existen porque el catálogo nunca llegaba al modelo. */
+function mensajeNecesitaCatalogo(_texto: string): boolean {
   return true
 }
 
@@ -272,6 +256,7 @@ export async function handleIncomingMessage({
         nombreCliente: nombreClienteGuardado,
         perfilCliente,
         resumenContexto,
+        datosFlujo,
       })
 
       const resultado = await ejecutarOrquestador(
@@ -283,20 +268,28 @@ export async function handleIncomingMessage({
         textoMensaje,
         {
           supabase,
-          ferreteriaId: ferreteria.id,       // FERRETERÍA AISLADA — inyectado
-          conversacionId: conversacion.id,
-          clienteId: conversacion.cliente_id,
-          productos: productos ?? [],
+          ferreteriaId:    ferreteria.id,       // FERRETERÍA AISLADA
+          conversacionId:  conversacion.id,
+          clienteId:       conversacion.cliente_id,
+          telefonoCliente,                       // para crear_pedido
+          productos:       productos ?? [],
+          zonas:           zonas ?? [],          // para crear_pedido (zona lookup)
+          datosFlujo,                            // cotización activa y paso actual
           ventanaGraciaMinutos: (config as unknown as { ventana_gracia_minutos?: number } | null)?.ventana_gracia_minutos ?? 30,
           ycloudApiKey,
         }
       )
 
-      console.log(`[Orchestrator] tools=${resultado.toolsUsadas.join(',')} iter=${resultado.iteraciones}`)
+      // Registrar crédito según lo que el orquestador realmente hizo
+      const tipoTareaOrq = resultado.toolsUsadas.includes('guardar_cotizacion') ? 'cotizacion'
+        : resultado.toolsUsadas.includes('crear_pedido') ? 'pedido'
+        : 'respuesta_simple'
+
+      console.log(`[Orchestrator] motor=${resultado.motor} tools=${resultado.toolsUsadas.join(',') || 'ninguna'} iter=${resultado.iteraciones} tarea=${tipoTareaOrq}`)
 
       registrarMovimiento({
-        ferreteriaId: ferreteria.id,
-        tipoTarea:    'respuesta_simple',
+        ferreteriaId:   ferreteria.id,
+        tipoTarea:      tipoTareaOrq,
         conversacionId: conversacion.id,
         origen: 'bot',
       }).catch(() => {})
@@ -309,9 +302,15 @@ export async function handleIncomingMessage({
     }
   }
 
-  const systemPrompt = necesitaCatalogo
-    ? buildSystemPrompt({ ferreteria, productos: productos ?? [], zonas: zonas ?? [], config, datosFlujo, nombreCliente: nombreClienteGuardado })
-    : buildSystemPromptLite({ ferreteria, zonas: zonas ?? [], config })
+  // Siempre incluir catálogo completo — mensajeNecesitaCatalogo() siempre retorna true
+  const systemPrompt = buildSystemPrompt({
+    ferreteria,
+    productos: productos ?? [],
+    zonas:     zonas ?? [],
+    config,
+    datosFlujo,
+    nombreCliente: nombreClienteGuardado,
+  })
 
   let respuestaAI
   try {

@@ -19,7 +19,7 @@ import { TOOL_SCHEMAS, TOOL_EXECUTORS, type ToolContext } from './tools'
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com'
 const DEEPSEEK_MODEL = 'deepseek-chat'
 const CLAUDE_MODEL   = 'claude-3-5-haiku-20241022'
-const MAX_ITERATIONS = 5
+const MAX_ITERATIONS = 8
 const TIMEOUT_MS     = 28_000
 
 export interface OrchestratorResult {
