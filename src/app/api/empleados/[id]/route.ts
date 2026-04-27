@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { checkPermiso, normalizarPermisos, type PermisoMap } from '@/lib/auth/permisos'
+import { logAccion } from '@/lib/audit'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -68,6 +69,37 @@ export async function PATCH(request: Request, { params }: Props) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auditoría según qué campo se actualizó
+  if (typeof body.activo === 'boolean') {
+    await logAccion({
+      ferreteriaId: session.ferreteriaId,
+      usuarioId:    session.userId,
+      accion:       body.activo ? 'activar_empleado' : 'desactivar_empleado',
+      entidad:      'empleado',
+      entidadId:    id,
+      detalle:      { nombre: data.nombre, email: data.email },
+    })
+  } else if (body.permisos) {
+    await logAccion({
+      ferreteriaId: session.ferreteriaId,
+      usuarioId:    session.userId,
+      accion:       'cambiar_permisos_empleado',
+      entidad:      'empleado',
+      entidadId:    id,
+      detalle:      { nombre: data.nombre },
+    })
+  } else if (body.nueva_password) {
+    await logAccion({
+      ferreteriaId: session.ferreteriaId,
+      usuarioId:    session.userId,
+      accion:       'reset_password_empleado',
+      entidad:      'empleado',
+      entidadId:    id,
+      detalle:      { nombre: data.nombre },
+    })
+  }
+
   return NextResponse.json(data)
 }
 
@@ -102,6 +134,15 @@ export async function DELETE(_request: Request, { params }: Props) {
   // Desactivar usuario en Auth (no eliminar para preservar historial)
   await admin.auth.admin.updateUserById(miembro.user_id, {
     ban_duration: '876600h', // ~100 años
+  })
+
+  await logAccion({
+    ferreteriaId: session.ferreteriaId,
+    usuarioId:    session.userId,
+    accion:       'eliminar_empleado',
+    entidad:      'empleado',
+    entidadId:    id,
+    detalle:      { user_id: miembro.user_id },
   })
 
   return NextResponse.json({ ok: true })

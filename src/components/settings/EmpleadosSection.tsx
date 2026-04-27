@@ -5,7 +5,7 @@ import { cn, iniciales } from '@/lib/utils'
 import {
   Users, Plus, ChevronDown, ChevronUp, Eye, EyeOff,
   Loader2, UserX, UserCheck, KeyRound, Trash2, Check, X,
-  ShieldCheck,
+  ShieldCheck, Lock,
 } from 'lucide-react'
 import {
   GRUPOS_PERMISOS, PLANTILLAS, ETIQUETAS_PLANTILLA, DESCRIPCIONES_PLANTILLA,
@@ -321,6 +321,11 @@ function EmpleadoCard({
   const [verPass, setVerPass] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
   const [eliminandoConfirm, setEliminandoConfirm] = useState(false)
+  const [pinMode, setPinMode]           = useState(false)
+  const [pinValue, setPinValue]         = useState('')
+  const [pinError, setPinError]         = useState<string | null>(null)
+  const [pinGuardando, setPinGuardando] = useState(false)
+  const [pinGuardado, setPinGuardado]   = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const plantilla = detectarPlantilla(permisos)
@@ -404,6 +409,29 @@ function EmpleadoCard({
     }
   }
 
+  async function guardarPin() {
+    if (!/^\d{4}$/.test(pinValue)) { setPinError('El PIN debe ser exactamente 4 dígitos'); return }
+    setPinGuardando(true)
+    setPinError(null)
+    try {
+      const res = await fetch(`/api/empleados/${miembro.id}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinValue }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setPinError(json.error ?? 'Error'); return }
+      setPinMode(false)
+      setPinValue('')
+      setPinGuardado(true)
+      setTimeout(() => setPinGuardado(false), 3000)
+    } catch {
+      setPinError('Error de conexión')
+    } finally {
+      setPinGuardando(false)
+    }
+  }
+
   return (
     <div className={cn(
       'rounded-xl border transition',
@@ -479,6 +507,20 @@ function EmpleadoCard({
               Cambiar contraseña
             </button>
 
+            {/* PIN */}
+            <button
+              onClick={() => { setPinMode(!pinMode); setPinValue(''); setPinError(null) }}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition',
+                pinGuardado
+                  ? 'bg-emerald-50 text-emerald-600'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              )}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              {pinGuardado ? 'PIN guardado ✓' : 'Establecer PIN'}
+            </button>
+
             {/* Eliminar */}
             {!eliminandoConfirm ? (
               <button
@@ -507,6 +549,37 @@ function EmpleadoCard({
               </div>
             )}
           </div>
+
+          {/* Panel de PIN */}
+          {pinMode && (
+            <div className="bg-zinc-50 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-medium text-zinc-600">PIN de seguridad (4 dígitos)</p>
+              <p className="text-xs text-zinc-400">El empleado usará este PIN para confirmar acciones sensibles dentro del sistema.</p>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pinValue}
+                onChange={(e) => { setPinValue(e.target.value.replace(/\D/g, '')); setPinError(null) }}
+                placeholder="••••"
+                className="w-28 px-3 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
+              />
+              {pinError && <p className="text-xs text-red-500">{pinError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={guardarPin}
+                  disabled={pinGuardando || pinValue.length !== 4}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-xl transition disabled:opacity-60"
+                >
+                  {pinGuardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Guardar
+                </button>
+                <button onClick={() => setPinMode(false)} className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 transition">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Reset password inline */}
           {resetMode && (

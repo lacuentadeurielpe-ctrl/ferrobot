@@ -4,6 +4,7 @@ import { getSessionInfo } from '@/lib/auth/roles'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { generarYEnviarComprobante } from '@/lib/pdf/generar-comprobante'
 import { getYCloudApiKey } from '@/lib/tenant'
+import { logAccion } from '@/lib/audit'
 
 const ESTADOS_VALIDOS = ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado', 'cancelado']
 
@@ -82,6 +83,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // ── Auditoría ──────────────────────────────────────────────────────────────
+  if (body.estado) {
+    await logAccion({
+      ferreteriaId:  session.ferreteriaId,
+      usuarioId:     session.userId,
+      accion:        body.estado === 'cancelado' ? 'cancelar_pedido' : 'cambiar_estado_pedido',
+      entidad:       'pedido',
+      entidadId:     id,
+      detalle: {
+        estado_anterior: pedidoActual?.estado ?? null,
+        estado_nuevo:    body.estado,
+        numero_pedido:   data.numero_pedido,
+        ...(body.motivo_cancelacion ? { motivo: body.motivo_cancelacion } : {}),
+      },
+    })
+  }
 
   // ── Gestión de stock ───────────────────────────────────────────────────────
   const estadoAnterior = pedidoActual?.estado

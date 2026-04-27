@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { checkPermiso, PLANTILLAS, normalizarPermisos, type PlantillaPermiso } from '@/lib/auth/permisos'
+import { logAccion } from '@/lib/audit'
 
 export async function GET() {
   const session = await getSessionInfo()
@@ -88,6 +89,15 @@ export async function POST(request: Request) {
     await admin.auth.admin.deleteUser(userId)
     return NextResponse.json({ error: miembroError.message }, { status: 500 })
   }
+
+  await logAccion({
+    ferreteriaId: session.ferreteriaId,
+    usuarioId:    session.userId,
+    accion:       'crear_empleado',
+    entidad:      'empleado',
+    entidadId:    miembro.id,
+    detalle:      { nombre: miembro.nombre, email: miembro.email, plantilla },
+  })
 
   return NextResponse.json(miembro, { status: 201 })
 }

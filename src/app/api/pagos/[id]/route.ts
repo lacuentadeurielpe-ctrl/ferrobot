@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { logAccion } from '@/lib/audit'
 
 export async function PATCH(
   request: Request,
@@ -58,6 +59,15 @@ export async function PATCH(
         .eq('ferreteria_id', session.ferreteriaId)   // FERRETERÍA AISLADA
     }
 
+    await logAccion({
+      ferreteriaId: session.ferreteriaId,
+      usuarioId:    session.userId,
+      accion:       'aprobar_pago',
+      entidad:      'pago',
+      entidadId:    id,
+      detalle:      { monto: pago.monto, pedido_id: pedidoId ?? null },
+    })
+
     return NextResponse.json({ ok: true })
   }
 
@@ -73,6 +83,16 @@ export async function PATCH(
       .eq('ferreteria_id', session.ferreteriaId)   // FERRETERÍA AISLADA
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await logAccion({
+      ferreteriaId: session.ferreteriaId,
+      usuarioId:    session.userId,
+      accion:       'rechazar_pago',
+      entidad:      'pago',
+      entidadId:    id,
+      detalle:      { monto: pago.monto, notas: body.notas ?? null },
+    })
+
     return NextResponse.json({ ok: true })
   }
 
@@ -108,6 +128,15 @@ export async function PATCH(
       .update({ estado_pago: 'pagado', monto_pagado: pago.monto })
       .eq('id', body.pedido_id)
       .eq('ferreteria_id', session.ferreteriaId)   // FERRETERÍA AISLADA
+
+    await logAccion({
+      ferreteriaId: session.ferreteriaId,
+      usuarioId:    session.userId,
+      accion:       'vincular_pago',
+      entidad:      'pago',
+      entidadId:    id,
+      detalle:      { monto: pago.monto, pedido_id: body.pedido_id },
+    })
 
     return NextResponse.json({ ok: true })
   }

@@ -8,6 +8,7 @@ import MercadoPagoConnect from '@/components/settings/MercadoPagoConnect'
 import YCloudConnect from '@/components/settings/YCloudConnect'
 import FacturacionTab from '@/components/settings/FacturacionTab'
 import ComplementariosSection from '@/components/settings/ComplementariosSection'
+import AuditoriaTab from '@/components/settings/AuditoriaTab'
 import { Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +36,7 @@ const TAB_GROUPS = [
     tabs: [
       { id: 'equipo',       label: 'Empleados'    },
       { id: 'repartidores', label: 'Repartidores' },
+      { id: 'historial',    label: 'Historial'    },
     ],
   },
 ]
@@ -238,6 +240,9 @@ export default async function SettingsPage({
       {tabActivo === 'complementarios' && (
         <ComplementariosSection productos={productosActivos ?? []} />
       )}
+
+      {/* ── Historial de auditoría ──────────────────────────────────── */}
+      {tabActivo === 'historial' && <AuditoriaTab />}
     </div>
   )
 }
