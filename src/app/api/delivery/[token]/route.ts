@@ -11,7 +11,7 @@ function adminClient() {
 
 const PEDIDO_SELECT = `
   id, numero_pedido, nombre_cliente, telefono_cliente,
-  direccion_entrega, total, estado, notas,
+  direccion_entrega, total, estado, estado_pago, notas,
   cobrado_monto, cobrado_metodo, incidencia_tipo, incidencia_desc,
   created_at,
   clientes(nombre, telefono),
@@ -28,7 +28,7 @@ export async function GET(
 
   const { data: repartidor, error: repError } = await supabase
     .from('repartidores')
-    .select('id, nombre, ferreteria_id, ferreterias(nombre, modo_asignacion_delivery)')
+    .select('id, nombre, ferreteria_id, puede_registrar_deuda, ferreterias(nombre, modo_asignacion_delivery)')
     .eq('token', token)
     .eq('activo', true)
     .single()
@@ -55,7 +55,7 @@ export async function GET(
   const hoy = new Date().toISOString().slice(0, 10)
   const { data: cobrosHoy } = await supabase
     .from('pedidos')
-    .select('id, numero_pedido, total, cobrado_monto, cobrado_metodo, clientes(nombre), created_at')
+    .select('id, numero_pedido, total, cobrado_monto, cobrado_metodo, estado_pago, clientes(nombre), created_at')
     .eq('ferreteria_id', repartidor.ferreteria_id)
     .eq('repartidor_id', repartidor.id)
     .eq('estado', 'entregado')
@@ -82,6 +82,7 @@ export async function GET(
       id: repartidor.id,
       nombre: repartidor.nombre,
       ferreteria: ferr?.nombre ?? 'Ferretería',
+      puede_registrar_deuda: repartidor.puede_registrar_deuda ?? false,
     },
     modo,
     pedidos: pedidos ?? [],

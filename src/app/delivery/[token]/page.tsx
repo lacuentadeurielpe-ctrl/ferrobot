@@ -1,6 +1,6 @@
 // Interfaz móvil del repartidor — accesible solo con token, sin login
 import { createClient } from '@supabase/supabase-js'
-import { Truck, Package } from 'lucide-react'
+import { Truck } from 'lucide-react'
 import DeliveryView from './DeliveryView'
 
 function adminClient() {
@@ -16,7 +16,7 @@ interface Props {
 
 const PEDIDO_SELECT = `
   id, numero_pedido, nombre_cliente, telefono_cliente,
-  direccion_entrega, total, estado, notas,
+  direccion_entrega, total, estado, estado_pago, notas,
   cobrado_monto, cobrado_metodo, incidencia_tipo, incidencia_desc,
   created_at,
   clientes(nombre, telefono),
@@ -30,7 +30,7 @@ export default async function DeliveryPage({ params }: Props) {
 
   const { data: repartidor } = await supabase
     .from('repartidores')
-    .select('id, nombre, ferreteria_id, ferreterias(nombre, modo_asignacion_delivery)')
+    .select('id, nombre, ferreteria_id, puede_registrar_deuda, ferreterias(nombre, modo_asignacion_delivery)')
     .eq('token', token)
     .eq('activo', true)
     .single()
@@ -48,7 +48,7 @@ export default async function DeliveryPage({ params }: Props) {
   }
 
   const ferr = repartidor.ferreterias as any
-  const ferreteriaNombre = ferr?.nombre ?? 'Ferretería'
+  const ferreteriaNombre = ferr?.nombre ?? 'Empresa'
   const modo: 'manual' | 'libre' = ferr?.modo_asignacion_delivery === 'libre' ? 'libre' : 'manual'
   const hoy = new Date().toISOString().slice(0, 10)
 
@@ -56,7 +56,6 @@ export default async function DeliveryPage({ params }: Props) {
     { data: pedidos },
     { data: cobrosHoy },
   ] = await Promise.all([
-    // Pedidos asignados y pendientes
     supabase
       .from('pedidos')
       .select(PEDIDO_SELECT)
@@ -65,10 +64,9 @@ export default async function DeliveryPage({ params }: Props) {
       .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
       .order('created_at', { ascending: true }),
 
-    // Cobros del día (entregados hoy)
     supabase
       .from('pedidos')
-      .select('id, numero_pedido, total, cobrado_monto, cobrado_metodo, clientes(nombre), created_at')
+      .select('id, numero_pedido, total, cobrado_monto, cobrado_metodo, estado_pago, clientes(nombre), created_at')
       .eq('ferreteria_id', repartidor.ferreteria_id)
       .eq('repartidor_id', repartidor.id)
       .eq('estado', 'entregado')
@@ -76,7 +74,6 @@ export default async function DeliveryPage({ params }: Props) {
       .order('created_at', { ascending: false }),
   ])
 
-  // Pedidos disponibles (solo en modo libre)
   let pedidosDisponibles: unknown[] = []
   if (modo === 'libre') {
     const { data: disponibles } = await supabase
@@ -94,7 +91,6 @@ export default async function DeliveryPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-orange-500 text-white px-4 py-4 sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3 max-w-lg mx-auto">
           <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
@@ -118,6 +114,7 @@ export default async function DeliveryPage({ params }: Props) {
           cobrosHoy={(cobrosHoy ?? []) as any}
           token={token}
           modo={modo}
+          puedeRegistrarDeuda={repartidor.puede_registrar_deuda ?? false}
         />
       </div>
     </div>

@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Truck, Plus, UserX, UserCheck, Loader2, Copy, Check, Phone, Shuffle, ListOrdered } from 'lucide-react'
+import {
+  Truck, Plus, UserX, UserCheck, Loader2, Copy, Check,
+  Phone, Shuffle, ListOrdered, ShieldCheck, ShieldOff,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Repartidor {
@@ -10,6 +13,7 @@ interface Repartidor {
   telefono: string | null
   activo: boolean
   token: string
+  puede_registrar_deuda: boolean
   created_at: string
 }
 
@@ -18,15 +22,15 @@ export default function RepartidoresSection({
 }: {
   modoInicial?: 'manual' | 'libre'
 }) {
-  const [repartidores, setRepartidores] = useState<Repartidor[]>([])
-  const [cargando, setCargando] = useState(true)
-  const [accionando, setAccionando] = useState<string | null>(null)
-  const [copiado, setCopiado] = useState<string | null>(null)
-  const [form, setForm] = useState({ nombre: '', telefono: '' })
-  const [guardando, setGuardando] = useState(false)
-  const [mostrarForm, setMostrarForm] = useState(false)
-  const [modo, setModo] = useState<'manual' | 'libre'>(modoInicial)
-  const [guardandoModo, setGuardandoModo] = useState(false)
+  const [repartidores,   setRepartidores]   = useState<Repartidor[]>([])
+  const [cargando,       setCargando]       = useState(true)
+  const [accionando,     setAccionando]     = useState<string | null>(null)
+  const [copiado,        setCopiado]        = useState<string | null>(null)
+  const [form,           setForm]           = useState({ nombre: '', telefono: '' })
+  const [guardando,      setGuardando]      = useState(false)
+  const [mostrarForm,    setMostrarForm]    = useState(false)
+  const [modo,           setModo]           = useState<'manual' | 'libre'>(modoInicial)
+  const [guardandoModo,  setGuardandoModo]  = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -77,7 +81,7 @@ export default function RepartidoresSection({
   }
 
   async function toggleActivo(id: string, activo: boolean) {
-    setAccionando(id)
+    setAccionando(id + '_activo')
     try {
       const res = await fetch(`/api/repartidores/${id}`, {
         method: 'PATCH',
@@ -86,6 +90,24 @@ export default function RepartidoresSection({
       })
       if (res.ok) {
         setRepartidores((prev) => prev.map((r) => r.id === id ? { ...r, activo: !activo } : r))
+      }
+    } finally {
+      setAccionando(null)
+    }
+  }
+
+  async function toggleDeuda(id: string, puedeRegistrarDeuda: boolean) {
+    setAccionando(id + '_deuda')
+    try {
+      const res = await fetch(`/api/repartidores/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puede_registrar_deuda: !puedeRegistrarDeuda }),
+      })
+      if (res.ok) {
+        setRepartidores((prev) => prev.map((r) =>
+          r.id === id ? { ...r, puede_registrar_deuda: !puedeRegistrarDeuda } : r
+        ))
       }
     } finally {
       setAccionando(null)
@@ -175,7 +197,7 @@ export default function RepartidoresSection({
           </div>
           <div>
             <label className="text-xs font-medium text-zinc-600 mb-1 block">
-              Teléfono {modo === 'libre' && <span className="text-zinc-600">* requerido para modo libre</span>}
+              Teléfono {modo === 'libre' && <span className="text-zinc-500">* requerido para modo libre</span>}
             </label>
             <input
               value={form.telefono}
@@ -217,7 +239,7 @@ export default function RepartidoresSection({
             )}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold text-zinc-900">{r.nombre}</p>
                     {modo === 'libre' && !r.telefono && r.activo && (
                       <span className="text-xs text-amber-600 bg-amber-50 rounded px-1.5 py-0.5">sin tel.</span>
@@ -239,11 +261,11 @@ export default function RepartidoresSection({
                   </span>
                   <button
                     onClick={() => toggleActivo(r.id, r.activo)}
-                    disabled={accionando === r.id}
+                    disabled={accionando === r.id + '_activo'}
                     title={r.activo ? 'Desactivar' : 'Activar'}
                     className="text-zinc-400 hover:text-zinc-600 transition"
                   >
-                    {accionando === r.id
+                    {accionando === r.id + '_activo'
                       ? <Loader2 className="w-4 h-4 animate-spin" />
                       : r.activo
                       ? <UserX className="w-4 h-4 text-red-400" />
@@ -253,6 +275,35 @@ export default function RepartidoresSection({
                 </div>
               </div>
 
+              {/* Permiso de deuda */}
+              {r.activo && (
+                <div className="mt-2.5 flex items-center justify-between bg-zinc-50 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    {r.puede_registrar_deuda
+                      ? <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                      : <ShieldOff className="w-3.5 h-3.5 text-zinc-400" />
+                    }
+                    <span className="text-xs text-zinc-600 font-medium">
+                      {r.puede_registrar_deuda ? 'Puede registrar cobros parciales' : 'Sin permiso de deuda'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => toggleDeuda(r.id, r.puede_registrar_deuda)}
+                    disabled={accionando === r.id + '_deuda'}
+                    className={cn(
+                      'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                      r.puede_registrar_deuda ? 'bg-amber-500' : 'bg-zinc-200'
+                    )}
+                  >
+                    <span className={cn(
+                      'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200',
+                      r.puede_registrar_deuda ? 'translate-x-4' : 'translate-x-0'
+                    )} />
+                  </button>
+                </div>
+              )}
+
+              {/* Link de acceso */}
               {r.activo && (
                 <div className="mt-2 flex items-center gap-2 bg-zinc-100 rounded-xl px-2.5 py-1.5">
                   <p className="text-xs text-zinc-700 truncate flex-1 font-mono">
@@ -275,7 +326,8 @@ export default function RepartidoresSection({
       )}
 
       <p className="text-xs text-zinc-400 mt-4">
-        Cada repartidor recibe un link único que puede abrir en su celular para ver y gestionar sus entregas.
+        Cada repartidor recibe un link único que puede abrir en su celular para gestionar sus entregas.
+        El permiso de <strong>cobros parciales</strong> permite registrar deudas cuando el cliente paga menos del total.
       </p>
     </div>
   )

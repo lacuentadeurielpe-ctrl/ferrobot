@@ -12,7 +12,7 @@ export async function GET() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('repartidores')
-    .select('id, nombre, telefono, activo, token, created_at')
+    .select('id, nombre, telefono, activo, token, puede_registrar_deuda, created_at')
     .eq('ferreteria_id', session.ferreteriaId)
     .order('nombre')
 
@@ -32,11 +32,12 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from('repartidores')
     .insert({
-      ferreteria_id: session.ferreteriaId,
-      nombre: body.nombre.trim(),
-      telefono: body.telefono?.trim() ?? null,
+      ferreteria_id:         session.ferreteriaId,
+      nombre:                body.nombre.trim(),
+      telefono:              body.telefono?.trim() ?? null,
+      puede_registrar_deuda: false,
     })
-    .select('id, nombre, telefono, activo, token, created_at')
+    .select('id, nombre, telefono, activo, token, puede_registrar_deuda, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -18,16 +18,17 @@ export async function PATCH(
   const supabase = await createClient()
 
   const update: Record<string, unknown> = {}
-  if (body.nombre !== undefined) update.nombre = body.nombre.trim()
-  if (body.telefono !== undefined) update.telefono = body.telefono?.trim() ?? null
-  if (body.activo !== undefined) update.activo = body.activo
+  if (body.nombre                !== undefined) update.nombre                = body.nombre.trim()
+  if (body.telefono              !== undefined) update.telefono              = body.telefono?.trim() ?? null
+  if (body.activo                !== undefined) update.activo                = body.activo
+  if (body.puede_registrar_deuda !== undefined) update.puede_registrar_deuda = body.puede_registrar_deuda
 
   const { data, error } = await supabase
     .from('repartidores')
     .update(update)
     .eq('id', id)
-    .eq('ferreteria_id', session.ferreteriaId)
-    .select('id, nombre, telefono, activo, token')
+    .eq('ferreteria_id', session.ferreteriaId)   // TENANT AISLADO
+    .select('id, nombre, telefono, activo, token, puede_registrar_deuda')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
