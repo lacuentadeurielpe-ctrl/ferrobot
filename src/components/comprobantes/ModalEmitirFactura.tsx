@@ -102,10 +102,10 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Emitir factura electrónica</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Pedido {pedido.numero_pedido}</p>
+            <h2 className="text-base font-bold text-zinc-900">Emitir factura electrónica</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">Pedido {pedido.numero_pedido}</p>
           </div>
           <button
             type="button"
@@ -120,15 +120,15 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
         <div className="p-5 space-y-4">
           {/* Resumen del monto */}
           <div className="bg-gray-50 rounded-xl p-3 text-sm">
-            <div className="flex justify-between text-gray-500">
+            <div className="flex justify-between text-zinc-500">
               <span>Subtotal (sin IGV)</span>
               <span>S/ {subtotalEstimado.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-500">
+            <div className="flex justify-between text-zinc-500">
               <span>IGV 18%</span>
               <span>S/ {igvEstimado.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-200 mt-2">
+            <div className="flex justify-between font-bold text-zinc-900 pt-2 border-t border-zinc-200 mt-2">
               <span>Total</span>
               <span>S/ {pedido.total.toFixed(2)}</span>
             </div>
@@ -136,7 +136,7 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
 
           {/* RUC del cliente */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               RUC del cliente <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -149,7 +149,7 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
                 }}
                 placeholder="20123456789"
                 maxLength={11}
-                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                className="flex-1 px-3 py-2 rounded-lg border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
               <button
                 type="button"
@@ -168,7 +168,7 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
 
           {/* Razón social */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Razón social <span className="text-red-500">*</span>
             </label>
             <input
@@ -176,7 +176,7 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
               value={razonSocial}
               onChange={(e) => setRazonSocial(e.target.value)}
               placeholder="EMPRESA SAC"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
             <p className="text-xs text-gray-400 mt-0.5">
               Se autocompleta al verificar el RUC, o puedes escribirlo manualmente.
@@ -201,7 +201,7 @@ export default function ModalEmitirFactura({ pedido, onClose, onEmitida }: Props
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50 transition"
+            className="flex-1 py-2.5 border border-zinc-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50 transition"
           >
             Cancelar
           </button>

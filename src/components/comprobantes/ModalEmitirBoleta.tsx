@@ -59,15 +59,15 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Emitir boleta electrónica</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Pedido {pedido.numero_pedido}</p>
+            <h2 className="text-base font-bold text-zinc-900">Emitir boleta electrónica</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">Pedido {pedido.numero_pedido}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+            className="text-zinc-400 hover:text-zinc-600 text-xl leading-none"
           >
             ✕
           </button>
@@ -76,16 +76,16 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
         {/* Body */}
         <div className="p-5 space-y-4">
           {/* Resumen del monto */}
-          <div className="bg-gray-50 rounded-xl p-3 text-sm">
-            <div className="flex justify-between text-gray-500">
+          <div className="bg-zinc-50 rounded-xl p-3 text-sm">
+            <div className="flex justify-between text-zinc-500">
               <span>Subtotal (sin IGV)</span>
               <span>S/ {subtotalEstimado.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-500">
+            <div className="flex justify-between text-zinc-500">
               <span>IGV 18%</span>
               <span>S/ {igvEstimado.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between font-bold text-gray-900 pt-2 border-t border-gray-200 mt-2">
+            <div className="flex justify-between font-bold text-zinc-900 pt-2 border-t border-zinc-200 mt-2">
               <span>Total</span>
               <span>S/ {pedido.total.toFixed(2)}</span>
             </div>
@@ -93,7 +93,7 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
 
           {/* Nombre cliente */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               Nombre del cliente <span className="text-red-500">*</span>
             </label>
             <input
@@ -101,15 +101,15 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               placeholder="JUAN PÉREZ GARCÍA"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
 
           {/* DNI (opcional) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
               DNI del cliente
-              <span className="text-gray-400 font-normal ml-1">(opcional en boletas)</span>
+              <span className="text-zinc-400 font-normal ml-1">(opcional en boletas)</span>
             </label>
             <input
               type="text"
@@ -117,22 +117,22 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
               onChange={(e) => setDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
               placeholder="12345678"
               maxLength={8}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-zinc-400 mt-0.5">
               Si no ingresas DNI se emite como "Clientes varios"
             </p>
           </div>
 
           {/* Error */}
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
               {error}
             </p>
           )}
 
           {/* Advertencia modo producción */}
-          <p className="text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
             ⚠ Esta acción emite un comprobante real ante SUNAT. Una vez emitido no puede modificarse, solo anularse.
           </p>
         </div>
@@ -142,7 +142,7 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50 transition"
+            className="flex-1 py-2.5 border border-zinc-200 text-sm text-zinc-600 rounded-xl hover:bg-zinc-50 transition"
           >
             Cancelar
           </button>
@@ -150,7 +150,7 @@ export default function ModalEmitirBoleta({ pedido, onClose, onEmitida }: Props)
             type="button"
             onClick={emitir}
             disabled={loading}
-            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition"
+            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-medium rounded-xl transition"
           >
             {loading ? 'Emitiendo...' : 'Emitir boleta'}
           </button>

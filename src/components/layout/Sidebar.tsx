@@ -8,18 +8,15 @@ import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
   Package,
-  ShoppingCart,
   MessageSquare,
   Settings,
   LogOut,
-  FileText,
   Users,
   CreditCard,
-  ClipboardList,
   Camera,
   Loader2,
-  BookOpen,
-  Wallet,
+  TrendingUp,
+  BarChart2,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -41,16 +38,9 @@ interface NavGroup {
 const navGroups: NavGroup[] = [
   {
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permiso: 'ver_dashboard' },
-    ],
-  },
-  {
-    label: 'Ventas',
-    items: [
-      { label: 'Cotizaciones',  href: '/dashboard/cotizaciones',  icon: FileText,      badge: 'cotizaciones',   permiso: 'ver_pedidos' },
-      { label: 'Pedidos',       href: '/dashboard/orders',         icon: ShoppingCart,  badge: 'pedidos',        permiso: 'ver_pedidos' },
-      { label: 'Chat',          href: '/dashboard/conversations',  icon: MessageSquare, badge: 'conversaciones', permiso: 'ver_pedidos' },
-      { label: 'Pagos',         href: '/dashboard/pagos',          icon: Wallet,                                 permiso: 'ver_pedidos' },
+      { label: 'Dashboard', href: '/dashboard',       icon: LayoutDashboard, permiso: 'ver_dashboard' },
+      { label: 'Ventas',    href: '/dashboard/ventas', icon: TrendingUp,      badge: 'pedidos',        permiso: 'ver_pedidos' },
+      { label: 'Chat',      href: '/dashboard/conversations', icon: MessageSquare, badge: 'conversaciones', permiso: 'ver_pedidos' },
     ],
   },
   {
@@ -62,15 +52,9 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Finanzas',
     items: [
-      { label: 'Rendiciones',  href: '/dashboard/rendiciones',  icon: ClipboardList, permiso: 'ver_caja_dia' },
-      { label: 'Contabilidad', href: '/dashboard/contabilidad', icon: BookOpen,       permiso: 'configurar_ferreteria' },
-    ],
-  },
-  {
-    items: [
-      { label: 'Configuración', href: '/dashboard/settings', icon: Settings, permiso: 'configurar_ferreteria' },
+      { label: 'Finanzas', href: '/dashboard/finanzas', icon: BarChart2, permiso: 'ver_caja_dia' },
+      { label: 'Ajustes',  href: '/dashboard/settings', icon: Settings,  permiso: 'configurar_ferreteria' },
     ],
   },
 ]

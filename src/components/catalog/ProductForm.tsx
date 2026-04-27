@@ -112,7 +112,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Tabs de sección */}
-      <div className="flex border-b border-gray-100">
+      <div className="flex border-b border-zinc-100">
         {[
           { key: 'basico', label: 'Datos del producto' },
           { key: 'descuentos', label: `Descuentos por volumen ${reglas.length > 0 ? `(${reglas.length})` : ''}` },
@@ -124,8 +124,8 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
             className={cn(
               'px-4 py-2.5 text-sm font-medium border-b-2 transition',
               seccion === key
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-zinc-950 text-zinc-950'
+                : 'border-transparent text-zinc-500 hover:text-zinc-700'
             )}
           >
             {label}
@@ -138,7 +138,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Nombre del producto <span className="text-red-500">*</span>
               </label>
               <input
@@ -146,29 +146,29 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 value={form.nombre}
                 onChange={handleChange}
                 placeholder="Ej: Cemento Portland Tipo I"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Descripción</label>
               <textarea
                 name="descripcion"
                 value={form.descripcion}
                 onChange={handleChange}
                 rows={2}
                 placeholder="Descripción opcional del producto..."
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition resize-none"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Categoría</label>
               <select
                 name="categoria_id"
                 value={form.categoria_id}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition bg-white"
               >
                 <option value="">Sin categoría</option>
                 {categorias.map((c) => (
@@ -178,14 +178,14 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Unidad de medida <span className="text-red-500">*</span>
               </label>
               <select
                 name="unidad"
                 value={form.unidad}
                 onChange={handleChange}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition bg-white"
               >
                 {UNIDADES_SUNAT.map((u) => (
                   <option key={u.code} value={u.code}>{u.label}</option>
@@ -195,9 +195,9 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
 
             {/* Precios: compra y venta lado a lado */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Precio de compra (S/)
-                <span className="ml-1 text-xs text-gray-400 font-normal">lo que pagas al proveedor</span>
+                <span className="ml-1 text-xs text-zinc-400 font-normal">lo que pagas al proveedor</span>
               </label>
               <input
                 type="number"
@@ -207,14 +207,14 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 min={0}
                 step="0.01"
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Precio de venta (S/) <span className="text-red-500">*</span>
-                <span className="ml-1 text-xs text-gray-400 font-normal">lo que cobra al cliente</span>
+                <span className="ml-1 text-xs text-zinc-400 font-normal">lo que cobra al cliente</span>
               </label>
               <input
                 type="number"
@@ -224,7 +224,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 min={0}
                 step="0.01"
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
             </div>
 
@@ -254,21 +254,21 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Stock disponible</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Stock disponible</label>
               <input
                 type="number"
                 name="stock"
                 value={form.stock}
                 onChange={handleChange}
                 min={0}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Alerta de stock mínimo
-                <span className="ml-1 text-xs text-gray-400 font-normal">opcional</span>
+                <span className="ml-1 text-xs text-zinc-400 font-normal">opcional</span>
               </label>
               <input
                 type="number"
@@ -277,18 +277,18 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 onChange={handleChange}
                 min={0}
                 placeholder="Ej: 5"
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
               />
-              <p className="text-xs text-gray-400 mt-1">El dashboard te alertará cuando el stock caiga a este nivel</p>
+              <p className="text-xs text-zinc-400 mt-1">El dashboard te alertará cuando el stock caiga a este nivel</p>
             </div>
           </div>
 
           {/* Modo negociación */}
-          <div className="rounded-xl border border-gray-100 p-4 space-y-3">
+          <div className="rounded-xl border border-zinc-100 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-800">Modo negociación</p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-sm font-medium text-zinc-800">Modo negociación</p>
+                <p className="text-xs text-zinc-500 mt-0.5">
                   El bot avisa al cliente que hay precio especial para pedidos grandes y notifica al encargado
                 </p>
               </div>
@@ -297,7 +297,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 onClick={() => setForm((p) => ({ ...p, modo_negociacion: !p.modo_negociacion }))}
                 className={cn(
                   'relative inline-flex h-6 w-11 items-center rounded-full transition',
-                  form.modo_negociacion ? 'bg-orange-500' : 'bg-gray-200'
+                  form.modo_negociacion ? 'bg-zinc-900' : 'bg-zinc-200'
                 )}
               >
                 <span className={cn(
@@ -309,7 +309,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
 
             {form.modo_negociacion && (
               <div>
-                <label className="block text-xs text-gray-500 mb-1">
+                <label className="block text-xs text-zinc-500 mb-1">
                   A partir de cuántas {labelUnidad(form.unidad).toLowerCase()}s activar la negociación
                 </label>
                 <input
@@ -319,7 +319,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                   onChange={handleChange}
                   min={1}
                   placeholder="Ej: 50"
-                  className="w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+                  className="w-40 px-3 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
                 />
               </div>
             )}
@@ -333,9 +333,9 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
               id="activo"
               checked={form.activo}
               onChange={handleChange}
-              className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400"
+              className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-300"
             />
-            <label htmlFor="activo" className="text-sm text-gray-700">
+            <label htmlFor="activo" className="text-sm text-zinc-700">
               Producto activo (visible para el bot y los clientes)
             </label>
           </div>
@@ -354,24 +354,24 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
       )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-sm text-red-700">
+        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {/* Botones */}
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+      <div className="flex items-center justify-between pt-2 border-t border-zinc-100">
         <button
           type="button"
           onClick={() => router.push('/dashboard/catalog')}
-          className="text-sm text-gray-500 hover:text-gray-700 transition"
+          className="text-sm text-zinc-500 hover:text-zinc-700 transition"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={loading}
-          className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition"
+          className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white font-medium rounded-xl text-sm transition"
         >
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           {loading ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear producto'}

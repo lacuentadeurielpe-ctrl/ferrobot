@@ -268,14 +268,14 @@ export default async function DashboardPage({
     alertas.push({
       nivel: 'rojo',
       texto: `${n} pedido${n > 1 ? 's' : ''} de delivery sin repartidor asignado`,
-      href: '/dashboard/orders',
+      href: '/dashboard/ventas?tab=pedidos',
     })
   }
   if ((cotPendientesAntiguas ?? 0) > 0) {
     alertas.push({
       nivel: 'naranja',
       texto: `${cotPendientesAntiguas} cotización${(cotPendientesAntiguas ?? 0) > 1 ? 'es' : ''} sin respuesta del cliente hace más de 4 horas`,
-      href: '/dashboard/cotizaciones',
+      href: '/dashboard/ventas?tab=cotizaciones',
     })
   }
   if ((cobrosPendientes ?? []).length > 0) {
@@ -283,7 +283,7 @@ export default async function DashboardPage({
     alertas.push({
       nivel: 'amarillo',
       texto: `${n} entrega${n > 1 ? 's' : ''} de hoy con cobro pendiente`,
-      href: '/dashboard/orders',
+      href: '/dashboard/ventas?tab=pedidos',
     })
   }
   if (stockBajo.length > 0) {
@@ -434,7 +434,7 @@ export default async function DashboardPage({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-zinc-900">Estado de pedidos</h3>
               <Link
-                href="/dashboard/orders"
+                href="/dashboard/ventas?tab=pedidos"
                 className="text-xs text-zinc-400 hover:text-zinc-900 transition flex items-center gap-0.5 font-medium"
               >
                 Ver todos <ArrowRight className="w-3 h-3" />
@@ -449,7 +449,7 @@ export default async function DashboardPage({
                 return (
                   <div key={estado.key} className="flex items-center gap-1 flex-1">
                     <Link
-                      href={`/dashboard/orders?estado=${estado.key}`}
+                      href={`/dashboard/ventas?tab=pedidos`}
                       className={`flex-1 rounded-xl px-2 py-3 text-center transition ${
                         activo ? 'bg-zinc-950 hover:bg-zinc-800' : 'bg-zinc-50 hover:bg-zinc-100'
                       }`}
@@ -522,7 +522,7 @@ export default async function DashboardPage({
                   </div>
                 ))}
                 <Link
-                  href="/dashboard/orders"
+                  href="/dashboard/ventas?tab=pedidos"
                   className="block text-center text-xs text-zinc-500 hover:text-zinc-900 transition font-medium pt-1"
                 >
                   Gestionar cobros →

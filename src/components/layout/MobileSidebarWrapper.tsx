@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { X, LayoutDashboard, ShoppingCart, MessageSquare, Package, MoreHorizontal } from 'lucide-react'
+import { X, LayoutDashboard, TrendingUp, MessageSquare, Package, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import { checkPermiso, type PermisoMap, type Permiso } from '@/lib/auth/permisos'
@@ -18,10 +18,10 @@ const TAB_ITEMS: {
   badge?: 'pedidos' | 'conversaciones'
   exact?: boolean
 }[] = [
-  { label: 'Inicio',   href: '/dashboard',              icon: LayoutDashboard, permiso: 'ver_dashboard', exact: true },
-  { label: 'Pedidos',  href: '/dashboard/orders',        icon: ShoppingCart,    permiso: 'ver_pedidos',  badge: 'pedidos' },
-  { label: 'Chat',     href: '/dashboard/conversations', icon: MessageSquare,   permiso: 'ver_pedidos',  badge: 'conversaciones' },
-  { label: 'Catálogo', href: '/dashboard/catalog',       icon: Package,         permiso: 'ver_stock' },
+  { label: 'Inicio',  href: '/dashboard',              icon: LayoutDashboard, permiso: 'ver_dashboard', exact: true },
+  { label: 'Ventas',  href: '/dashboard/ventas',       icon: TrendingUp,      permiso: 'ver_pedidos',  badge: 'pedidos' },
+  { label: 'Chat',    href: '/dashboard/conversations', icon: MessageSquare,   permiso: 'ver_pedidos',  badge: 'conversaciones' },
+  { label: 'Catálogo', href: '/dashboard/catalog',      icon: Package,         permiso: 'ver_stock' },
 ]
 
 interface MobileSidebarWrapperProps {

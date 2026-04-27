@@ -59,7 +59,7 @@ export default function CategoryManager({ categorias, onChange }: CategoryManage
   return (
     <div className="space-y-2">
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-lg">{error}</p>
+        <p className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-xl">{error}</p>
       )}
 
       {categorias.map((cat) => (
@@ -74,27 +74,27 @@ export default function CategoryManager({ categorias, onChange }: CategoryManage
                   if (e.key === 'Escape') setEditando(null)
                 }}
                 autoFocus
-                className="flex-1 px-2.5 py-1.5 rounded-lg border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="flex-1 px-2.5 py-1.5 rounded-xl border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
               />
               <button onClick={() => renombrar(cat.id, editando.nombre)} disabled={loading === cat.id}
                 className="text-green-600 hover:text-green-700 transition">
                 {loading === cat.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               </button>
-              <button onClick={() => setEditando(null)} className="text-gray-400 hover:text-gray-600 transition">
+              <button onClick={() => setEditando(null)} className="text-zinc-400 hover:text-gray-600 transition">
                 <X className="w-4 h-4" />
               </button>
             </>
           ) : (
             <>
-              <span className="flex-1 text-sm text-gray-700 py-1.5 px-2.5 rounded-lg bg-gray-50">
+              <span className="flex-1 text-sm text-zinc-700 py-1.5 px-2.5 rounded-xl bg-zinc-50">
                 {cat.nombre}
               </span>
               <button onClick={() => setEditando({ id: cat.id, nombre: cat.nombre })}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-orange-500 transition">
+                className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-zinc-700 transition">
                 <Pencil className="w-3.5 h-3.5" />
               </button>
               <button onClick={() => eliminar(cat.id)} disabled={loading === cat.id}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition">
+                className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-500 transition">
                 {loading === cat.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               </button>
             </>
@@ -109,10 +109,10 @@ export default function CategoryManager({ categorias, onChange }: CategoryManage
           onChange={(e) => setNueva(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), crear())}
           placeholder="Nueva categoría..."
-          className="flex-1 px-2.5 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
+          className="flex-1 px-2.5 py-1.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
         />
         <button onClick={crear} disabled={!nueva.trim() || loading === 'nueva'}
-          className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white rounded-lg text-sm transition">
+          className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white rounded-xl text-sm transition">
           {loading === 'nueva' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
         </button>
       </div>

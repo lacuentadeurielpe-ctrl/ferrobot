@@ -39,9 +39,9 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
       {/* Panel */}
       <div className={cn('relative bg-white rounded-2xl shadow-xl w-full', sizes[size])}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+          <h3 className="font-semibold text-zinc-900">{title}</h3>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition">
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -186,7 +186,7 @@ export default function ContextPanel({
           </p>
           {clienteId && (
             <Link
-              href={`/dashboard/orders?cliente=${clienteId}`}
+              href={`/dashboard/ventas?tab=pedidos`}
               className="text-[10px] font-medium text-zinc-400 hover:text-zinc-700 transition flex items-center gap-1"
             >
               Ver todos
@@ -205,7 +205,7 @@ export default function ContextPanel({
             {pedidos.map((p) => (
               <Link
                 key={p.id}
-                href={`/dashboard/orders`}
+                href={`/dashboard/ventas?tab=pedidos`}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-50 transition group"
               >
                 <span className={cn('w-2 h-2 rounded-full shrink-0', ESTADO_DOT[p.estado] ?? 'bg-zinc-300')} />

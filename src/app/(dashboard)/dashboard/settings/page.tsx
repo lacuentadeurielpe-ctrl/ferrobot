@@ -9,8 +9,37 @@ import YCloudConnect from '@/components/settings/YCloudConnect'
 import FacturacionTab from '@/components/settings/FacturacionTab'
 import ComplementariosSection from '@/components/settings/ComplementariosSection'
 import { Settings } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
+
+// ── Grupos de ajustes ────────────────────────────────────────────────────────
+const TAB_GROUPS = [
+  {
+    label: 'Negocio',
+    tabs: [
+      { id: 'general',     label: 'General'      },
+      { id: 'facturacion', label: 'Facturación'  },
+      { id: 'pagos',       label: 'Pagos'        },
+    ],
+  },
+  {
+    label: 'Bot',
+    tabs: [
+      { id: 'whatsapp',        label: 'WhatsApp'        },
+      { id: 'complementarios', label: 'Complementarios' },
+    ],
+  },
+  {
+    label: 'Equipo',
+    tabs: [
+      { id: 'equipo',       label: 'Empleados'    },
+      { id: 'repartidores', label: 'Repartidores' },
+    ],
+  },
+]
+
+const ALL_TABS = TAB_GROUPS.flatMap((g) => g.tabs)
 
 export default async function SettingsPage({
   searchParams,
@@ -30,7 +59,7 @@ export default async function SettingsPage({
   if (!ferreteria) return null
 
   const params = await searchParams
-  const tabActivo = params.tab ?? 'general'
+  const tabActivo = ALL_TABS.some((t) => t.id === params.tab) ? (params.tab ?? 'general') : 'general'
 
   const admin = createAdminClient()
   const [{ data: zonas }, { data: configBot }, estadoMP, { data: ycloudConfig }, { data: productosActivos }] = await Promise.all([
@@ -58,50 +87,60 @@ export default async function SettingsPage({
       .order('nombre'),
   ])
 
-  // Nubefact: configurado, modo y ruta (la ruta no es secreta); el token NUNCA
   const nubefactConfig = {
     configurado: !!ferreteria.nubefact_token_enc && !!ferreteria.nubefact_ruta,
     modo:        ferreteria.nubefact_modo  ?? 'prueba',
     ruta:        ferreteria.nubefact_ruta  ?? null,
   }
 
-  const TABS = [
-    { id: 'general',         label: 'General' },
-    { id: 'facturacion',     label: 'Facturación' },
-    { id: 'whatsapp',        label: 'WhatsApp' },
-    { id: 'pagos',           label: 'Pagos' },
-    { id: 'equipo',          label: 'Equipo' },
-    { id: 'repartidores',    label: 'Repartidores' },
-    { id: 'complementarios', label: 'Complementarios' },
-  ]
-
   return (
     <div className="p-6 max-w-3xl mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-9 h-9 bg-zinc-100 border border-zinc-200 rounded-2xl flex items-center justify-center">
           <Settings className="w-4 h-4 text-zinc-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-zinc-950 tracking-tight">Configuración</h1>
-          <p className="text-xs text-zinc-400">Ajusta los datos de tu ferretería y el comportamiento del bot</p>
+          <h1 className="text-lg font-bold text-zinc-950 tracking-tight">Ajustes</h1>
+          <p className="text-xs text-zinc-400">Configura tu negocio, el bot y tu equipo</p>
         </div>
       </div>
 
-      {/* Nav de pestañas */}
-      <div className="flex gap-1 border-b border-zinc-200 mb-6 overflow-x-auto">
-        {TABS.map((tab) => (
-          <a
-            key={tab.id}
-            href={`/dashboard/settings?tab=${tab.id}`}
-            className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-              tabActivo === tab.id
-                ? 'border-zinc-950 text-zinc-950'
-                : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
-            }`}
-          >
-            {tab.label}
-          </a>
-        ))}
+      {/* Nav de pestañas agrupadas */}
+      <div className="mb-6 border-b border-zinc-200">
+        <div className="flex gap-6 overflow-x-auto pb-0">
+          {TAB_GROUPS.map((group, gi) => (
+            <div key={group.label} className="flex items-start gap-0">
+              {/* Separador entre grupos */}
+              {gi > 0 && (
+                <div className="w-px bg-zinc-200 self-stretch mx-3 mt-1 mb-0" />
+              )}
+              <div>
+                {/* Etiqueta del grupo */}
+                <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider px-1 mb-1 select-none">
+                  {group.label}
+                </p>
+                {/* Tabs del grupo */}
+                <div className="flex gap-0.5">
+                  {group.tabs.map((tab) => (
+                    <a
+                      key={tab.id}
+                      href={`/dashboard/settings?tab=${tab.id}`}
+                      className={cn(
+                        'px-3 py-1.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                        tabActivo === tab.id
+                          ? 'border-zinc-950 text-zinc-950'
+                          : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                      )}
+                    >
+                      {tab.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── General ─────────────────────────────────────────────────── */}
@@ -187,7 +226,7 @@ export default async function SettingsPage({
         </div>
       )}
 
-      {/* ── Equipo ──────────────────────────────────────────────────── */}
+      {/* ── Empleados ───────────────────────────────────────────────── */}
       {tabActivo === 'equipo' && <EmpleadosSection />}
 
       {/* ── Repartidores ────────────────────────────────────────────── */}

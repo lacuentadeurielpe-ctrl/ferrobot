@@ -50,7 +50,7 @@ export default function DiscountRulesEditor({
   return (
     <div className="space-y-3">
       {reglas.length === 0 && (
-        <p className="text-sm text-gray-400 italic">
+        <p className="text-sm text-zinc-400 italic">
           Sin rangos de descuento. El bot usará el precio base para cualquier cantidad.
         </p>
       )}
@@ -65,13 +65,13 @@ export default function DiscountRulesEditor({
         return (
           <div key={idx} className={cn(
             'rounded-xl p-4 space-y-3',
-            margenBajo ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+            margenBajo ? 'bg-red-50 border border-red-200' : 'bg-zinc-50'
           )}>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
                 Rango {idx + 1}
               </span>
-              <button onClick={() => quitar(idx)} className="text-gray-400 hover:text-red-500 transition">
+              <button onClick={() => quitar(idx)} className="text-zinc-400 hover:text-red-500 transition">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -79,35 +79,35 @@ export default function DiscountRulesEditor({
             {/* Cantidad mínima y máxima */}
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Desde ({unidad})</label>
+                <label className="block text-xs text-zinc-500 mb-1">Desde ({unidad})</label>
                 <input
                   type="number"
                   min={1}
                   value={regla.cantidad_min}
                   onChange={(e) => actualizar(idx, 'cantidad_min', parseInt(e.target.value) || 1)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                  className="w-full px-2.5 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition bg-white"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Hasta ({unidad})</label>
+                <label className="block text-xs text-zinc-500 mb-1">Hasta ({unidad})</label>
                 <input
                   type="number"
                   min={regla.cantidad_min}
                   placeholder="Sin límite"
                   value={regla.cantidad_max ?? ''}
                   onChange={(e) => actualizar(idx, 'cantidad_max', e.target.value ? parseInt(e.target.value) : null)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                  className="w-full px-2.5 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition bg-white"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Precio venta (S/)</label>
+                <label className="block text-xs text-zinc-500 mb-1">Precio venta (S/)</label>
                 <input
                   type="number"
                   min={0}
                   step="0.01"
                   value={regla.precio_unitario || ''}
                   onChange={(e) => actualizar(idx, 'precio_unitario', parseFloat(e.target.value) || 0)}
-                  className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
+                  className="w-full px-2.5 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition bg-white"
                 />
               </div>
             </div>
@@ -115,7 +115,7 @@ export default function DiscountRulesEditor({
             {/* Resumen de ganancia por rango */}
             {tieneCosto && (
               <div className={cn(
-                'flex items-center gap-2 rounded-lg px-3 py-2 text-xs',
+                'flex items-center gap-2 rounded-xl px-3 py-2 text-xs',
                 margenBajo
                   ? 'bg-red-100 text-red-700'
                   : 'bg-green-50 text-green-700'
@@ -132,7 +132,7 @@ export default function DiscountRulesEditor({
 
             {/* Modo */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1.5">¿Qué hace el bot con este precio?</label>
+              <label className="block text-xs text-zinc-500 mb-1.5">¿Qué hace el bot con este precio?</label>
               <div className="flex gap-2">
                 {[
                   { value: 'automatico', label: 'Aplica automáticamente' },
@@ -143,10 +143,10 @@ export default function DiscountRulesEditor({
                     type="button"
                     onClick={() => actualizar(idx, 'modo', value)}
                     className={cn(
-                      'flex-1 text-xs py-1.5 px-2 rounded-lg border transition font-medium',
+                      'flex-1 text-xs py-1.5 px-2 rounded-xl border transition font-medium',
                       regla.modo === value
-                        ? 'bg-orange-500 border-orange-500 text-white'
-                        : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'
+                        ? 'bg-zinc-900 border-zinc-900 text-white'
+                        : 'bg-white border-zinc-200 text-zinc-600 hover:border-zinc-400'
                     )}
                   >
                     {label}
@@ -161,14 +161,14 @@ export default function DiscountRulesEditor({
       <button
         type="button"
         onClick={agregar}
-        className="flex items-center gap-2 text-sm text-orange-500 hover:text-orange-600 font-medium transition"
+        className="flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 font-medium transition"
       >
         <Plus className="w-4 h-4" />
         Agregar rango de precio
       </button>
 
       {reglas.length > 0 && (
-        <div className="flex items-start gap-2 bg-blue-50 rounded-lg p-3 text-xs text-blue-700">
+        <div className="flex items-start gap-2 bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
           <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <span>
             <strong>Automático:</strong> el bot aplica el precio directamente en la cotización.{' '}
