@@ -136,7 +136,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     // Feed actividad
     supabase.from('pedidos').select('id, numero_pedido, nombre_cliente, estado, updated_at, total')
       .eq('ferreteria_id', fid).not('estado', 'in', '(pendiente)').order('updated_at', { ascending: false }).limit(14),
-    supabase.from('cotizaciones').select('id, nombre_cliente, estado, created_at')
+    supabase.from('cotizaciones').select('id, estado, created_at, clientes(nombre)')
       .eq('ferreteria_id', fid).order('created_at', { ascending: false }).limit(6),
     supabase.from('pagos_registrados').select('id, monto, estado, registrado_at, clientes(nombre)')
       .eq('ferreteria_id', fid).order('registrado_at', { ascending: false }).limit(5),
@@ -150,8 +150,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ] = await Promise.all([
     supabase.from('pedidos').select('estado, total, costo_total').eq('ferreteria_id', fid).gte('created_at', per.inicio).lt('created_at', per.fin),
     supabase.from('pedidos').select('estado, total, costo_total').eq('ferreteria_id', fid).gte('created_at', per.prevInicio).lt('created_at', per.prevFin),
-    supabase.from('conversaciones').select('*', { count: 'exact', head: true }).eq('ferreteria_id', fid).gte('updated_at', per.inicio).lt('updated_at', per.fin),
-    supabase.from('conversaciones').select('*', { count: 'exact', head: true }).eq('ferreteria_id', fid).gte('updated_at', per.prevInicio).lt('updated_at', per.prevFin),
+    supabase.from('conversaciones').select('*', { count: 'exact', head: true }).eq('ferreteria_id', fid).gte('ultima_actividad', per.inicio).lt('ultima_actividad', per.fin),
+    supabase.from('conversaciones').select('*', { count: 'exact', head: true }).eq('ferreteria_id', fid).gte('ultima_actividad', per.prevInicio).lt('ultima_actividad', per.prevFin),
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('ferreteria_id', fid).gte('created_at', per.inicio).lt('created_at', per.fin),
     supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('ferreteria_id', fid).gte('created_at', per.prevInicio).lt('created_at', per.prevFin),
   ])
@@ -220,7 +220,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     })),
     ...(feedCotizaciones ?? []).map(c => ({
       id: 'c_' + c.id, dot: 'bg-zinc-400',
-      titulo: 'Cotización enviada', subtitulo: c.nombre_cliente,
+      titulo: 'Cotización enviada', subtitulo: (c.clientes as { nombre?: string } | null)?.nombre ?? 'cliente',
       ts: c.created_at, icono: FileText, href: '/dashboard/ventas?tab=cotizaciones',
     })),
     ...(feedPagos ?? []).map(p => ({

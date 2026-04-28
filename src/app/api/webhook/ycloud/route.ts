@@ -325,7 +325,7 @@ export async function POST(request: Request) {
                     .select('id')
                     .eq('ferreteria_id', ferreteria.id)   // FERRETERÍA AISLADA
                     .eq('cliente_id', clienteData.id)
-                    .order('updated_at', { ascending: false })
+                    .order('ultima_actividad', { ascending: false })
                     .limit(1)
                     .maybeSingle()
                   if (conv?.id) {

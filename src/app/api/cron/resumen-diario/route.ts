@@ -94,7 +94,7 @@ export async function GET(request: Request) {
         .from('conversaciones')
         .select('id')
         .eq('ferreteria_id', fid)
-        .gte('updated_at', inicio)
+        .gte('ultima_actividad', inicio)
 
       const totalConv = (conversaciones ?? []).length
 
