@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Sparkles, Camera, MessageSquare, Loader2,
   CheckSquare, Square, CheckCircle, AlertTriangle, ChevronDown,
-  ChevronUp, RefreshCw, X,
+  ChevronUp, RefreshCw, X, Mic, MicOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CatalogNav from '@/components/catalog/CatalogNav'
@@ -15,7 +15,7 @@ import type { ProductoParaConfirmar } from '@/app/api/catalog/ai-extract/route'
 const UNIDADES = ['unidad', 'bolsa', 'saco', 'metro', 'metro cuadrado', 'galón', 'litro', 'kilo', 'tonelada', 'rollo', 'plancha', 'caja', 'par']
 
 type Estado = 'entrada' | 'procesando' | 'confirmacion' | 'guardando' | 'resultado'
-type ModoEntrada = 'texto' | 'imagen'
+type ModoEntrada = 'texto' | 'imagen' | 'voz'
 
 interface ProductoEditando extends ProductoParaConfirmar {
   _key: string
@@ -60,7 +60,57 @@ export default function CatalogAIPage() {
   const [productos, setProductos] = useState<ProductoEditando[]>([])
   const [error, setError] = useState<string | null>(null)
   const [resultado, setResultado] = useState<{ creados: number; actualizados: number } | null>(null)
-  const inputImagenRef = useRef<HTMLInputElement>(null)
+  const inputImagenRef  = useRef<HTMLInputElement>(null)
+  const recognitionRef  = useRef<{ stop?: () => void } | null>(null)
+
+  // ── Soporte y estado de voz ──────────────────────────────────────────────
+  const [soportaVoz, setSoportaVoz] = useState(false)
+  const [escuchando,  setEscuchando] = useState(false)
+
+  useEffect(() => {
+    setSoportaVoz(!!(
+      typeof window !== 'undefined' &&
+      ((window as unknown as Record<string, unknown>).SpeechRecognition ||
+       (window as unknown as Record<string, unknown>).webkitSpeechRecognition)
+    ))
+  }, [])
+
+  function toggleVoz() {
+    if (escuchando) {
+      recognitionRef.current?.stop?.()
+      setEscuchando(false)
+      return
+    }
+
+    const SR =
+      (window as unknown as Record<string, unknown>).SpeechRecognition as (new () => object) ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition as (new () => object)
+    if (!SR) return
+
+    const rec = new SR() as {
+      lang: string; continuous: boolean; interimResults: boolean
+      start(): void; stop(): void
+      onresult: ((e: Event) => void) | null
+      onerror: (() => void) | null
+      onend:   (() => void) | null
+    }
+    rec.lang            = 'es-PE'
+    rec.continuous      = false
+    rec.interimResults  = false
+
+    rec.onresult = (e: Event) => {
+      const ev = e as Event & { results: { 0: { 0: { transcript: string } } } }
+      const transcript = ev.results[0][0].transcript
+      setTexto((prev) => (prev ? prev + ' ' : '') + transcript)
+      setEscuchando(false)
+    }
+    rec.onerror = () => setEscuchando(false)
+    rec.onend   = () => setEscuchando(false)
+
+    recognitionRef.current = rec
+    rec.start()
+    setEscuchando(true)
+  }
 
   // ── Manejo de imagen ─────────────────────────────────────────────────────
   function handleImagen(file: File) {
@@ -85,8 +135,8 @@ export default function CatalogAIPage() {
   async function analizar() {
     setError(null)
 
-    if (modo === 'texto' && !texto.trim()) {
-      setError('Escribe algo para que la IA analice')
+    if ((modo === 'texto' || modo === 'voz') && !texto.trim()) {
+      setError(modo === 'voz' ? 'Graba algo primero antes de analizar' : 'Escribe algo para que la IA analice')
       return
     }
     if (modo === 'imagen' && !imagenBase64) {
@@ -98,7 +148,7 @@ export default function CatalogAIPage() {
 
     const body = modo === 'imagen'
       ? { modo: 'imagen', imagen_base64: imagenBase64, mime_type: imagenMime }
-      : { modo: 'texto', texto }
+      : { modo: 'texto', texto }  // voz también se envía como texto
 
     const res = await fetch('/api/catalog/ai-extract', {
       method: 'POST',
@@ -173,6 +223,8 @@ export default function CatalogAIPage() {
 
   // ── Reiniciar ────────────────────────────────────────────────────────────
   function reiniciar() {
+    recognitionRef.current?.stop?.()
+    setEscuchando(false)
     setEstado('entrada')
     setTexto('')
     setImagenPreview(null)
@@ -277,7 +329,7 @@ export default function CatalogAIPage() {
                 )}
               >
                 <Camera className="w-4 h-4" />
-                📷 Foto / Imagen
+                📷 Imagen
               </button>
               <button
                 onClick={() => setModo('texto')}
@@ -289,8 +341,22 @@ export default function CatalogAIPage() {
                 )}
               >
                 <MessageSquare className="w-4 h-4" />
-                ✏️ Texto libre
+                ✏️ Texto
               </button>
+              {soportaVoz && (
+                <button
+                  onClick={() => { setModo('voz'); setTexto('') }}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition',
+                    modo === 'voz'
+                      ? 'bg-purple-50 text-purple-700 border-b-2 border-purple-500'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  )}
+                >
+                  <Mic className="w-4 h-4" />
+                  🎙️ Voz
+                </button>
+              )}
             </div>
 
             <div className="p-5">
@@ -357,13 +423,82 @@ export default function CatalogAIPage() {
                       </button>
                     ))}
                   </div>
-                  <textarea
-                    value={texto}
-                    onChange={(e) => setTexto(e.target.value)}
-                    placeholder="Escribe aquí los productos o precios..."
-                    rows={4}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition resize-none"
-                  />
+                  <div className="relative">
+                    <textarea
+                      value={texto}
+                      onChange={(e) => setTexto(e.target.value)}
+                      placeholder="Escribe aquí los productos o precios..."
+                      rows={4}
+                      className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 transition resize-none"
+                    />
+                    {soportaVoz && (
+                      <button
+                        type="button"
+                        onClick={toggleVoz}
+                        title={escuchando ? 'Detener' : 'Dictar con voz'}
+                        className={cn(
+                          'absolute right-2 bottom-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition',
+                          escuchando
+                            ? 'bg-red-500 text-white animate-pulse'
+                            : 'text-gray-400 hover:bg-gray-100 hover:text-purple-600'
+                        )}
+                      >
+                        {escuchando ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Modo voz ── */}
+              {modo === 'voz' && (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Pulsa el botón y dicta los productos en español. La IA los interpretará al analizar.
+                  </p>
+
+                  {/* Botón de grabación grande */}
+                  <div className="flex flex-col items-center gap-4 py-6">
+                    <button
+                      onClick={toggleVoz}
+                      className={cn(
+                        'w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all',
+                        escuchando
+                          ? 'bg-red-500 text-white scale-110 animate-pulse shadow-red-200'
+                          : 'bg-purple-100 text-purple-600 hover:bg-purple-200 hover:scale-105'
+                      )}
+                    >
+                      {escuchando
+                        ? <MicOff className="w-8 h-8" />
+                        : <Mic    className="w-8 h-8" />}
+                    </button>
+                    <p className={cn(
+                      'text-sm font-medium',
+                      escuchando ? 'text-red-600' : 'text-gray-500'
+                    )}>
+                      {escuchando ? '🔴 Escuchando... Habla ahora' : 'Toca para empezar a grabar'}
+                    </p>
+                  </div>
+
+                  {/* Transcripción */}
+                  {texto && (
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+                      <p className="text-[10px] font-semibold text-purple-400 uppercase mb-1">Transcripción</p>
+                      <p className="text-sm text-purple-800 leading-relaxed">{texto}</p>
+                      <button
+                        onClick={() => setTexto('')}
+                        className="text-[10px] text-purple-400 hover:text-purple-600 mt-1.5 flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" /> Borrar
+                      </button>
+                    </div>
+                  )}
+
+                  {!texto && !escuchando && (
+                    <p className="text-center text-xs text-gray-400">
+                      Ejemplo: <em>&ldquo;cemento Portland bolsa 42 kilos a 28 soles, pintura CPP blanca a 35&rdquo;</em>
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -378,11 +513,15 @@ export default function CatalogAIPage() {
 
           <button
             onClick={analizar}
-            disabled={modo === 'imagen' ? !imagenBase64 : !texto.trim()}
+            disabled={
+              modo === 'imagen' ? !imagenBase64 :
+              modo === 'voz'    ? !texto.trim() || escuchando :
+              !texto.trim()
+            }
             className="w-full flex items-center justify-center gap-2 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium rounded-xl text-sm transition"
           >
             <Sparkles className="w-4 h-4" />
-            Analizar con IA
+            {modo === 'voz' && texto ? 'Analizar transcripción con IA' : 'Analizar con IA'}
           </button>
         </div>
       )}
