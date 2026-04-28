@@ -29,6 +29,7 @@ export interface ToolContext {
   ventanaGraciaMinutos?: number
   ycloudApiKey?: string
   agentesActivos?: AgentesActivos   // F4: si undefined → todo activo
+  umbralUpsellSoles?: number        // F5: monto mínimo de cotización para activar upsell (0 = siempre)
 }
 
 export interface ToolResult {
@@ -866,6 +867,23 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     requireTenant(ctx)
     const productoIds = args.producto_ids as string[] | undefined
     if (!Array.isArray(productoIds) || productoIds.length === 0) return { ok: true, data: { sugerencias: [] } }
+
+    // F5: Verificar umbral de upsell — si el monto de la cotización activa está por debajo, no sugerimos
+    const umbral = ctx.umbralUpsellSoles ?? 0
+    if (umbral > 0) {
+      const { data: cotActiva } = await ctx.supabase
+        .from('cotizaciones')
+        .select('total')
+        .eq('ferreteria_id', ctx.ferreteriaId)
+        .eq('conversacion_id', ctx.conversacionId)
+        .in('estado', ['enviada', 'pendiente_aprobacion'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (!cotActiva || (cotActiva as unknown as { total: number }).total < umbral) {
+        return { ok: true, data: { sugerencias: [], motivo: 'debajo_umbral' } }
+      }
+    }
 
     const productosActuales = ctx.productos.filter((p) => productoIds.includes(p.id))
     const categoriasActuales = new Set(productosActuales.map((p) => p.categoria_id).filter(Boolean))

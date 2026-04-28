@@ -141,6 +141,9 @@ export async function handleIncomingMessage({
   const perfilBot: PerfilBot = (config as unknown as { perfil_bot?: PerfilBot } | null)?.perfil_bot ?? {}
   // F4: Agentes configurables — semántica opt-out (undefined = todo activo)
   const agentesActivos = (config as unknown as { agentes_activos?: AgentesActivos } | null)?.agentes_activos
+  // F5: Profit engine
+  const cierreCotizacionActivo = (config as unknown as { cierre_cotizacion_activo?: boolean } | null)?.cierre_cotizacion_activo !== false
+  const umbralUpsellSoles      = (config as unknown as { umbral_upsell_soles?: number } | null)?.umbral_upsell_soles ?? 0
 
   // ── 3. Sesión ─────────────────────────────────────────────────────────────
   const { conversacion, cliente } = await getOrCreateSession(
@@ -276,6 +279,7 @@ export async function handleIncomingMessage({
         resumenContexto,
         datosFlujo,
         perfilBot,
+        cierreCotizacionActivo,     // F5
       })
 
       const resultado = await ejecutarOrquestador(
@@ -297,6 +301,7 @@ export async function handleIncomingMessage({
           ventanaGraciaMinutos: (config as unknown as { ventana_gracia_minutos?: number } | null)?.ventana_gracia_minutos ?? 30,
           ycloudApiKey,
           agentesActivos,                        // F4: tools habilitadas por tenant
+          umbralUpsellSoles,                     // F5: mínimo para activar upsell
         }
       )
 

@@ -10,6 +10,7 @@ import FacturacionTab from '@/components/settings/FacturacionTab'
 import ComplementariosSection from '@/components/settings/ComplementariosSection'
 import PerfilBotSection from '@/components/settings/PerfilBotSection'
 import AgentesSection from '@/components/settings/AgentesSection'
+import ConversionSection from '@/components/settings/ConversionSection'
 import AuditoriaTab from '@/components/settings/AuditoriaTab'
 import { Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -32,6 +33,7 @@ const TAB_GROUPS = [
       { id: 'whatsapp',        label: 'WhatsApp'        },
       { id: 'perfil_bot',      label: 'Perfil'          },
       { id: 'agentes',         label: 'Agentes'         },
+      { id: 'conversion',      label: 'Conversión'      },
       { id: 'complementarios', label: 'Complementarios' },
     ],
   },
@@ -76,7 +78,7 @@ export default async function SettingsPage({
       .order('nombre'),
     supabase
       .from('configuracion_bot')
-      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos, perfil_bot, agentes_activos')
+      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos, perfil_bot, agentes_activos, cierre_cotizacion_activo, umbral_upsell_soles')
       .eq('ferreteria_id', ferreteria.id)
       .single(),
     getEstadoMP(ferreteria.id),
@@ -251,6 +253,16 @@ export default async function SettingsPage({
       {tabActivo === 'agentes' && (
         <AgentesSection
           inicial={(configBot as unknown as { agentes_activos?: Record<string, boolean> } | null)?.agentes_activos ?? {}}
+        />
+      )}
+
+      {/* ── Conversión ──────────────────────────────────────────────── */}
+      {tabActivo === 'conversion' && (
+        <ConversionSection
+          inicial={{
+            cierre_cotizacion_activo: (configBot as unknown as { cierre_cotizacion_activo?: boolean } | null)?.cierre_cotizacion_activo !== false,
+            umbral_upsell_soles:      (configBot as unknown as { umbral_upsell_soles?: number } | null)?.umbral_upsell_soles ?? 0,
+          }}
         />
       )}
 

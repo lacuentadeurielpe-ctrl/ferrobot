@@ -223,6 +223,8 @@ export interface ConfiguracionBot {
   margen_minimo_porcentaje: number   // alerta si margen cae por debajo de este %
   perfil_bot: PerfilBot              // F3: personalización del bot — default {}
   agentes_activos: AgentesActivos    // F4: tools habilitadas por agente — default todo ON
+  cierre_cotizacion_activo: boolean  // F5: cierre natural post-cotización — default true
+  umbral_upsell_soles: number        // F5: monto mínimo S/ para activar upsell — default 0
 }
 
 export interface Cliente {
