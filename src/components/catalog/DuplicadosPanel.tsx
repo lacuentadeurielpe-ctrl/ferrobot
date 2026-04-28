@@ -15,17 +15,11 @@ function normalizar(s: string): string {
     .trim()
 }
 
+/** Solo detecta nombres idénticos tras normalizar (ignora tildes, mayúsculas y espacios extra) */
 function esSimilar(a: string, b: string): boolean {
   const na = normalizar(a)
   const nb = normalizar(b)
-  if (!na || !nb) return false
-  if (na === nb) return true
-  if (na.includes(nb) || nb.includes(na)) return true
-  const ta = na.split(/\s+/).filter((w) => w.length >= 3)
-  const tb = nb.split(/\s+/).filter((w) => w.length >= 3)
-  if (ta.length === 0 || tb.length === 0) return false
-  const comunes = ta.filter((t) => tb.includes(t))
-  return comunes.length / Math.min(ta.length, tb.length) >= 0.5
+  return !!na && na === nb
 }
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -136,7 +130,7 @@ export default function DuplicadosPanel({ productos, onMerge, onClose }: Duplica
     return (
       <div className="text-center py-12">
         <Check className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-        <p className="font-semibold text-zinc-700">¡Sin duplicados!</p>
+        <p className="font-semibold text-zinc-700">¡Sin duplicados exactos!</p>
         <p className="text-sm text-zinc-400 mt-1">Todos los productos tienen nombres únicos.</p>
       </div>
     )
@@ -161,7 +155,7 @@ export default function DuplicadosPanel({ productos, onMerge, onClose }: Duplica
             </span>
           )}
         </div>
-        <p className="text-xs text-zinc-400">{grupos.length} pares similares encontrados</p>
+        <p className="text-xs text-zinc-400">{grupos.length} par{grupos.length !== 1 ? 'es' : ''} con nombre idéntico</p>
       </div>
 
       {/* Mensajes de resultado previos (ya resueltos) */}
