@@ -17,6 +17,7 @@ import {
   Loader2,
   TrendingUp,
   BarChart2,
+  Activity,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -53,8 +54,9 @@ const navGroups: NavGroup[] = [
   },
   {
     items: [
-      { label: 'Finanzas', href: '/dashboard/finanzas', icon: BarChart2, permiso: 'ver_caja_dia' },
-      { label: 'Ajustes',  href: '/dashboard/settings', icon: Settings,  permiso: 'configurar_ferreteria' },
+      { label: 'Finanzas', href: '/dashboard/finanzas', icon: BarChart2, permiso: 'ver_caja_dia'           },
+      { label: 'Salud',    href: '/dashboard/salud',    icon: Activity,  permiso: 'configurar_ferreteria'  },
+      { label: 'Ajustes',  href: '/dashboard/settings', icon: Settings,  permiso: 'configurar_ferreteria'  },
     ],
   },
 ]
