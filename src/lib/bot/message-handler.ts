@@ -2,7 +2,7 @@
 // Coordina: sesión → horario → AI → acciones → respuesta
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, TipoTareaIA, PerfilBot } from '@/types/database'
+import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, TipoTareaIA, PerfilBot, AgentesActivos } from '@/types/database'
 import { llamarDeepSeek, type IntentBot } from '@/lib/ai/deepseek'
 import { llamarClaude, claudeDisponible, buildSystemPromptClaude } from '@/lib/ai/claude'
 import { buildSystemPrompt, buildSystemPromptLite, buildHistorialMensajes } from '@/lib/ai/prompt'
@@ -139,6 +139,8 @@ export async function handleIncomingMessage({
   const timeoutIntervacion = (ferreteria as any).timeout_intervencion_dueno ?? config?.timeout_intervencion_dueno ?? 30
   // F3: Perfil del bot — tipo_negocio, descripcion_negocio, tono_bot, nombre_bot
   const perfilBot: PerfilBot = (config as unknown as { perfil_bot?: PerfilBot } | null)?.perfil_bot ?? {}
+  // F4: Agentes configurables — semántica opt-out (undefined = todo activo)
+  const agentesActivos = (config as unknown as { agentes_activos?: AgentesActivos } | null)?.agentes_activos
 
   // ── 3. Sesión ─────────────────────────────────────────────────────────────
   const { conversacion, cliente } = await getOrCreateSession(
@@ -294,6 +296,7 @@ export async function handleIncomingMessage({
           datosFlujo,                            // cotización activa y paso actual
           ventanaGraciaMinutos: (config as unknown as { ventana_gracia_minutos?: number } | null)?.ventana_gracia_minutos ?? 30,
           ycloudApiKey,
+          agentesActivos,                        // F4: tools habilitadas por tenant
         }
       )
 

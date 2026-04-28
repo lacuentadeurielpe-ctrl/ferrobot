@@ -14,7 +14,7 @@
 // la sesión autenticada. El modelo solo conoce IDs de productos/pedidos que
 // ya están scoped al tenant correcto.
 
-import { TOOL_SCHEMAS, TOOL_EXECUTORS, type ToolContext } from './tools'
+import { getActiveToolSchemas, TOOL_EXECUTORS, type ToolContext, type ToolSchema } from './tools'
 import { withTimeout } from '@/lib/utils'
 
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com'
@@ -37,7 +37,7 @@ export interface OrchestratorResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Convert OpenAI-style tool schemas → Anthropic format (input_schema)
-function toAnthropicTools(schemas: typeof TOOL_SCHEMAS) {
+function toAnthropicTools(schemas: ToolSchema[]) {
   return schemas.map((s) => ({
     name:         s.function.name,
     description:  s.function.description,
@@ -59,9 +59,10 @@ interface AnthropicResponse {
 }
 
 async function callClaudeOnce(
-  system:   string,
-  messages: AnthropicMessage[],
-  useTools: boolean
+  system:      string,
+  messages:    AnthropicMessage[],
+  useTools:    boolean,
+  toolSchemas: ToolSchema[]
 ): Promise<AnthropicResponse> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY no configurado')
@@ -76,7 +77,7 @@ async function callClaudeOnce(
     max_tokens: 2048,
   }
   if (useTools) {
-    body.tools       = toAnthropicTools(TOOL_SCHEMAS)
+    body.tools       = toAnthropicTools(toolSchemas)
     body.tool_choice = { type: 'auto' }
   }
 
@@ -102,27 +103,29 @@ async function callClaudeOnce(
 
 // Retry único en 429/503 (rate limit o servicio temporalmente no disponible)
 async function callClaude(
-  system:   string,
-  messages: AnthropicMessage[],
-  useTools: boolean
+  system:      string,
+  messages:    AnthropicMessage[],
+  useTools:    boolean,
+  toolSchemas: ToolSchema[]
 ): Promise<AnthropicResponse> {
   try {
-    return await callClaudeOnce(system, messages, useTools)
+    return await callClaudeOnce(system, messages, useTools, toolSchemas)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.includes('429') || msg.includes('503') || msg.includes('529')) {
       await new Promise((r) => setTimeout(r, RETRY_WAIT_MS))
-      return callClaudeOnce(system, messages, useTools)
+      return callClaudeOnce(system, messages, useTools, toolSchemas)
     }
     throw e
   }
 }
 
 async function ejecutarOrquestadorClaude(
-  systemPrompt: string,
-  historial:    Array<{ role: 'user' | 'assistant'; content: string }>,
+  systemPrompt:  string,
+  historial:     Array<{ role: 'user' | 'assistant'; content: string }>,
   mensajeUsuario: string,
-  ctx: ToolContext
+  ctx:           ToolContext,
+  toolSchemas:   ToolSchema[]
 ): Promise<OrchestratorResult> {
   // Build initial message array (Anthropic format)
   const messages: AnthropicMessage[] = [
@@ -138,7 +141,7 @@ async function ejecutarOrquestadorClaude(
 
   while (iteracion < MAX_ITERATIONS) {
     iteracion++
-    const resp = await callClaude(systemPrompt, messages, true)
+    const resp = await callClaude(systemPrompt, messages, true, toolSchemas)
 
     // Extract text and tool_use blocks
     const toolUseBlocks = resp.content.filter((b): b is Extract<AnthropicContentBlock, { type: 'tool_use' }> =>
@@ -234,8 +237,9 @@ interface DeepSeekChoice {
 }
 
 async function callDeepSeekOnce(
-  messages: DeepSeekMessage[],
-  useTools: boolean
+  messages:    DeepSeekMessage[],
+  useTools:    boolean,
+  toolSchemas: ToolSchema[]
 ): Promise<DeepSeekChoice> {
   const apiKey = process.env.DEEPSEEK_API_KEY
   if (!apiKey) throw new Error('DEEPSEEK_API_KEY no configurado')
@@ -250,7 +254,7 @@ async function callDeepSeekOnce(
     max_tokens:  1500,
   }
   if (useTools) {
-    body.tools       = TOOL_SCHEMAS
+    body.tools       = toolSchemas
     body.tool_choice = 'auto'
   }
 
@@ -275,26 +279,28 @@ async function callDeepSeekOnce(
 
 // Retry único en 429/503 — DeepSeek tiene rate limits frecuentes en horas pico
 async function callDeepSeek(
-  messages: DeepSeekMessage[],
-  useTools: boolean
+  messages:    DeepSeekMessage[],
+  useTools:    boolean,
+  toolSchemas: ToolSchema[]
 ): Promise<DeepSeekChoice> {
   try {
-    return await callDeepSeekOnce(messages, useTools)
+    return await callDeepSeekOnce(messages, useTools, toolSchemas)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (msg.includes('429') || msg.includes('503') || msg.includes('529')) {
       await new Promise((r) => setTimeout(r, RETRY_WAIT_MS))
-      return callDeepSeekOnce(messages, useTools)
+      return callDeepSeekOnce(messages, useTools, toolSchemas)
     }
     throw e
   }
 }
 
 async function ejecutarOrquestadorDeepSeek(
-  systemPrompt: string,
-  historial:    Array<{ role: 'user' | 'assistant'; content: string }>,
+  systemPrompt:  string,
+  historial:     Array<{ role: 'user' | 'assistant'; content: string }>,
   mensajeUsuario: string,
-  ctx: ToolContext
+  ctx:           ToolContext,
+  toolSchemas:   ToolSchema[]
 ): Promise<OrchestratorResult> {
   const messages: DeepSeekMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -307,7 +313,7 @@ async function ejecutarOrquestadorDeepSeek(
 
   while (iteracion < MAX_ITERATIONS) {
     iteracion++
-    const choice = await callDeepSeek(messages, true)
+    const choice = await callDeepSeek(messages, true, toolSchemas)
     const { message, finish_reason } = choice
 
     messages.push({
@@ -390,10 +396,17 @@ export async function ejecutarOrquestador(
 
   const t0 = Date.now()
 
+  // Computar schemas activos UNA vez para este tenant (F4: agentes configurables)
+  const activeSchemas = getActiveToolSchemas(ctx.agentesActivos)
+  if (activeSchemas.length === 0) {
+    // Sin tools disponibles — respuesta directa sin orquestador
+    return { respuesta: 'Por el momento no tengo herramientas activas para ayudarte. Contacta al encargado.', toolsUsadas: [], iteraciones: 0, motor: 'claude' }
+  }
+
   // Intentar Claude cuando la API key está disponible
   if (process.env.ANTHROPIC_API_KEY) {
     try {
-      const result = await ejecutarOrquestadorClaude(systemPrompt, historial, mensajeUsuario, ctx)
+      const result = await ejecutarOrquestadorClaude(systemPrompt, historial, mensajeUsuario, ctx, activeSchemas)
       console.log(
         `[Orchestrator] motor=claude conv=${ctx.conversacionId} tools=${result.toolsUsadas.join(',') || 'ninguna'} iter=${result.iteraciones} ms=${Date.now() - t0}`
       )
@@ -407,7 +420,7 @@ export async function ejecutarOrquestador(
   }
 
   // Fallback a DeepSeek
-  const result = await ejecutarOrquestadorDeepSeek(systemPrompt, historial, mensajeUsuario, ctx)
+  const result = await ejecutarOrquestadorDeepSeek(systemPrompt, historial, mensajeUsuario, ctx, activeSchemas)
   console.log(
     `[Orchestrator] motor=deepseek conv=${ctx.conversacionId} tools=${result.toolsUsadas.join(',') || 'ninguna'} iter=${result.iteraciones} ms=${Date.now() - t0}`
   )

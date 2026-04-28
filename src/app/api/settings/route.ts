@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
   }
 
   // Campos de configuracion_bot
-  const BOT_CAMPOS = ['margen_minimo_porcentaje', 'debounce_segundos', 'ventana_gracia_minutos', 'perfil_bot']
+  const BOT_CAMPOS = ['margen_minimo_porcentaje', 'debounce_segundos', 'ventana_gracia_minutos', 'perfil_bot', 'agentes_activos']
   const botUpdate: Record<string, unknown> = {}
   for (const campo of BOT_CAMPOS) {
     if (campo in body) botUpdate[campo] = body[campo]

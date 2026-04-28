@@ -9,6 +9,7 @@ import YCloudConnect from '@/components/settings/YCloudConnect'
 import FacturacionTab from '@/components/settings/FacturacionTab'
 import ComplementariosSection from '@/components/settings/ComplementariosSection'
 import PerfilBotSection from '@/components/settings/PerfilBotSection'
+import AgentesSection from '@/components/settings/AgentesSection'
 import AuditoriaTab from '@/components/settings/AuditoriaTab'
 import { Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -30,6 +31,7 @@ const TAB_GROUPS = [
     tabs: [
       { id: 'whatsapp',        label: 'WhatsApp'        },
       { id: 'perfil_bot',      label: 'Perfil'          },
+      { id: 'agentes',         label: 'Agentes'         },
       { id: 'complementarios', label: 'Complementarios' },
     ],
   },
@@ -74,7 +76,7 @@ export default async function SettingsPage({
       .order('nombre'),
     supabase
       .from('configuracion_bot')
-      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos, perfil_bot')
+      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos, perfil_bot, agentes_activos')
       .eq('ferreteria_id', ferreteria.id)
       .single(),
     getEstadoMP(ferreteria.id),
@@ -242,6 +244,13 @@ export default async function SettingsPage({
       {tabActivo === 'perfil_bot' && (
         <PerfilBotSection
           inicial={(configBot as unknown as { perfil_bot?: Record<string, string> } | null)?.perfil_bot ?? {}}
+        />
+      )}
+
+      {/* ── Agentes configurables ───────────────────────────────────── */}
+      {tabActivo === 'agentes' && (
+        <AgentesSection
+          inicial={(configBot as unknown as { agentes_activos?: Record<string, boolean> } | null)?.agentes_activos ?? {}}
         />
       )}
 

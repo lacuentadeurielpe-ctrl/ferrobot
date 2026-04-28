@@ -6,7 +6,7 @@
 // la sesión autenticada.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Producto, ZonaDelivery, DatosFlujoPedido } from '@/types/database'
+import type { Producto, ZonaDelivery, DatosFlujoPedido, AgentesActivos } from '@/types/database'
 import { procesarItemsSolicitados, buscarProducto, formatearCotizacion } from '@/lib/bot/catalog-search'
 import { pausarBot } from '@/lib/bot/session'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
@@ -28,6 +28,7 @@ export interface ToolContext {
   datosFlujo: DatosFlujoPedido | null
   ventanaGraciaMinutos?: number
   ycloudApiKey?: string
+  agentesActivos?: AgentesActivos   // F4: si undefined → todo activo
 }
 
 export interface ToolResult {
@@ -329,6 +330,31 @@ export const TOOL_SCHEMAS = [
     },
   },
 ] as const
+
+// ── Agentes configurables (F4) ───────────────────────────────────────────────
+
+export type ToolSchema = (typeof TOOL_SCHEMAS)[number]
+
+// Mapeo agente → tools que controla
+const AGENT_TOOLS: Record<keyof AgentesActivos, string[]> = {
+  ventas:       ['guardar_cotizacion', 'crear_pedido', 'agregar_a_pedido_reciente', 'modificar_pedido'],
+  comprobantes: ['solicitar_comprobante'],
+  upsell:       ['sugerir_complementario'],
+  crm:          ['historial_cliente', 'guardar_dato_cliente'],
+}
+
+/**
+ * Devuelve los schemas de tools activos para el tenant.
+ * Semántica opt-out: campo ausente / undefined → activo.
+ */
+export function getActiveToolSchemas(agentes?: AgentesActivos): ToolSchema[] {
+  const disabled = new Set<string>()
+  if (agentes?.ventas       === false) AGENT_TOOLS.ventas.forEach((t) => disabled.add(t))
+  if (agentes?.comprobantes === false) AGENT_TOOLS.comprobantes.forEach((t) => disabled.add(t))
+  if (agentes?.upsell       === false) AGENT_TOOLS.upsell.forEach((t) => disabled.add(t))
+  if (agentes?.crm          === false) AGENT_TOOLS.crm.forEach((t) => disabled.add(t))
+  return (TOOL_SCHEMAS as unknown as ToolSchema[]).filter((s) => !disabled.has(s.function.name))
+}
 
 // ── Executors ────────────────────────────────────────────────────────────────
 

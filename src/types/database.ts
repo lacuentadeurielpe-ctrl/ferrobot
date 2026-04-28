@@ -203,6 +203,15 @@ export interface PerfilBot {
   nombre_bot?:          string  // nombre del asistente virtual, ej: "Ferrobot"
 }
 
+// Agentes configurables por tenant — F4
+// Semántica opt-out: campo ausente o true = activo, false = desactivado
+export interface AgentesActivos {
+  ventas?:       boolean  // guardar_cotizacion, crear_pedido, agregar_a_pedido_reciente, modificar_pedido
+  comprobantes?: boolean  // solicitar_comprobante
+  upsell?:       boolean  // sugerir_complementario
+  crm?:          boolean  // historial_cliente, guardar_dato_cliente
+}
+
 export interface ConfiguracionBot {
   id: string
   ferreteria_id: string
@@ -213,6 +222,7 @@ export interface ConfiguracionBot {
   timeout_intervencion_dueno: number
   margen_minimo_porcentaje: number   // alerta si margen cae por debajo de este %
   perfil_bot: PerfilBot              // F3: personalización del bot — default {}
+  agentes_activos: AgentesActivos    // F4: tools habilitadas por agente — default todo ON
 }
 
 export interface Cliente {
