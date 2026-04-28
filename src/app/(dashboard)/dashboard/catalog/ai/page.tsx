@@ -4,11 +4,12 @@ import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Sparkles, Camera, MessageSquare, Loader2,
+  Sparkles, Camera, MessageSquare, Loader2,
   CheckSquare, Square, CheckCircle, AlertTriangle, ChevronDown,
   ChevronUp, RefreshCw, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import CatalogNav from '@/components/catalog/CatalogNav'
 import type { ProductoParaConfirmar } from '@/app/api/catalog/ai-extract/route'
 
 const UNIDADES = ['unidad', 'bolsa', 'saco', 'metro', 'metro cuadrado', 'galón', 'litro', 'kilo', 'tonelada', 'rollo', 'plancha', 'caja', 'par']
@@ -189,20 +190,19 @@ export default function CatalogAIPage() {
   return (
     <div className="p-4 sm:p-8 max-w-3xl">
       {/* Header */}
-      <div className="mb-6">
-        <Link href="/dashboard/catalog"
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 transition">
-          <ArrowLeft className="w-4 h-4" />
-          Volver al catálogo
-        </Link>
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Carga inteligente con IA</h1>
-            <p className="text-sm text-gray-500">Sube una foto o escribe en lenguaje natural</p>
-          </div>
+      <div className="mb-1">
+        <h1 className="text-2xl font-bold text-gray-900">Catálogo</h1>
+      </div>
+
+      <CatalogNav />
+
+      <div className="flex items-center gap-2.5 mb-6">
+        <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center shrink-0">
+          <Sparkles className="w-5 h-5 text-purple-600" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Carga inteligente con IA</h2>
+          <p className="text-sm text-gray-500">Sube una foto o escribe en lenguaje natural</p>
         </div>
       </div>
 

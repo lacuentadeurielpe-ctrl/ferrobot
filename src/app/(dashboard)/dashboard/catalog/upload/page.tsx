@@ -2,9 +2,9 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, Download, Copy } from 'lucide-react'
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, Download, Copy, RefreshCw } from 'lucide-react'
 import Papa from 'papaparse'
+import CatalogNav from '@/components/catalog/CatalogNav'
 import type { FilaProducto } from '@/app/api/upload/products/route'
 
 // ── Detección de duplicados ────────────────────────────────────────────────────
@@ -77,35 +77,42 @@ function descargarPlantilla() {
   URL.revokeObjectURL(url)
 }
 
+type ResultadoImport = { importados: number; insertados: number; actualizados: number; categorias_creadas: number }
+type DuplicadoInfo  = { nombre: string; id: string }
+
 export default function UploadPage() {
-  const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [filas, setFilas] = useState<FilaProducto[]>([])
-  const [archivo, setArchivo] = useState<string | null>(null)
-  const [parseando, setParseando] = useState(false)
+  const [filas, setFilas]       = useState<FilaProducto[]>([])
+  const [archivo, setArchivo]   = useState<string | null>(null)
+  const [parseando, setParseando]   = useState(false)
   const [importando, setImportando] = useState(false)
-  const [resultado, setResultado] = useState<{ importados: number; categorias_creadas: number } | null>(null)
+  const [resultado, setResultado]   = useState<ResultadoImport | null>(null)
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null)
-  // Detección de duplicados: fila → nombre del producto existente que coincide
-  const [duplicados, setDuplicados] = useState<Record<number, string>>({})
+  // Detección de duplicados: fila → { nombre, id } del producto existente que coincide
+  const [duplicados, setDuplicados]             = useState<Record<number, DuplicadoInfo>>({})
+  // Toggle por fila: true = actualizar existente, false = crear nuevo (default)
+  const [actualizarExistente, setActualizarExistente] = useState<Record<number, boolean>>({})
 
   const filasValidas   = filas.filter((f) => f.errores.length === 0)
   const filasConError  = filas.filter((f) => f.errores.length > 0)
   const filasConDuplic = Object.keys(duplicados).length
+
+  function toggleActualizarFila(filaNum: number) {
+    setActualizarExistente((prev) => ({ ...prev, [filaNum]: !prev[filaNum] }))
+  }
 
   /** Compara las filas parseadas contra los productos existentes del catálogo */
   async function detectarDuplicados(filasParsed: FilaProducto[]) {
     try {
       const res = await fetch('/api/products')
       if (!res.ok) return
-      const existentes: { nombre: string }[] = await res.json()
-      const nombreExistentes = existentes.map((p) => p.nombre)
-      const mapa: Record<number, string> = {}
+      const existentes: { id: string; nombre: string }[] = await res.json()
+      const mapa: Record<number, DuplicadoInfo> = {}
       for (const fila of filasParsed) {
         if (!fila.nombre) continue
-        const match = nombreExistentes.find((e) => nombresSimilares(fila.nombre, e))
-        if (match) mapa[fila.fila] = match
+        const match = existentes.find((e) => nombresSimilares(fila.nombre, e.nombre))
+        if (match) mapa[fila.fila] = { nombre: match.nombre, id: match.id }
       }
       setDuplicados(mapa)
     } catch {
@@ -117,6 +124,7 @@ export default function UploadPage() {
     setArchivo(file.name)
     setFilas([])
     setDuplicados({})
+    setActualizarExistente({})
     setResultado(null)
     setErrorGlobal(null)
     setParseando(true)
@@ -181,10 +189,19 @@ export default function UploadPage() {
     setImportando(true)
     setErrorGlobal(null)
 
+    // Adjuntar producto_id_actualizar a las filas marcadas para actualizar
+    const filasConAccion: FilaProducto[] = filasValidas.map((fila) => {
+      const dup = duplicados[fila.fila]
+      if (dup && actualizarExistente[fila.fila]) {
+        return { ...fila, producto_id_actualizar: dup.id }
+      }
+      return fila
+    })
+
     const res = await fetch('/api/upload/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filas: filasValidas }),
+      body: JSON.stringify({ filas: filasConAccion }),
     })
     const data = await res.json()
     setImportando(false)
@@ -198,14 +215,14 @@ export default function UploadPage() {
 
   return (
     <div className="p-8 max-w-4xl">
+      <div className="mb-1">
+        <h1 className="text-2xl font-bold text-gray-900">Catálogo</h1>
+      </div>
+
+      <CatalogNav />
+
       <div className="mb-6">
-        <Link href="/dashboard/catalog"
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-4 transition">
-          <ArrowLeft className="w-4 h-4" />
-          Volver al catálogo
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900">Carga masiva de productos</h1>
-        <p className="text-sm text-gray-500 mt-1">Importa múltiples productos desde un archivo CSV o Excel</p>
+        <p className="text-sm text-gray-500">Importa múltiples productos desde un archivo CSV o Excel</p>
       </div>
 
       {resultado ? (
@@ -213,9 +230,20 @@ export default function UploadPage() {
         <div className="bg-white rounded-xl border border-gray-100 p-8 shadow-sm text-center">
           <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">¡Importación exitosa!</h2>
-          <p className="text-gray-600 mb-1">
-            <strong>{resultado.importados}</strong> producto{resultado.importados !== 1 ? 's' : ''} importado{resultado.importados !== 1 ? 's' : ''}
-          </p>
+          <div className="flex justify-center gap-6 mb-2">
+            {resultado.insertados > 0 && (
+              <div>
+                <p className="text-2xl font-bold text-green-600">{resultado.insertados}</p>
+                <p className="text-xs text-gray-400">nuevo{resultado.insertados !== 1 ? 's' : ''}</p>
+              </div>
+            )}
+            {resultado.actualizados > 0 && (
+              <div>
+                <p className="text-2xl font-bold text-blue-600">{resultado.actualizados}</p>
+                <p className="text-xs text-gray-400">actualizado{resultado.actualizados !== 1 ? 's' : ''}</p>
+              </div>
+            )}
+          </div>
           {resultado.categorias_creadas > 0 && (
             <p className="text-sm text-gray-400">
               {resultado.categorias_creadas} categoría{resultado.categorias_creadas !== 1 ? 's' : ''} nueva{resultado.categorias_creadas !== 1 ? 's' : ''} creada{resultado.categorias_creadas !== 1 ? 's' : ''}
@@ -341,18 +369,25 @@ export default function UploadPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {filas.map((fila) => {
-                      const dupNombre = duplicados[fila.fila]
-                      const rowCls = fila.errores.length > 0 ? 'bg-red-50/50' : dupNombre ? 'bg-amber-50/60' : ''
+                      const dup     = duplicados[fila.fila]
+                      const marcado = !!actualizarExistente[fila.fila]
+                      const rowCls  = fila.errores.length > 0
+                        ? 'bg-red-50/50'
+                        : dup && marcado
+                          ? 'bg-blue-50/60'
+                          : dup
+                            ? 'bg-amber-50/60'
+                            : ''
                       return (
                         <tr key={fila.fila} className={rowCls}>
                           <td className="px-4 py-2.5 text-xs text-gray-400">{fila.fila}</td>
                           <td className="px-4 py-2.5">
                             <p className="font-medium text-gray-800">{fila.nombre || <span className="text-red-400 italic">vacío</span>}</p>
                             {fila.descripcion && <p className="text-xs text-gray-400 truncate max-w-xs">{fila.descripcion}</p>}
-                            {dupNombre && (
+                            {dup && (
                               <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
                                 <Copy className="w-2.5 h-2.5" />
-                                Posible duplicado de: <em>{dupNombre}</em>
+                                Posible duplicado de: <em>{dup.nombre}</em>
                               </p>
                             )}
                           </td>
@@ -370,8 +405,19 @@ export default function UploadPage() {
                                   {fila.errores.join(' · ')}
                                 </div>
                               </div>
-                            ) : dupNombre ? (
-                              <AlertCircle className="w-4 h-4 text-amber-500" />
+                            ) : dup ? (
+                              <button
+                                title={marcado ? 'Actualizará el existente' : 'Clic para actualizar en vez de duplicar'}
+                                onClick={() => toggleActualizarFila(fila.fila)}
+                                className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full border transition ${
+                                  marcado
+                                    ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                    : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                                }`}
+                              >
+                                <RefreshCw className="w-2.5 h-2.5" />
+                                {marcado ? 'Actualizar' : 'Duplicar'}
+                              </button>
                             ) : (
                               <CheckCircle className="w-4 h-4 text-green-500" />
                             )}

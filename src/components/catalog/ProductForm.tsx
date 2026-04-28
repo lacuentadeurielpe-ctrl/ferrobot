@@ -1,12 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Loader2, TrendingUp, AlertTriangle, Copy } from 'lucide-react'
 import { type Producto, type Categoria } from '@/types/database'
 import DiscountRulesEditor, { type ReglaForm } from './DiscountRulesEditor'
 import { cn } from '@/lib/utils'
 import { UNIDADES_SUNAT, normalizarUnidad, labelUnidad, UNIDAD_DEFAULT } from '@/lib/constantes/unidades'
+
+// ── Helpers dedup ─────────────────────────────────────────────────────────────
+function normalizarNombreDedup(s: string): string {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+}
+
+function nombresSimilaresDedup(a: string, b: string): boolean {
+  const na = normalizarNombreDedup(a)
+  const nb = normalizarNombreDedup(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  if (na.includes(nb) || nb.includes(na)) return true
+  const ta = na.split(/\s+/).filter((w) => w.length >= 3)
+  const tb = nb.split(/\s+/).filter((w) => w.length >= 3)
+  if (ta.length === 0 || tb.length === 0) return false
+  const comunes = ta.filter((t) => tb.includes(t))
+  return comunes.length / Math.min(ta.length, tb.length) >= 0.5
+}
 
 interface ProductFormProps {
   producto?: Producto
@@ -46,6 +67,32 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [seccion, setSeccion] = useState<'basico' | 'descuentos'>('basico')
+
+  // ── Dedup: solo para nuevo producto ─────────────────────────────────────────
+  const [productosExistentes, setProductosExistentes] = useState<{ nombre: string }[]>([])
+  const [dupWarning, setDupWarning] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (isEdit) return
+    fetch('/api/products')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: { nombre: string }[]) => setProductosExistentes(data))
+      .catch(() => {})
+  }, [isEdit])
+
+  // Chequear duplicado con debounce al cambiar el nombre
+  useEffect(() => {
+    if (isEdit) return
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      const nombre = form.nombre.trim()
+      if (!nombre || nombre.length < 3) { setDupWarning(null); return }
+      const match = productosExistentes.find((p) => nombresSimilaresDedup(nombre, p.nombre))
+      setDupWarning(match ? match.nombre : null)
+    }, 400)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [form.nombre, productosExistentes, isEdit])
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     const { name, value, type } = e.target
@@ -146,8 +193,22 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                 value={form.nombre}
                 onChange={handleChange}
                 placeholder="Ej: Cemento Portland Tipo I"
-                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
+                className={cn(
+                  'w-full px-3 py-2.5 rounded-xl border text-sm text-zinc-900 focus:outline-none focus:ring-2 transition',
+                  dupWarning
+                    ? 'border-amber-400 focus:ring-amber-300'
+                    : 'border-zinc-200 focus:ring-zinc-300'
+                )}
               />
+              {dupWarning && (
+                <div className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                  <Copy className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span>
+                    Posible duplicado de <strong>&ldquo;{dupWarning}&rdquo;</strong>.
+                    Si es el mismo, edítalo desde el catálogo en vez de crear uno nuevo.
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="col-span-2">
