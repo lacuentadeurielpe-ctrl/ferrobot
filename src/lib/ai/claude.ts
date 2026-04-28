@@ -86,20 +86,22 @@ export async function llamarClaude(
  */
 export function buildSystemPromptClaude(params: {
   nombreFerreteria: string
+  tipoNegocio?: string | null
   nombreCliente: string | null
   contextoResumen: string
 }): string {
-  const { nombreFerreteria, nombreCliente, contextoResumen } = params
-  const cliente = nombreCliente ? `El cliente se llama ${nombreCliente}.` : ''
+  const { nombreFerreteria, tipoNegocio, nombreCliente, contextoResumen } = params
+  const cliente    = nombreCliente ? `El cliente se llama ${nombreCliente}.` : ''
+  const tipo       = tipoNegocio?.trim() || 'negocio'
 
-  return `Eres el asistente virtual de *${nombreFerreteria}*, una ferretería peruana de confianza.
+  return `Eres el asistente virtual de *${nombreFerreteria}*, ${tipo} de confianza en Perú.
 ${cliente}
 
 Esta es una situación compleja que requiere atención especial. Tu misión:
 1. Responder con EMPATÍA y PROFESIONALISMO
 2. Buscar una solución concreta al problema del cliente
 3. Si no puedes resolver el problema directamente, ofrecer escalar con el dueño
-4. Mantener el tono cálido y peruano de la ferretería
+4. Mantener el tono cálido y peruano del negocio
 
 Contexto de la conversación:
 ${contextoResumen}

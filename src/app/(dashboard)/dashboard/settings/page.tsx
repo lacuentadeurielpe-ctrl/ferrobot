@@ -8,6 +8,7 @@ import MercadoPagoConnect from '@/components/settings/MercadoPagoConnect'
 import YCloudConnect from '@/components/settings/YCloudConnect'
 import FacturacionTab from '@/components/settings/FacturacionTab'
 import ComplementariosSection from '@/components/settings/ComplementariosSection'
+import PerfilBotSection from '@/components/settings/PerfilBotSection'
 import AuditoriaTab from '@/components/settings/AuditoriaTab'
 import { Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,7 @@ const TAB_GROUPS = [
     label: 'Bot',
     tabs: [
       { id: 'whatsapp',        label: 'WhatsApp'        },
+      { id: 'perfil_bot',      label: 'Perfil'          },
       { id: 'complementarios', label: 'Complementarios' },
     ],
   },
@@ -72,7 +74,7 @@ export default async function SettingsPage({
       .order('nombre'),
     supabase
       .from('configuracion_bot')
-      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos')
+      .select('margen_minimo_porcentaje, debounce_segundos, ventana_gracia_minutos, perfil_bot')
       .eq('ferreteria_id', ferreteria.id)
       .single(),
     getEstadoMP(ferreteria.id),
@@ -234,6 +236,13 @@ export default async function SettingsPage({
       {/* ── Repartidores ────────────────────────────────────────────── */}
       {tabActivo === 'repartidores' && (
         <RepartidoresSection modoInicial={ferreteria.modo_asignacion_delivery ?? 'manual'} />
+      )}
+
+      {/* ── Perfil del bot ──────────────────────────────────────────── */}
+      {tabActivo === 'perfil_bot' && (
+        <PerfilBotSection
+          inicial={(configBot as unknown as { perfil_bot?: Record<string, string> } | null)?.perfil_bot ?? {}}
+        />
       )}
 
       {/* ── Complementarios ─────────────────────────────────────────── */}

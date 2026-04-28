@@ -195,6 +195,14 @@ export interface ReglaDescuento {
   modo: ModoNegociacion
 }
 
+// Personalización del bot por tenant — almacenado como JSONB en configuracion_bot.perfil_bot
+export interface PerfilBot {
+  tipo_negocio?:        string  // "ferretería" | "farmacia" | "bodega" | "restaurante" | ...
+  descripcion_negocio?: string  // texto libre con expertise y contexto del negocio
+  tono_bot?:            string  // "amigable_peruano" | "formal" | "casual"
+  nombre_bot?:          string  // nombre del asistente virtual, ej: "Ferrobot"
+}
+
 export interface ConfiguracionBot {
   id: string
   ferreteria_id: string
@@ -204,6 +212,7 @@ export interface ConfiguracionBot {
   modo_negociacion_global: ModoNegociacion
   timeout_intervencion_dueno: number
   margen_minimo_porcentaje: number   // alerta si margen cae por debajo de este %
+  perfil_bot: PerfilBot              // F3: personalización del bot — default {}
 }
 
 export interface Cliente {

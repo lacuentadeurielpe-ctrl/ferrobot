@@ -7,7 +7,7 @@
 // - Upsell solo si es realmente complementario y el cliente ya compró algo relacionado
 // - Múltiples mensajes cortos OK si mejora legibilidad; no spam
 
-import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido } from '@/types/database'
+import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, PerfilBot } from '@/types/database'
 import { formatHora } from '@/lib/utils'
 
 interface BuildOrchestratorPromptParams {
@@ -19,6 +19,7 @@ interface BuildOrchestratorPromptParams {
   perfilCliente: Record<string, unknown> | null
   resumenContexto: string | null
   datosFlujo?: DatosFlujoPedido | null
+  perfilBot?: PerfilBot | null
 }
 
 // Catálogo compacto: muestra nombre, precio, stock.
@@ -64,6 +65,7 @@ export function buildOrchestratorSystemPrompt({
   perfilCliente,
   resumenContexto,
   datosFlujo,
+  perfilBot,
 }: BuildOrchestratorPromptParams): string {
   const horario =
     ferreteria.horario_apertura && ferreteria.horario_cierre
@@ -109,14 +111,25 @@ Datos acumulados: ${partes.length > 0 ? partes.join(' | ') : '(ninguno aún)'}
 `
   }
 
-  const tono = (config as unknown as { tono_bot?: string } | null)?.tono_bot ?? 'amigable_peruano'
+  const tono         = perfilBot?.tono_bot ?? 'amigable_peruano'
+  const tipoNegocio  = perfilBot?.tipo_negocio?.trim() || 'negocio'
+  const descripcionNegocio = perfilBot?.descripcion_negocio?.trim() || null
+  const nombreBot    = perfilBot?.nombre_bot?.trim() || null
 
   const catalogoTexto = buildCatalogoCompacto(productos)
 
-  return `Eres el asistente de WhatsApp de *${ferreteria.nombre}*, una ferretería en Perú.
-Tu rol: ayudar al cliente con cotizaciones, pedidos, estado de pedidos, dudas sobre horario/delivery/pagos.
+  const descripcionTexto = descripcionNegocio
+    ? `\n# Sobre este negocio\n${descripcionNegocio}\n`
+    : ''
 
-# Datos de la ferretería
+  const identidad = nombreBot
+    ? `Eres *${nombreBot}*, el asistente de WhatsApp de *${ferreteria.nombre}* (${tipoNegocio} en Perú).`
+    : `Eres el asistente de WhatsApp de *${ferreteria.nombre}*, ${tipoNegocio} en Perú.`
+
+  return `${identidad}
+Tu rol: ayudar al cliente con cotizaciones, pedidos, estado de pedidos, dudas sobre horario/delivery/pagos.
+${descripcionTexto}
+# Datos del negocio
 - Dirección: ${ferreteria.direccion ?? 'consultar'}
 - Horario: ${horario} (${dias})
 - Tono: ${tono}

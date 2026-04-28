@@ -2,7 +2,7 @@
 // Coordina: sesión → horario → AI → acciones → respuesta
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, TipoTareaIA } from '@/types/database'
+import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, TipoTareaIA, PerfilBot } from '@/types/database'
 import { llamarDeepSeek, type IntentBot } from '@/lib/ai/deepseek'
 import { llamarClaude, claudeDisponible, buildSystemPromptClaude } from '@/lib/ai/claude'
 import { buildSystemPrompt, buildSystemPromptLite, buildHistorialMensajes } from '@/lib/ai/prompt'
@@ -137,6 +137,8 @@ export async function handleIncomingMessage({
   const timeoutSesion = config?.timeout_sesion_minutos ?? 60
   const maxContexto = config?.max_mensajes_contexto ?? 10
   const timeoutIntervacion = (ferreteria as any).timeout_intervencion_dueno ?? config?.timeout_intervencion_dueno ?? 30
+  // F3: Perfil del bot — tipo_negocio, descripcion_negocio, tono_bot, nombre_bot
+  const perfilBot: PerfilBot = (config as unknown as { perfil_bot?: PerfilBot } | null)?.perfil_bot ?? {}
 
   // ── 3. Sesión ─────────────────────────────────────────────────────────────
   const { conversacion, cliente } = await getOrCreateSession(
@@ -271,6 +273,7 @@ export async function handleIncomingMessage({
         perfilCliente,
         resumenContexto,
         datosFlujo,
+        perfilBot,
       })
 
       const resultado = await ejecutarOrquestador(
@@ -357,6 +360,7 @@ export async function handleIncomingMessage({
     config,
     datosFlujo,
     nombreCliente: nombreClienteGuardado,
+    perfilBot,
   })
 
   let respuestaAI
@@ -414,6 +418,7 @@ export async function handleIncomingMessage({
 
       const systemPromptClaude = buildSystemPromptClaude({
         nombreFerreteria: ferreteria.nombre,
+        tipoNegocio:      perfilBot.tipo_negocio ?? null,
         nombreCliente:    nombreClienteGuardado,
         contextoResumen,
       })

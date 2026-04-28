@@ -74,14 +74,14 @@ async function generarResumen(
     .join('\n')
 
   const systemPrompt = resumenPrevio
-    ? `Tienes un resumen previo de una conversación de WhatsApp entre un cliente y una ferretería. Actualízalo con los nuevos mensajes. Máximo 6 líneas, en viñetas, enfocándote en: productos pedidos/cotizados, números de pedido, datos del cliente (nombre, zona, modalidad), y decisiones clave. No inventes nada.
+    ? `Tienes un resumen previo de una conversación de WhatsApp entre un cliente y un negocio. Actualízalo con los nuevos mensajes. Máximo 6 líneas, en viñetas, enfocándote en: productos pedidos/cotizados, números de pedido, datos del cliente (nombre, zona, modalidad), y decisiones clave. No inventes nada.
 
 Resumen previo:
 ${resumenPrevio}
 
 Nuevos mensajes a incorporar:
 ${transcript}`
-    : `Resume esta conversación de WhatsApp entre un cliente y una ferretería en máximo 6 líneas en viñetas. Incluye: productos pedidos/cotizados, números de pedido, datos del cliente (nombre, zona, modalidad), decisiones clave. No inventes nada — solo lo que aparece en el transcript.
+    : `Resume esta conversación de WhatsApp entre un cliente y un negocio en máximo 6 líneas en viñetas. Incluye: productos pedidos/cotizados, números de pedido, datos del cliente (nombre, zona, modalidad), decisiones clave. No inventes nada — solo lo que aparece en el transcript.
 
 Transcript:
 ${transcript}`

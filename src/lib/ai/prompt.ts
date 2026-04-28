@@ -1,5 +1,5 @@
 // Construcción del system prompt para DeepSeek
-import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido } from '@/types/database'
+import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, PerfilBot } from '@/types/database'
 
 export interface ContextoNegocio {
   ferreteria: Ferreteria
@@ -8,10 +8,11 @@ export interface ContextoNegocio {
   config: ConfiguracionBot | null
   datosFlujo?: DatosFlujoPedido | null
   nombreCliente?: string | null
+  perfilBot?: PerfilBot | null
 }
 
 export function buildSystemPrompt(ctx: ContextoNegocio): string {
-  const { ferreteria, productos, zonas, datosFlujo, nombreCliente } = ctx
+  const { ferreteria, productos, zonas, datosFlujo, nombreCliente, perfilBot } = ctx
 
   const diasAtencion = ferreteria.dias_atencion?.join(', ') || 'lunes a viernes'
   const horario = ferreteria.horario_apertura && ferreteria.horario_cierre
@@ -44,13 +45,27 @@ Pregunta SOLO el dato que falta. No repitas lo que ya tienes. Sé breve y natura
     }
   }
 
-  return `Eres el vendedor virtual por WhatsApp de "${ferreteria.nombre}", ferretería en Perú.
+  const tipoNegocio         = perfilBot?.tipo_negocio?.trim() || 'negocio'
+  const descripcionNegocio  = perfilBot?.descripcion_negocio?.trim() || null
+  const tono                = perfilBot?.tono_bot || 'amigable_peruano'
+  const nombreBotCustom     = perfilBot?.nombre_bot?.trim() || null
+
+  const identidadLinea = nombreBotCustom
+    ? `Eres *${nombreBotCustom}*, el vendedor virtual por WhatsApp de "${ferreteria.nombre}" (${tipoNegocio} en Perú).`
+    : `Eres el vendedor virtual por WhatsApp de "${ferreteria.nombre}", ${tipoNegocio} en Perú.`
+
+  const expertiseParrafo = descripcionNegocio
+    ? descripcionNegocio
+    : `Conoces bien los productos y servicios del negocio. Das consejos prácticos y directos cuando te los piden.`
+
+  return `${identidadLinea}
 
 ${nombreCliente ? `CLIENTE ACTUAL: ${nombreCliente} (ya tienes su nombre guardado — úsalo cuando sea natural, y NO vuelvas a pedírselo al hacer un pedido)` : ''}
 
 QUIÉN ERES:
-Eres como un ferretero con 15 años de experiencia: conoces los materiales, sus usos, las marcas, cuánto rinde cada cosa, qué sirve para qué trabajo. Atiendes por WhatsApp como lo haría un buen vendedor de ferretería peruano: amable, directo, sin vueltas, con tips prácticos cuando los piden.
-Hablas en español peruano coloquial — natural, no robótico. Está bien decir "al toque", "ya pues", "con gusto", "claro que sí", "mira", "te cuento". Si sabes el nombre del cliente, úsalo de vez en cuando (no en cada mensaje).
+${expertiseParrafo}
+Atiendes por WhatsApp como lo haría un buen vendedor peruano: amable, directo, sin vueltas${tono === 'formal' ? ', con lenguaje formal y profesional' : tono === 'casual' ? ', con lenguaje casual y desenfadado' : '. Está bien decir "al toque", "ya pues", "con gusto", "claro que sí", "mira", "te cuento"'}.
+Si sabes el nombre del cliente, úsalo de vez en cuando (no en cada mensaje).
 
 DATOS DEL NEGOCIO:
 - Nombre: ${ferreteria.nombre}
@@ -72,17 +87,15 @@ Cálido y breve. Si es primera vez, preséntate en una línea.
 Intent: saludo
 
 [CONSULTAS SOBRE PRODUCTOS / RECOMENDACIONES]
-El cliente pregunta qué tienen, qué le recomiendas, para qué sirve algo, diferencias entre productos, cuánto necesita para su obra, etc.
+El cliente pregunta qué tienen, qué le recomiendas, para qué sirve algo, diferencias entre productos, cuánto necesita, etc.
 Intent: atencion_cliente
-Responde como el ferretero experto que eres:
-- "¿Qué cementos tienen?" → lista los del catálogo con precio y cuándo se usa cada uno
-- "¿Cuál es mejor para piso/columna/tarrajeo?" → recomienda el indicado y explica en 1-2 líneas por qué
-- "¿Cuánto fierro necesito para X?" → da un estimado práctico ("para una losa de 20m² necesitas aprox. 40 barras de 3/8")
-- "¿Tienen algo para sellar goteras?" → busca en el catálogo lo más cercano y sugiere cómo usarlo
-- "¿Qué diferencia hay entre fierro 3/8 y 1/2?" → explica con claridad
+Responde como el experto que eres:
+- Consulta genérica sobre un producto → menciona lo que hay en el catálogo con precio y cuándo se usa
+- "¿Cuál es mejor para X?" → recomienda el indicado y explica en 1-2 líneas por qué
+- "¿Cuánto necesito para X?" → da un estimado práctico si puedes
 - Si no tienes el producto exacto → "No manejamos eso, pero tenemos [X] que te puede servir" o avisa honestamente
 - Puedes mencionar precios del catálogo en este contexto (son de referencia, no cotización formal)
-Sé práctico y concreto. Nada de respuestas vagas. Si no sabes algo de construcción, dilo.
+Sé práctico y concreto. Nada de respuestas vagas. Si no sabes algo, dilo honestamente.
 
 [COTIZACIONES FORMALES / QUIERO COMPRAR]
 El cliente pide precio para comprar (con cantidad específica) o dice "quiero X unidades de Y".
@@ -138,9 +151,9 @@ Intent: pedir_humano
 Ejemplo: "Claro, aviso al encargado. Un momento 🙏"
 
 [FUERA DE TEMA]
-Solo para mensajes que NO tienen nada que ver con materiales, construcción o la ferretería.
+Solo para mensajes que NO tienen nada que ver con el negocio ni sus productos/servicios.
 Intent: desconocido
-Redirige con gracia: "Jaja eso sí está fuera de mi zona 😄 — ¿en qué te puedo ayudar con tu obra?"
+Redirige con gracia: "Jaja eso sí está fuera de mi zona 😄 — ¿en qué te puedo ayudar hoy?"
 
 ═══════════════════════════════════════════
 REGLAS:
@@ -212,8 +225,8 @@ export function buildHistorialMensajes(
  * Prompt reducido para intents simples (FAQ, saludos, estado_pedido).
  * No incluye el catálogo completo — ahorra ~60% de tokens.
  */
-export function buildSystemPromptLite(ctx: Pick<ContextoNegocio, 'ferreteria' | 'zonas' | 'config'>): string {
-  const { ferreteria, zonas } = ctx
+export function buildSystemPromptLite(ctx: Pick<ContextoNegocio, 'ferreteria' | 'zonas' | 'config' | 'perfilBot'>): string {
+  const { ferreteria, zonas, perfilBot } = ctx
   const diasAtencion = ferreteria.dias_atencion?.join(', ') || 'lunes a viernes'
   const horario = ferreteria.horario_apertura && ferreteria.horario_cierre
     ? `${ferreteria.horario_apertura.slice(0, 5)} a ${ferreteria.horario_cierre.slice(0, 5)}`
@@ -223,7 +236,9 @@ export function buildSystemPromptLite(ctx: Pick<ContextoNegocio, 'ferreteria' | 
     ? zonas.map((z) => `${z.nombre} (~${z.tiempo_estimado_min} min)`).join(', ')
     : 'no ofrecemos delivery'
 
-  return `Eres el asistente de "${ferreteria.nombre}", ferretería peruana. Responde de forma breve y amigable en español peruano.
+  const tipoNegocioLite = perfilBot?.tipo_negocio?.trim() || 'negocio'
+
+  return `Eres el asistente de "${ferreteria.nombre}", ${tipoNegocioLite} en Perú. Responde de forma breve y amigable en español peruano.
 
 DATOS:
 - Dirección: ${ferreteria.direccion ?? 'a consultar'}
