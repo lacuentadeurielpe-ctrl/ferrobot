@@ -13,6 +13,7 @@ import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/
 import { emitirBoleta, emitirFactura } from '@/lib/comprobantes/emitir'
 import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
 import { enviarMensaje, enviarDocumento, enviarImagen } from '@/lib/whatsapp/ycloud'
+import { withTimeout } from '@/lib/utils'
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -963,7 +964,20 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
           motivo: 'ruc_invalido',
         }
       }
-      const consultaRuc = await consultarRuc(rucClienteArg)
+      let consultaRuc: Awaited<ReturnType<typeof consultarRuc>>
+      try {
+        // SUNAT API tiene latencia variable — timeout de 5s para no bloquear el orquestador
+        consultaRuc = await withTimeout(5_000, consultarRuc(rucClienteArg))
+      } catch (eRuc) {
+        const esTimeout = eRuc instanceof Error && eRuc.message.startsWith('timeout_')
+        return {
+          ok: false,
+          error: esTimeout
+            ? `La consulta a SUNAT tardó demasiado. Puedes continuar sin validar el RUC o intentar más tarde.`
+            : `Error consultando SUNAT: ${eRuc instanceof Error ? eRuc.message : String(eRuc)}`,
+          motivo: 'ruc_timeout',
+        }
+      }
       if (!consultaRuc.ok || !consultaRuc.data) {
         return {
           ok: false,

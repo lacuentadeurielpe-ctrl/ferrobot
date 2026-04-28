@@ -20,6 +20,7 @@ import {
   yaEnvioMensajeFueraHorario,
 } from '@/lib/bot/session'
 import { formatHora } from '@/lib/utils'
+import { enviarMensaje as enviarWhatsApp } from '@/lib/whatsapp/ycloud'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
@@ -240,14 +241,26 @@ export async function handleIncomingMessage({
       const perfilCliente = (clienteFull?.perfil as Record<string, unknown> | null) ?? null
       const resumenPrevio = (convFull?.resumen_contexto as string | null) ?? null
 
-      // Compaction: si el historial es largo, resumir los viejos
-      const { mensajesRecientes, resumenContexto } = await aplicarCompaction(
-        supabase,
-        conversacion.id,
-        ferreteria.id,
-        historialParaAI,
-        resumenPrevio
-      )
+      // Compaction: si el historial es largo, resumir los viejos.
+      // Si falla (p.ej. DeepSeek caído), continuar con el historial crudo — nunca bloquear.
+      let mensajesRecientes = historialParaAI
+      let resumenContexto   = resumenPrevio
+      try {
+        const compact = await aplicarCompaction(
+          supabase,
+          conversacion.id,
+          ferreteria.id,
+          historialParaAI,
+          resumenPrevio
+        )
+        mensajesRecientes = compact.mensajesRecientes
+        resumenContexto   = compact.resumenContexto
+      } catch (eCompact) {
+        console.error(
+          `[Bot] Compaction error — usando historial crudo conv=${conversacion.id}:`,
+          eCompact instanceof Error ? eCompact.message : eCompact
+        )
+      }
 
       const systemPromptOrq = buildOrchestratorSystemPrompt({
         ferreteria,
@@ -298,8 +311,41 @@ export async function handleIncomingMessage({
       await guardarMensaje(supabase, conversacion.id, 'bot', resultado.respuesta)
       return { respuesta: resultado.respuesta, conversacionId: conversacion.id }
     } catch (e) {
-      // Fallback al flujo clásico si el orquestador falla
-      console.error('[Orchestrator] Falló — cayendo al flujo clásico:', e)
+      // ── MODO DEGRADADO: orquestador v2 falló → flujo clásico como safety net ──
+      const errMsg = e instanceof Error ? e.message : String(e)
+      console.error(
+        `[DEGRADED] orquestador→clásico ferreteria=${ferreteria.id} conv=${conversacion.id} err="${errMsg.slice(0, 200)}"`
+      )
+
+      // Alertar al dueño si tiene teléfono configurado y la última alerta fue hace >1h
+      // (evitar spam: el campo ultimo_error_at en configuracion_ycloud sirve como throttle)
+      if (ycloudApiKey && ferreteria.telefono_dueno && ferreteria.telefono_whatsapp) {
+        try {
+          const { data: ycConf } = await supabase
+            .from('configuracion_ycloud')
+            .select('ultimo_error_at')
+            .eq('ferreteria_id', ferreteria.id)
+            .single()
+
+          const ultimoError = ycConf?.ultimo_error_at ? new Date(ycConf.ultimo_error_at).getTime() : 0
+          const pasaronMs   = Date.now() - ultimoError
+          const UNA_HORA_MS = 60 * 60 * 1000
+
+          if (pasaronMs > UNA_HORA_MS) {
+            // Marcar antes de enviar para no duplicar si el send tarda
+            void supabase.from('configuracion_ycloud')
+              .update({ ultimo_error_at: new Date().toISOString(), ultimo_error: `[DEGRADED] ${errMsg.slice(0, 300)}` })
+              .eq('ferreteria_id', ferreteria.id)
+
+            enviarWhatsApp({
+              from:   ferreteria.telefono_whatsapp,
+              to:     ferreteria.telefono_dueno,
+              texto:  `⚠️ *FerroBot — Alerta técnica*\nEl bot tuvo un problema y está en modo básico por ahora.\n\nError: ${errMsg.slice(0, 150)}\n\nTu bot sigue respondiendo pero con funciones reducidas. Revisa los logs si persiste.`,
+              apiKey: ycloudApiKey,
+            }).catch(() => {})
+          }
+        } catch { /* no bloquear el flujo por fallo en la alerta */ }
+      }
     }
   }
 

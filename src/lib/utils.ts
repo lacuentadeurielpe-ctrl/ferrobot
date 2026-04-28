@@ -81,3 +81,15 @@ export function truncar(texto: string, max: number): string {
   if (texto.length <= max) return texto
   return texto.slice(0, max) + '…'
 }
+
+// ── Utilidad de timeout para promesas ────────────────────────────────────────
+// Rechaza con Error('timeout_Nms') si la promesa no resuelve en `ms` milisegundos.
+// Usada en el orquestador para aislar tools lentas y en llamadas a APIs externas.
+export function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`timeout_${ms}ms`)), ms)
+    ),
+  ])
+}

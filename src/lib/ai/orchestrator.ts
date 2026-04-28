@@ -15,12 +15,15 @@
 // ya están scoped al tenant correcto.
 
 import { TOOL_SCHEMAS, TOOL_EXECUTORS, type ToolContext } from './tools'
+import { withTimeout } from '@/lib/utils'
 
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com'
 const DEEPSEEK_MODEL = 'deepseek-chat'
 const CLAUDE_MODEL   = 'claude-3-5-haiku-20241022'
 const MAX_ITERATIONS = 8
 const TIMEOUT_MS     = 28_000
+const TOOL_TIMEOUT_MS = 9_000   // cada tool tiene 9s antes de devolver error
+const RETRY_WAIT_MS   = 800    // espera antes del único reintento en 429/503
 
 export interface OrchestratorResult {
   respuesta: string
@@ -55,7 +58,7 @@ interface AnthropicResponse {
   stop_reason: 'tool_use' | 'end_turn' | string
 }
 
-async function callClaude(
+async function callClaudeOnce(
   system:   string,
   messages: AnthropicMessage[],
   useTools: boolean
@@ -95,6 +98,24 @@ async function callClaude(
   }
 
   return response.json() as Promise<AnthropicResponse>
+}
+
+// Retry único en 429/503 (rate limit o servicio temporalmente no disponible)
+async function callClaude(
+  system:   string,
+  messages: AnthropicMessage[],
+  useTools: boolean
+): Promise<AnthropicResponse> {
+  try {
+    return await callClaudeOnce(system, messages, useTools)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('429') || msg.includes('503') || msg.includes('529')) {
+      await new Promise((r) => setTimeout(r, RETRY_WAIT_MS))
+      return callClaudeOnce(system, messages, useTools)
+    }
+    throw e
+  }
 }
 
 async function ejecutarOrquestadorClaude(
@@ -140,7 +161,7 @@ async function ejecutarOrquestadorClaude(
       return { respuesta, toolsUsadas, iteraciones: iteracion, motor: 'claude' }
     }
 
-    // Execute tools in parallel (all scoped to same tenant)
+    // Execute tools in parallel — cada una con timeout propio de TOOL_TIMEOUT_MS
     const toolResults = await Promise.all(
       toolUseBlocks.map(async (tc) => {
         const name = tc.name
@@ -150,12 +171,25 @@ async function ejecutarOrquestadorClaude(
           return { tool_use_id: tc.id, content: JSON.stringify({ ok: false, error: `Tool "${name}" no existe` }) }
         }
         try {
-          const result = await executor(ctx, tc.input)
+          const result = await withTimeout(TOOL_TIMEOUT_MS, executor(ctx, tc.input))
           return { tool_use_id: tc.id, content: JSON.stringify(result) }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          console.error(`[Orchestrator/Claude] Tool "${name}" falló:`, msg)
-          return { tool_use_id: tc.id, content: JSON.stringify({ ok: false, error: msg }) }
+          const esTimeout = msg.startsWith('timeout_')
+          if (esTimeout) {
+            console.warn(`[Orchestrator/Claude] Tool "${name}" timeout conv=${ctx.conversacionId}`)
+          } else {
+            console.error(`[Orchestrator/Claude] Tool "${name}" error conv=${ctx.conversacionId}:`, msg)
+          }
+          return {
+            tool_use_id: tc.id,
+            content: JSON.stringify({
+              ok: false,
+              error: esTimeout
+                ? `La herramienta "${name}" tardó demasiado. Intenta una consulta más simple.`
+                : msg,
+            }),
+          }
         }
       })
     )
@@ -167,12 +201,11 @@ async function ejecutarOrquestadorClaude(
     })
   }
 
-  // Max iterations reached — force final answer without tools
-  console.warn('[Orchestrator/Claude] Max iteraciones — forzando respuesta final')
-  const finalResp = await callClaude(systemPrompt, messages, false)
-  const respuesta = finalResp.content.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('').trim()
+  // Max iteraciones alcanzadas — respuesta canned para no hacer una llamada LLM adicional
+  // (esa llamada podría empujar sobre el límite de 60s de Vercel)
+  console.warn(`[Orchestrator/Claude] Max iteraciones (${MAX_ITERATIONS}) conv=${ctx.conversacionId} tools=${toolsUsadas.join(',')}`)
   return {
-    respuesta: respuesta || 'Disculpe, ¿podría repetir su consulta?',
+    respuesta: 'Tuve dificultades procesando tu consulta completa. ¿Podrías preguntarme algo más específico? 🙏',
     toolsUsadas,
     iteraciones: iteracion,
     motor: 'claude',
@@ -200,7 +233,7 @@ interface DeepSeekChoice {
   finish_reason: string
 }
 
-async function callDeepSeek(
+async function callDeepSeekOnce(
   messages: DeepSeekMessage[],
   useTools: boolean
 ): Promise<DeepSeekChoice> {
@@ -240,6 +273,23 @@ async function callDeepSeek(
   return choice
 }
 
+// Retry único en 429/503 — DeepSeek tiene rate limits frecuentes en horas pico
+async function callDeepSeek(
+  messages: DeepSeekMessage[],
+  useTools: boolean
+): Promise<DeepSeekChoice> {
+  try {
+    return await callDeepSeekOnce(messages, useTools)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('429') || msg.includes('503') || msg.includes('529')) {
+      await new Promise((r) => setTimeout(r, RETRY_WAIT_MS))
+      return callDeepSeekOnce(messages, useTools)
+    }
+    throw e
+  }
+}
+
 async function ejecutarOrquestadorDeepSeek(
   systemPrompt: string,
   historial:    Array<{ role: 'user' | 'assistant'; content: string }>,
@@ -272,6 +322,7 @@ async function ejecutarOrquestadorDeepSeek(
       return { respuesta, toolsUsadas, iteraciones: iteracion, motor: 'deepseek' }
     }
 
+    // Ejecutar tools con timeout propio
     const toolResults = await Promise.all(
       message.tool_calls.map(async (tc) => {
         const name = tc.function.name
@@ -281,11 +332,26 @@ async function ejecutarOrquestadorDeepSeek(
         let args: Record<string, unknown> = {}
         try { args = JSON.parse(tc.function.arguments || '{}') } catch { /* noop */ }
         try {
-          const result = await executor(ctx, args)
+          const result = await withTimeout(TOOL_TIMEOUT_MS, executor(ctx, args))
           return { tool_call_id: tc.id, name, content: JSON.stringify(result) }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          return { tool_call_id: tc.id, name, content: JSON.stringify({ ok: false, error: msg }) }
+          const esTimeout = msg.startsWith('timeout_')
+          if (esTimeout) {
+            console.warn(`[Orchestrator/DeepSeek] Tool "${name}" timeout conv=${ctx.conversacionId}`)
+          } else {
+            console.error(`[Orchestrator/DeepSeek] Tool "${name}" error conv=${ctx.conversacionId}:`, msg)
+          }
+          return {
+            tool_call_id: tc.id,
+            name,
+            content: JSON.stringify({
+              ok: false,
+              error: esTimeout
+                ? `La herramienta "${name}" tardó demasiado. Intenta una consulta más simple.`
+                : msg,
+            }),
+          }
         }
       })
     )
@@ -297,10 +363,10 @@ async function ejecutarOrquestadorDeepSeek(
     if (finish_reason === 'stop') break
   }
 
-  const finalChoice = await callDeepSeek(messages, false)
-  const respuesta = (finalChoice.message.content ?? '').trim()
+  // Max iteraciones alcanzadas — respuesta canned
+  console.warn(`[Orchestrator/DeepSeek] Max iteraciones (${MAX_ITERATIONS}) conv=${ctx.conversacionId} tools=${toolsUsadas.join(',')}`)
   return {
-    respuesta: respuesta || 'Disculpe, ¿podría repetir su consulta?',
+    respuesta: 'Tuve dificultades procesando tu consulta completa. ¿Podrías preguntarme algo más específico? 🙏',
     toolsUsadas,
     iteraciones: iteracion,
     motor: 'deepseek',
@@ -322,17 +388,28 @@ export async function ejecutarOrquestador(
     throw new Error('TENANT_MISSING: orquestador invocado sin ferreteriaId')
   }
 
+  const t0 = Date.now()
+
   // Intentar Claude cuando la API key está disponible
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const result = await ejecutarOrquestadorClaude(systemPrompt, historial, mensajeUsuario, ctx)
-      console.log(`[Orchestrator] Claude OK — tools=${result.toolsUsadas.join(',') || 'ninguna'} iter=${result.iteraciones}`)
+      console.log(
+        `[Orchestrator] motor=claude conv=${ctx.conversacionId} tools=${result.toolsUsadas.join(',') || 'ninguna'} iter=${result.iteraciones} ms=${Date.now() - t0}`
+      )
       return result
     } catch (e) {
-      console.error('[Orchestrator] Claude falló — usando DeepSeek como fallback:', e instanceof Error ? e.message : e)
+      console.error(
+        `[Orchestrator] Claude error conv=${ctx.conversacionId} ms=${Date.now() - t0} — usando DeepSeek:`,
+        e instanceof Error ? e.message : e
+      )
     }
   }
 
   // Fallback a DeepSeek
-  return ejecutarOrquestadorDeepSeek(systemPrompt, historial, mensajeUsuario, ctx)
+  const result = await ejecutarOrquestadorDeepSeek(systemPrompt, historial, mensajeUsuario, ctx)
+  console.log(
+    `[Orchestrator] motor=deepseek conv=${ctx.conversacionId} tools=${result.toolsUsadas.join(',') || 'ninguna'} iter=${result.iteraciones} ms=${Date.now() - t0}`
+  )
+  return result
 }
