@@ -10,6 +10,9 @@ import type { Producto, ZonaDelivery, DatosFlujoPedido } from '@/types/database'
 import { procesarItemsSolicitados, buscarProducto, formatearCotizacion } from '@/lib/bot/catalog-search'
 import { pausarBot } from '@/lib/bot/session'
 import { generarYEnviarComprobante, eliminarComprobantePedido } from '@/lib/pdf/generar-comprobante'
+import { emitirBoleta, emitirFactura } from '@/lib/comprobantes/emitir'
+import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
+import { enviarMensaje, enviarDocumento, enviarImagen } from '@/lib/whatsapp/ycloud'
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -261,6 +264,66 @@ export const TOOL_SCHEMAS = [
           razon: { type: 'string', description: 'Razón breve del escalamiento.' },
         },
         required: ['razon'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'solicitar_comprobante',
+      description:
+        'Genera y envía por WhatsApp el comprobante de un pedido del cliente. ' +
+        'Úsalo cuando el cliente pida boleta, factura, nota de venta, proforma o comprobante. ' +
+        'Maneja automáticamente: proforma (pendiente), nota de venta (no pagado/sin Nubefact), ' +
+        'boleta electrónica (pagado + Nubefact), factura electrónica (pagado + Nubefact + RUC).',
+      parameters: {
+        type: 'object',
+        properties: {
+          numero_pedido: {
+            type: 'string',
+            description: 'Número de pedido si el cliente lo especificó (ej: PED-0001). Omitir si no lo mencionó.',
+          },
+          tipo_comprobante: {
+            type: 'string',
+            enum: ['boleta', 'factura'],
+            description: 'Tipo de comprobante solicitado. Omitir si el cliente no lo especificó (se elige automáticamente).',
+          },
+          ruc_cliente: {
+            type: 'string',
+            description: 'RUC del cliente (11 dígitos) si pidió factura y lo proporcionó.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'modificar_pedido',
+      description:
+        'Modifica un pedido pendiente del cliente: agrega, quita o ajusta cantidades de productos. ' +
+        'Úsalo cuando el cliente quiera cambiar su pedido ANTES de que sea confirmado. ' +
+        'Para cantidad = 0 → elimina ese producto. Para cantidad > 0 → agrega o ajusta.',
+      parameters: {
+        type: 'object',
+        properties: {
+          items: {
+            type: 'array',
+            description: 'Lista de cambios a aplicar.',
+            items: {
+              type: 'object',
+              properties: {
+                nombre_buscado: { type: 'string', description: 'Nombre del producto a modificar.' },
+                cantidad: {
+                  type: 'number',
+                  description: 'Nueva cantidad. Usa 0 para eliminar el producto del pedido.',
+                },
+              },
+              required: ['nombre_buscado', 'cantidad'],
+            },
+          },
+        },
+        required: ['items'],
       },
     },
   },
@@ -546,6 +609,63 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
       ycloudApiKey: ctx.ycloudApiKey,
     }).catch((e) => console.error('[crear_pedido] Error comprobante:', e))
 
+    // Enviar instrucciones de pago si hay métodos digitales configurados
+    try {
+      const { data: ferrPago } = await ctx.supabase
+        .from('ferreterias')
+        .select('telefono_whatsapp, metodos_pago_activos, datos_yape, datos_transferencia')
+        .eq('id', ctx.ferreteriaId)
+        .single()
+
+      if (ferrPago && ctx.ycloudApiKey) {
+        const telefonoWA = (ferrPago as unknown as { telefono_whatsapp?: string }).telefono_whatsapp ?? null
+        const metodosActivos: string[] = (ferrPago as unknown as { metodos_pago_activos?: string[] }).metodos_pago_activos ?? []
+        const datosYape = (ferrPago as unknown as { datos_yape?: Record<string, string> }).datos_yape ?? null
+        const datosTransferencia = (ferrPago as unknown as { datos_transferencia?: Record<string, string> }).datos_transferencia ?? null
+
+        const lineasPago: string[] = []
+        if (metodosActivos.includes('yape') && datosYape?.numero) {
+          lineasPago.push(`💚 *Yape:* ${datosYape.numero}`)
+        }
+        if (metodosActivos.includes('transferencia') && datosTransferencia?.banco) {
+          lineasPago.push(
+            `🏦 *Transferencia (${datosTransferencia.banco}):*\n` +
+            `  Cuenta: ${datosTransferencia.cuenta}\n` +
+            (datosTransferencia.cci ? `  CCI: ${datosTransferencia.cci}\n` : '') +
+            `  Titular: ${datosTransferencia.titular}`
+          )
+        }
+        if (metodosActivos.includes('efectivo')) {
+          lineasPago.push(`💵 *Efectivo* al momento de la entrega`)
+        }
+
+        if (lineasPago.length > 0 && telefonoWA) {
+          const textoPago =
+            `💳 *Formas de pago disponibles:*\n\n` +
+            lineasPago.join('\n\n') +
+            `\n\nSi pagas por Yape o transferencia, envía el comprobante y lo confirmaremos. 🙏`
+          enviarMensaje({
+            from: telefonoWA,
+            to: ctx.telefonoCliente,
+            texto: textoPago,
+            apiKey: ctx.ycloudApiKey,
+          }).catch((e) => console.error('[crear_pedido] Error instrucciones pago:', e))
+
+          if (metodosActivos.includes('yape') && datosYape?.qr_url) {
+            enviarImagen({
+              from: telefonoWA,
+              to: ctx.telefonoCliente,
+              imageUrl: datosYape.qr_url,
+              caption: `QR de Yape — ${datosYape.numero}`,
+              apiKey: ctx.ycloudApiKey,
+            }).catch((e) => console.error('[crear_pedido] Error QR Yape:', e))
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[crear_pedido] Error instrucciones pago:', e)
+    }
+
     return {
       ok: true,
       data: {
@@ -809,5 +929,396 @@ export const TOOL_EXECUTORS: Record<string, Executor> = {
     await pausarBot(ctx.supabase, ctx.conversacionId)
     console.log(`[Orchestrator] escalar_humano conv=${ctx.conversacionId} razón="${razon}"`)
     return { ok: true, data: { pausado: true, razon } }
+  },
+
+  // ── Solicitar comprobante ──────────────────────────────────────────────────
+  solicitar_comprobante: async (ctx, args) => {
+    requireTenant(ctx)
+
+    const numeroPedidoArg   = ((args.numero_pedido as string | undefined) ?? '').toUpperCase().trim() || null
+    const tipoComprobanteArg = (args.tipo_comprobante as 'boleta' | 'factura' | undefined) ?? null
+    const rucClienteArg      = ((args.ruc_cliente as string | undefined) ?? '').replace(/\D/g, '') || null
+
+    // Fetch ferreteria config (tipo_ruc, nubefact, telefono_whatsapp)
+    const { data: ferreteria } = await ctx.supabase
+      .from('ferreterias')
+      .select('tipo_ruc, nubefact_ruta, nubefact_token_enc, telefono_whatsapp')
+      .eq('id', ctx.ferreteriaId)
+      .single()
+
+    if (!ferreteria) return { ok: false, error: 'Ferretería no encontrada' }
+
+    type FerrConfig = { tipo_ruc?: string; nubefact_ruta?: string; nubefact_token_enc?: string; telefono_whatsapp?: string }
+    const ferr = ferreteria as unknown as FerrConfig
+    const tipoRucTenant      = ferr.tipo_ruc ?? 'sin_ruc'
+    const nubefactConfigurado = !!(ferr.nubefact_ruta && ferr.nubefact_token_enc)
+    const telefonoWA          = ferr.telefono_whatsapp ?? null
+
+    // Validar RUC si el cliente lo proporcionó y el tenant puede emitir facturas
+    if (tipoRucTenant === 'ruc20' && rucClienteArg) {
+      if (!validarFormatoRuc(rucClienteArg)) {
+        return {
+          ok: false,
+          error: `El RUC ${rucClienteArg} tiene formato inválido. Debe ser 11 dígitos comenzando con 10 o 20.`,
+          motivo: 'ruc_invalido',
+        }
+      }
+      const consultaRuc = await consultarRuc(rucClienteArg)
+      if (!consultaRuc.ok || !consultaRuc.data) {
+        return {
+          ok: false,
+          error: `No se pudo verificar el RUC ${rucClienteArg} en SUNAT (${consultaRuc.error ?? 'no encontrado'}). Pide al cliente que lo confirme.`,
+          motivo: 'ruc_no_encontrado',
+        }
+      }
+      const infoRuc = consultaRuc.data
+      // Guardar RUC en el registro del cliente — FERRETERÍA AISLADA
+      await ctx.supabase
+        .from('clientes')
+        .update({ ruc_cliente: rucClienteArg, tipo_persona: infoRuc.tipoPersona })
+        .eq('id', ctx.clienteId)
+        .eq('ferreteria_id', ctx.ferreteriaId)
+
+      if (!infoRuc.activo) {
+        return {
+          ok: false,
+          error: `El RUC ${rucClienteArg} (${infoRuc.razonSocial}) figura como ${infoRuc.estado}/${infoRuc.condicion} en SUNAT. Informa al cliente y pregunta si desea continuar o prefiere nota de venta.`,
+          motivo: 'ruc_inactivo',
+        }
+      }
+    }
+
+    // Buscar pedidos del cliente — FERRETERÍA AISLADA
+    const { data: pedidos } = await ctx.supabase
+      .from('pedidos')
+      .select('id, numero_pedido, estado, estado_pago, nombre_cliente, created_at')
+      .eq('ferreteria_id', ctx.ferreteriaId)
+      .eq('cliente_id', ctx.clienteId)
+      .in('estado', ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado'])
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    if (!pedidos || pedidos.length === 0) {
+      return { ok: false, error: 'No encontré pedidos para este cliente. ¿Quizás fue registrado con otro número?', motivo: 'sin_pedidos' }
+    }
+
+    // Si el cliente tiene múltiples pedidos y no especificó cuál
+    if (pedidos.length > 1 && !numeroPedidoArg) {
+      return {
+        ok: false,
+        motivo: 'multiples_pedidos',
+        error: 'El cliente tiene varios pedidos. Pregúntale de cuál necesita el comprobante.',
+        data: { pedidos: pedidos.slice(0, 3).map((p) => ({ numero_pedido: p.numero_pedido, estado: p.estado })) },
+      }
+    }
+
+    // Seleccionar pedido objetivo
+    let pedidoTarget = pedidos[0]
+    if (numeroPedidoArg) {
+      const match = pedidos.find((p) => p.numero_pedido.toUpperCase() === numeroPedidoArg)
+      if (match) pedidoTarget = match
+    }
+
+    type PedidoTarget = { id: string; numero_pedido: string; estado: string; estado_pago: string | null; nombre_cliente: string | null }
+    const ped = pedidoTarget as unknown as PedidoTarget
+
+    const pagado        = ped.estado_pago === 'pagado'
+    const pidioFactura  = tipoComprobanteArg === 'factura' || !!rucClienteArg
+
+    // ── Caso 1: no pagado → nota de venta / proforma ───────────────────────
+    if (!pagado) {
+      const esProforma = ped.estado === 'pendiente'
+      const resultadoNV = await generarYEnviarComprobante({
+        pedidoId:     ped.id,
+        ferreteriaId: ctx.ferreteriaId,
+        esProforma,
+        ycloudApiKey: ctx.ycloudApiKey,
+      })
+      if (!resultadoNV.ok) {
+        return { ok: false, error: resultadoNV.error ?? 'Error generando documento' }
+      }
+      return {
+        ok: true,
+        data: {
+          tipo_documento:     esProforma ? 'proforma' : 'nota_venta',
+          numero_comprobante: resultadoNV.numero_comprobante,
+          pedido_numero:      ped.numero_pedido,
+          enviado:            true,
+          nota: pidioFactura
+            ? `Para emitir comprobante electrónico primero se necesita completar el pago.`
+            : undefined,
+        },
+      }
+    }
+
+    // ── Caso 2: pagado pero sin Nubefact o sin_ruc → nota de venta ─────────
+    if (!nubefactConfigurado || tipoRucTenant === 'sin_ruc') {
+      const resultadoNV = await generarYEnviarComprobante({
+        pedidoId:     ped.id,
+        ferreteriaId: ctx.ferreteriaId,
+        esProforma:   false,
+        ycloudApiKey: ctx.ycloudApiKey,
+      })
+      if (!resultadoNV.ok) {
+        return { ok: false, error: resultadoNV.error ?? 'Error generando documento' }
+      }
+      return {
+        ok: true,
+        data: {
+          tipo_documento:     'nota_venta',
+          numero_comprobante: resultadoNV.numero_comprobante,
+          pedido_numero:      ped.numero_pedido,
+          enviado:            true,
+        },
+      }
+    }
+
+    // ── Caso 3: pagado + Nubefact → boleta o factura electrónica ───────────
+    if (pidioFactura) {
+      // Buscar RUC guardado si no se proporcionó
+      let rucParaFactura = rucClienteArg ?? ''
+      if (!rucParaFactura) {
+        const { data: clienteData } = await ctx.supabase
+          .from('clientes')
+          .select('ruc_cliente')
+          .eq('id', ctx.clienteId)
+          .eq('ferreteria_id', ctx.ferreteriaId)
+          .single()
+        rucParaFactura = (clienteData as unknown as { ruc_cliente?: string } | null)?.ruc_cliente ?? ''
+      }
+
+      if (!rucParaFactura || rucParaFactura.length !== 11) {
+        return {
+          ok: false,
+          motivo: 'falta_ruc_factura',
+          error: 'Para emitir factura electrónica necesito el RUC del cliente (11 dígitos). Pídelo explícitamente y vuelve a llamar esta tool con el RUC.',
+        }
+      }
+
+      const resultFact = await emitirFactura({
+        pedidoId:      ped.id,
+        ferreteriaId:  ctx.ferreteriaId,
+        clienteNombre: ped.nombre_cliente || 'CLIENTE',
+        clienteRuc:    rucParaFactura,
+        emitidoPor:    'bot',
+      })
+
+      if (resultFact.ok && resultFact.pdfUrl && telefonoWA && ctx.ycloudApiKey) {
+        enviarDocumento({
+          from:     telefonoWA,
+          to:       ctx.telefonoCliente,
+          pdfUrl:   resultFact.pdfUrl,
+          filename: `${resultFact.numeroCompleto ?? 'factura'}.pdf`,
+          caption:  `Factura ${resultFact.numeroCompleto} — Pedido ${ped.numero_pedido}`,
+          apiKey:   ctx.ycloudApiKey,
+        }).catch((e) => console.error('[solicitar_comprobante] Error enviando factura:', e))
+
+        return {
+          ok: true,
+          data: {
+            tipo_documento:     'factura',
+            numero_comprobante: resultFact.numeroCompleto,
+            pedido_numero:      ped.numero_pedido,
+            enviado:            true,
+          },
+        }
+      } else if (resultFact.tokenInvalido) {
+        return { ok: false, error: 'Token Nubefact inválido. El encargado enviará el comprobante directamente.', motivo: 'nubefact_token_invalido' }
+      } else {
+        return { ok: false, error: resultFact.error ?? 'Error emitiendo factura', motivo: 'error_nubefact' }
+      }
+    }
+
+    // Emitir boleta electrónica (caso default)
+    const resultBol = await emitirBoleta({
+      pedidoId:      ped.id,
+      ferreteriaId:  ctx.ferreteriaId,
+      tipoBoleta:    'boleta',
+      clienteNombre: ped.nombre_cliente || 'CLIENTES VARIOS',
+      clienteDni:    '',
+      emitidoPor:    'bot',
+    })
+
+    if (resultBol.ok && resultBol.pdfUrl && telefonoWA && ctx.ycloudApiKey) {
+      enviarDocumento({
+        from:     telefonoWA,
+        to:       ctx.telefonoCliente,
+        pdfUrl:   resultBol.pdfUrl,
+        filename: `${resultBol.numeroCompleto ?? 'boleta'}.pdf`,
+        caption:  `Boleta ${resultBol.numeroCompleto} — Pedido ${ped.numero_pedido}`,
+        apiKey:   ctx.ycloudApiKey,
+      }).catch((e) => console.error('[solicitar_comprobante] Error enviando boleta:', e))
+
+      return {
+        ok: true,
+        data: {
+          tipo_documento:     'boleta',
+          numero_comprobante: resultBol.numeroCompleto,
+          pedido_numero:      ped.numero_pedido,
+          enviado:            true,
+        },
+      }
+    } else if (resultBol.tokenInvalido) {
+      // Fallback a nota de venta
+      const resultNV = await generarYEnviarComprobante({
+        pedidoId: ped.id, ferreteriaId: ctx.ferreteriaId, ycloudApiKey: ctx.ycloudApiKey,
+      })
+      if (resultNV.ok) {
+        return {
+          ok: true,
+          data: {
+            tipo_documento:     'nota_venta',
+            numero_comprobante: resultNV.numero_comprobante,
+            pedido_numero:      ped.numero_pedido,
+            enviado:            true,
+            nota:               'Boleta electrónica temporalmente no disponible — se envió nota de venta',
+          },
+        }
+      }
+      return { ok: false, error: 'Error generando documento de respaldo', motivo: 'error_fallback' }
+    } else {
+      return { ok: false, error: resultBol.error ?? 'Error emitiendo boleta', motivo: 'error_nubefact' }
+    }
+  },
+
+  // ── Modificar pedido pendiente ─────────────────────────────────────────────
+  modificar_pedido: async (ctx, args) => {
+    requireTenant(ctx)
+
+    const items = args.items as Array<{ nombre_buscado: string; cantidad: number }> | undefined
+    if (!Array.isArray(items) || items.length === 0) {
+      return { ok: false, error: 'items vacío — debes indicar qué productos modificar y con qué cantidad (0 = quitar)' }
+    }
+
+    // Buscar pedido pendiente más reciente del cliente — FERRETERÍA AISLADA
+    const { data: pedidoRaw } = await ctx.supabase
+      .from('pedidos')
+      .select('id, numero_pedido, total, items_pedido(*)')
+      .eq('ferreteria_id', ctx.ferreteriaId)
+      .eq('cliente_id', ctx.clienteId)
+      .eq('estado', 'pendiente')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!pedidoRaw) {
+      return {
+        ok: false,
+        motivo: 'sin_pedido_pendiente',
+        error: 'No hay pedido pendiente para modificar. Si el pedido ya fue confirmado usa agregar_a_pedido_reciente.',
+      }
+    }
+
+    type PedidoMod = { id: string; numero_pedido: string; total: number; items_pedido: Array<Record<string, unknown>> }
+    const pedido      = pedidoRaw as unknown as PedidoMod
+    const itemsActuales = pedido.items_pedido ?? []
+    const productoCostoMap = new Map(ctx.productos.map((p) => [p.id, p.precio_compra ?? 0]))
+
+    // ── Quitar items (cantidad = 0) ──────────────────────────────────────────
+    const itemsQuitar = items.filter((i) => i.cantidad === 0)
+    for (const req of itemsQuitar) {
+      const nombre = req.nombre_buscado.toLowerCase()
+      const match = itemsActuales.find((ia) => {
+        const nombreProd = (ia.nombre_producto as string).toLowerCase()
+        return nombreProd.includes(nombre) || nombre.includes(nombreProd.split(' ')[0])
+      })
+      if (match) {
+        await ctx.supabase.from('items_pedido').delete().eq('id', match.id as string)
+      }
+    }
+
+    // ── Agregar / actualizar items (cantidad > 0) ────────────────────────────
+    const itemsModificar = items.filter((i) => i.cantidad > 0)
+    if (itemsModificar.length > 0) {
+      const { data: configBot } = await ctx.supabase
+        .from('configuracion_bot')
+        .select('umbral_monto_negociacion')
+        .eq('ferreteria_id', ctx.ferreteriaId)
+        .single()
+
+      const resultados = procesarItemsSolicitados(
+        itemsModificar,
+        ctx.productos,
+        (configBot as { umbral_monto_negociacion?: number } | null)?.umbral_monto_negociacion
+      )
+
+      for (const r of resultados) {
+        if (!r.disponible || !r.producto) continue
+
+        const existente = itemsActuales.find((ia) => (ia.producto_id as string) === r.producto!.id)
+        if (existente) {
+          await ctx.supabase
+            .from('items_pedido')
+            .update({
+              cantidad:        r.cantidad,
+              precio_unitario: r.precio_unitario,
+              subtotal:        r.subtotal,
+              costo_unitario:  productoCostoMap.get(r.producto.id) ?? 0,
+            })
+            .eq('id', existente.id as string)
+        } else {
+          await ctx.supabase.from('items_pedido').insert({
+            pedido_id:       pedido.id,
+            producto_id:     r.producto.id,
+            nombre_producto: r.producto.nombre,
+            unidad:          r.producto.unidad,
+            cantidad:        r.cantidad,
+            precio_unitario: r.precio_unitario,
+            subtotal:        r.subtotal,
+            costo_unitario:  productoCostoMap.get(r.producto.id) ?? 0,
+          })
+        }
+      }
+    }
+
+    // ── Recalcular total ─────────────────────────────────────────────────────
+    const { data: itemsFinal } = await ctx.supabase
+      .from('items_pedido')
+      .select('subtotal, cantidad, costo_unitario')
+      .eq('pedido_id', pedido.id)
+
+    if (!itemsFinal || itemsFinal.length === 0) {
+      return {
+        ok: true,
+        data: {
+          pedido_numero: pedido.numero_pedido,
+          nuevo_total:   0,
+          vaciado:       true,
+          mensaje:       'El pedido quedó sin productos. Pregunta al cliente si desea cancelarlo o agregar otros productos.',
+        },
+      }
+    }
+
+    const nuevoTotal = itemsFinal.reduce((s, i) => s + (i.subtotal as number), 0)
+    const nuevoCosto = itemsFinal.reduce((s, i) => s + ((i.costo_unitario as number) ?? 0) * (i.cantidad as number), 0)
+
+    await ctx.supabase
+      .from('pedidos')
+      .update({ total: nuevoTotal, costo_total: nuevoCosto })
+      .eq('id', pedido.id)
+      .eq('ferreteria_id', ctx.ferreteriaId)     // FERRETERÍA AISLADA
+
+    // Borrar comprobante anterior si existe (el cliente podrá pedirlo actualizado)
+    try { await eliminarComprobantePedido(pedido.id, ctx.ferreteriaId) } catch (_) { /* no-op */ }
+
+    // Devolver lista actualizada al LLM
+    const { data: itemsMostrar } = await ctx.supabase
+      .from('items_pedido')
+      .select('nombre_producto, cantidad, precio_unitario')
+      .eq('pedido_id', pedido.id)
+      .order('nombre_producto')
+
+    return {
+      ok: true,
+      data: {
+        pedido_numero: pedido.numero_pedido,
+        nuevo_total:   nuevoTotal,
+        items: (itemsMostrar ?? []).map((i) => ({
+          nombre:   i.nombre_producto,
+          cantidad: i.cantidad,
+          precio:   (i.precio_unitario as number).toFixed(2),
+        })),
+      },
+    }
   },
 }

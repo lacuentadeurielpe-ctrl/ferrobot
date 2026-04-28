@@ -204,12 +204,12 @@ export async function handleIncomingMessage({
   const historial = await getHistorial(supabase, conversacion.id, limiteHistorial)
   const historialParaAI = historial.slice(0, -1)
 
-  // ── 8a. F1: Orquestador v2 (tool-calling) — gated por feature flag ────────
-  // Si el tenant tiene usar_orquestador_v2 = true, usamos el nuevo flujo.
-  // También se activa automáticamente cuando ANTHROPIC_API_KEY está presente
-  // (Claude como motor principal — más capaz y más barato que DeepSeek para tools).
+  // ── 8a. F1: Orquestador v2 (tool-calling) — activo por defecto ──────────
+  // El orquestador v2 es ahora el flujo principal para todos los tenants.
+  // Se puede desactivar explícitamente con usar_orquestador_v2 = false.
+  // Motor: Claude (si ANTHROPIC_API_KEY está presente) o DeepSeek como fallback.
   const usarOrquestador =
-    claudeDisponible() || (config as any)?.usar_orquestador_v2 === true
+    (config as any)?.usar_orquestador_v2 !== false
   if (usarOrquestador) {
     try {
       console.log(`[Bot] Usando orquestador v2 — ferreteria=${ferreteria.id}`)
