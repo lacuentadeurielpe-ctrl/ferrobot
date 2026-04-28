@@ -3,9 +3,35 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, Download } from 'lucide-react'
+import { ArrowLeft, Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, Download, Copy } from 'lucide-react'
 import Papa from 'papaparse'
 import type { FilaProducto } from '@/app/api/upload/products/route'
+
+// ── Detección de duplicados ────────────────────────────────────────────────────
+
+/** Normaliza un nombre para comparación: minúsculas, sin tildes, sin espacios extra */
+function normalizarNombre(s: string): string {
+  return s.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+}
+
+/** Detecta si dos nombres son probablemente el mismo producto (umbral ~75%) */
+function nombresSimilares(a: string, b: string): boolean {
+  const na = normalizarNombre(a)
+  const nb = normalizarNombre(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  // Contención directa
+  if (na.includes(nb) || nb.includes(na)) return true
+  // Solapamiento de tokens ≥ 50% del más corto
+  const ta = na.split(/\s+/).filter((w) => w.length >= 3)
+  const tb = nb.split(/\s+/).filter((w) => w.length >= 3)
+  if (ta.length === 0 || tb.length === 0) return false
+  const comunes = ta.filter((t) => tb.includes(t))
+  return comunes.length / Math.min(ta.length, tb.length) >= 0.5
+}
 
 const UNIDADES_VALIDAS = ['unidad', 'bolsa', 'saco', 'metro', 'metro cuadrado', 'galón', 'litro', 'kilo', 'tonelada', 'rollo', 'plancha', 'caja', 'par']
 
@@ -61,13 +87,36 @@ export default function UploadPage() {
   const [importando, setImportando] = useState(false)
   const [resultado, setResultado] = useState<{ importados: number; categorias_creadas: number } | null>(null)
   const [errorGlobal, setErrorGlobal] = useState<string | null>(null)
+  // Detección de duplicados: fila → nombre del producto existente que coincide
+  const [duplicados, setDuplicados] = useState<Record<number, string>>({})
 
-  const filasValidas = filas.filter((f) => f.errores.length === 0)
-  const filasConError = filas.filter((f) => f.errores.length > 0)
+  const filasValidas   = filas.filter((f) => f.errores.length === 0)
+  const filasConError  = filas.filter((f) => f.errores.length > 0)
+  const filasConDuplic = Object.keys(duplicados).length
+
+  /** Compara las filas parseadas contra los productos existentes del catálogo */
+  async function detectarDuplicados(filasParsed: FilaProducto[]) {
+    try {
+      const res = await fetch('/api/products')
+      if (!res.ok) return
+      const existentes: { nombre: string }[] = await res.json()
+      const nombreExistentes = existentes.map((p) => p.nombre)
+      const mapa: Record<number, string> = {}
+      for (const fila of filasParsed) {
+        if (!fila.nombre) continue
+        const match = nombreExistentes.find((e) => nombresSimilares(fila.nombre, e))
+        if (match) mapa[fila.fila] = match
+      }
+      setDuplicados(mapa)
+    } catch {
+      // Si falla el fetch de existentes, simplemente no marcamos duplicados
+    }
+  }
 
   function handleArchivo(file: File) {
     setArchivo(file.name)
     setFilas([])
+    setDuplicados({})
     setResultado(null)
     setErrorGlobal(null)
     setParseando(true)
@@ -80,6 +129,7 @@ export default function UploadPage() {
           const parsed = (results.data as Record<string, string>[]).map(parsearFila)
           setFilas(parsed)
           setParseando(false)
+          detectarDuplicados(parsed)
         },
         error: () => {
           setErrorGlobal('Error al leer el archivo CSV.')
@@ -87,8 +137,6 @@ export default function UploadPage() {
         },
       })
     } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-      // Para Excel usamos FileReader + exceljs en un web worker sería ideal,
-      // pero lo hacemos simple con FileReader aquí
       const reader = new FileReader()
       reader.onload = async (e) => {
         try {
@@ -115,6 +163,7 @@ export default function UploadPage() {
             }
           })
           setFilas(filasParsed)
+          detectarDuplicados(filasParsed)
         } catch {
           setErrorGlobal('Error al leer el archivo Excel.')
         }
@@ -261,6 +310,11 @@ export default function UploadPage() {
                       {filasConError.length} con error
                     </span>
                   )}
+                  {filasConDuplic > 0 && (
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                      {filasConDuplic} posible{filasConDuplic !== 1 ? 's' : ''} duplicado{filasConDuplic !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={importar}
@@ -286,33 +340,45 @@ export default function UploadPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filas.map((fila) => (
-                      <tr key={fila.fila} className={fila.errores.length > 0 ? 'bg-red-50/50' : ''}>
-                        <td className="px-4 py-2.5 text-xs text-gray-400">{fila.fila}</td>
-                        <td className="px-4 py-2.5">
-                          <p className="font-medium text-gray-800">{fila.nombre || <span className="text-red-400 italic">vacío</span>}</p>
-                          {fila.descripcion && <p className="text-xs text-gray-400 truncate max-w-xs">{fila.descripcion}</p>}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500">{fila.categoria ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-700">
-                          S/ {fila.precio_base.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-gray-500">{fila.unidad}</td>
-                        <td className="px-4 py-2.5 text-right text-sm text-gray-700">{fila.stock}</td>
-                        <td className="px-4 py-2.5">
-                          {fila.errores.length > 0 ? (
-                            <div className="group relative">
-                              <AlertCircle className="w-4 h-4 text-red-500" />
-                              <div className="hidden group-hover:block absolute right-0 bottom-full mb-1 bg-gray-900 text-white text-xs rounded-lg p-2 w-48 z-10">
-                                {fila.errores.join(' · ')}
+                    {filas.map((fila) => {
+                      const dupNombre = duplicados[fila.fila]
+                      const rowCls = fila.errores.length > 0 ? 'bg-red-50/50' : dupNombre ? 'bg-amber-50/60' : ''
+                      return (
+                        <tr key={fila.fila} className={rowCls}>
+                          <td className="px-4 py-2.5 text-xs text-gray-400">{fila.fila}</td>
+                          <td className="px-4 py-2.5">
+                            <p className="font-medium text-gray-800">{fila.nombre || <span className="text-red-400 italic">vacío</span>}</p>
+                            {fila.descripcion && <p className="text-xs text-gray-400 truncate max-w-xs">{fila.descripcion}</p>}
+                            {dupNombre && (
+                              <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+                                <Copy className="w-2.5 h-2.5" />
+                                Posible duplicado de: <em>{dupNombre}</em>
+                              </p>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-gray-500">{fila.categoria ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-right text-sm font-medium text-gray-700">
+                            S/ {fila.precio_base.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-gray-500">{fila.unidad}</td>
+                          <td className="px-4 py-2.5 text-right text-sm text-gray-700">{fila.stock}</td>
+                          <td className="px-4 py-2.5">
+                            {fila.errores.length > 0 ? (
+                              <div className="group relative">
+                                <AlertCircle className="w-4 h-4 text-red-500" />
+                                <div className="hidden group-hover:block absolute right-0 bottom-full mb-1 bg-gray-900 text-white text-xs rounded-lg p-2 w-48 z-10">
+                                  {fila.errores.join(' · ')}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            ) : dupNombre ? (
+                              <AlertCircle className="w-4 h-4 text-amber-500" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

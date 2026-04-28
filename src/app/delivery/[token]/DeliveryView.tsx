@@ -4,8 +4,9 @@ import { useState } from 'react'
 import {
   MapPin, Phone, Package, ChevronDown, CheckCircle, AlertTriangle,
   Loader2, RotateCcw, Siren, X, Inbox, BarChart2,
-  FileText, Truck, CreditCard, BadgeCheck,
+  FileText, Truck, CreditCard, BadgeCheck, Shield,
 } from 'lucide-react'
+import PinModal from '@/components/ui/PinModal'
 import { cn, formatPEN } from '@/lib/utils'
 
 interface ItemPedido {
@@ -76,6 +77,7 @@ export default function DeliveryView({
   token,
   modo,
   puedeRegistrarDeuda,
+  tienePin = false,
 }: {
   pedidos: PedidoDelivery[]
   pedidosDisponibles: PedidoDelivery[]
@@ -83,6 +85,7 @@ export default function DeliveryView({
   token: string
   modo: 'manual' | 'libre'
   puedeRegistrarDeuda: boolean
+  tienePin?: boolean
 }) {
   const [pedidos,    setPedidos]    = useState(inicialAsignados)
   const [disponibles, setDisponibles] = useState(inicialDisponibles)
@@ -98,6 +101,10 @@ export default function DeliveryView({
 
   // Modal de incidencia / retorno / emergencia
   const [modal, setModal] = useState<{ pedidoId: string; tipo: 'incidencia' | 'retorno' | 'emergencia' } | null>(null)
+
+  // PIN gate para cobros con deuda
+  const [pinPendiente, setPinPendiente] = useState<PedidoDelivery | null>(null)
+  const [pinVerificado, setPinVerificado] = useState(false)
   const [incTipo,  setIncTipo]  = useState('')
   const [incDesc,  setIncDesc]  = useState('')
   const [emergMsg, setEmergMsg] = useState('')
@@ -128,13 +135,20 @@ export default function DeliveryView({
   }
 
   // ── Confirmar entrega ─────────────────────────────────────────────────────
-  async function confirmarEntrega(pedido: PedidoDelivery) {
+  async function confirmarEntrega(pedido: PedidoDelivery, pinYaVerificado = false) {
     const { monto, metodo } = cobroDeState(pedido.id)
     const montoNum = parseFloat(monto) || 0
+    const esDeuda  = montoNum > 0 && montoNum < pedido.total
 
     // Validar pago parcial sin permiso
-    if (montoNum > 0 && montoNum < pedido.total && !puedeRegistrarDeuda) {
+    if (esDeuda && !puedeRegistrarDeuda) {
       alert(`El monto cobrado (${formatPEN(montoNum)}) es menor al total (${formatPEN(pedido.total)}).\n\nNo tienes permiso para registrar deudas. Consulta con el encargado.`)
+      return
+    }
+
+    // PIN gate: si hay deuda, el repartidor tiene PIN y aún no lo verificó → pedir PIN
+    if (esDeuda && tienePin && !pinYaVerificado && !pinVerificado) {
+      setPinPendiente(pedido)
       return
     }
 
@@ -728,6 +742,24 @@ export default function DeliveryView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── PIN Modal para cobros con deuda ──────────────────────────────────── */}
+      {pinPendiente && (
+        <PinModal
+          open={!!pinPendiente}
+          onClose={() => setPinPendiente(null)}
+          miembroId=""
+          verificarUrl={`/api/delivery/${token}/pin`}
+          accion="Confirmar cobro parcial (deuda)"
+          onSuccess={() => {
+            setPinVerificado(true)
+            const pedido = pinPendiente
+            setPinPendiente(null)
+            // Pequeño delay para que el modal cierre antes de proceder
+            setTimeout(() => confirmarEntrega(pedido, true), 100)
+          }}
+        />
       )}
     </>
   )

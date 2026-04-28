@@ -31,10 +31,10 @@ export default async function ConversationPage({ params }: Props) {
 
   if (!conversacion) notFound()
 
-  // Mensajes
+  // Mensajes (incluye tipo para mostrar indicador de audio)
   const { data: mensajes } = await supabase
     .from('mensajes')
-    .select('id, role, contenido, created_at')
+    .select('id, role, contenido, tipo, created_at')
     .eq('conversacion_id', id)
     .order('created_at', { ascending: true })
     .limit(200)

@@ -30,7 +30,7 @@ export default async function DeliveryPage({ params }: Props) {
 
   const { data: repartidor } = await supabase
     .from('repartidores')
-    .select('id, nombre, ferreteria_id, puede_registrar_deuda, ferreterias(nombre, modo_asignacion_delivery)')
+    .select('id, nombre, ferreteria_id, puede_registrar_deuda, pin_hash, ferreterias(nombre, modo_asignacion_delivery)')
     .eq('token', token)
     .eq('activo', true)
     .single()
@@ -115,6 +115,7 @@ export default async function DeliveryPage({ params }: Props) {
           token={token}
           modo={modo}
           puedeRegistrarDeuda={repartidor.puede_registrar_deuda ?? false}
+          tienePin={!!(repartidor as unknown as { pin_hash?: string | null }).pin_hash}
         />
       </div>
     </div>

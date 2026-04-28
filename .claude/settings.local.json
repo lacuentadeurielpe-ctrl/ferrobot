@@ -49,7 +49,8 @@
       "Bash(dir \"D:\\\\cotizador\\\\\" | findstr /i \"env\")",
       "mcp__beb6e69d-c659-422b-b8a7-779f13e66deb__list_migrations",
       "mcp__b8d22b11-8493-4a7b-83a2-22077bf04ef9__get_deployment",
-      "Bash(node -e \"const s = 'árido tornillo cañería'; const r = s.toLowerCase\\(\\).normalize\\('NFD'\\).replace\\(/̀-ͯ/g, ''\\).replace\\(/[^a-z0-9\\\\s]/g, ' '\\).trim\\(\\); console.log\\(r\\)\")"
+      "Bash(node -e \"const s = 'árido tornillo cañería'; const r = s.toLowerCase\\(\\).normalize\\('NFD'\\).replace\\(/̀-ͯ/g, ''\\).replace\\(/[^a-z0-9\\\\s]/g, ' '\\).trim\\(\\); console.log\\(r\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(Object.keys\\({...p.dependencies,...p.devDependencies}\\).filter\\(k=>k.includes\\('bcrypt'\\)||k.includes\\('crypto'\\)\\)\\)\\)\")"
     ]
   }
 }

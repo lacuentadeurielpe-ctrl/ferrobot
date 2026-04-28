@@ -7,19 +7,25 @@ import { cn } from '@/lib/utils'
 interface PinModalProps {
   open: boolean
   onClose: () => void
-  /** ID del miembro cuyo PIN se verifica */
+  /** ID del miembro cuyo PIN se verifica (empleados) */
   miembroId: string
   /** Callback cuando el PIN es correcto */
   onSuccess: () => void
   /** Texto que describe la acción sensible a confirmar */
   accion?: string
+  /**
+   * URL personalizada para verificar el PIN.
+   * Si se omite, usa PUT /api/empleados/[miembroId]/pin (empleados).
+   * Para repartidores pasar POST /api/delivery/[token]/pin.
+   */
+  verificarUrl?: string
 }
 
 /**
  * Modal de 4 dígitos PIN — verifica contra /api/empleados/[id]/pin (PUT).
  * Se usa para confirmar acciones sensibles (cancelar pedido, cambiar permisos, etc.)
  */
-export default function PinModal({ open, onClose, miembroId, onSuccess, accion }: PinModalProps) {
+export default function PinModal({ open, onClose, miembroId, onSuccess, accion, verificarUrl }: PinModalProps) {
   const [digits, setDigits]   = useState(['', '', '', ''])
   const [error, setError]     = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -79,8 +85,10 @@ export default function PinModal({ open, onClose, miembroId, onSuccess, accion }
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/empleados/${miembroId}/pin`, {
-        method: 'PUT',
+      const url    = verificarUrl ?? `/api/empleados/${miembroId}/pin`
+      const method = verificarUrl ? 'POST' : 'PUT'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
       })

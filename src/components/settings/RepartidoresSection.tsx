@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Truck, Plus, UserX, UserCheck, Loader2, Copy, Check,
-  Phone, Shuffle, ListOrdered, ShieldCheck, ShieldOff,
+  Phone, Shuffle, ListOrdered, ShieldCheck, ShieldOff, Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,7 @@ interface Repartidor {
   token: string
   puede_registrar_deuda: boolean
   created_at: string
+  pin_hash?: string | null
 }
 
 export default function RepartidoresSection({
@@ -31,6 +32,53 @@ export default function RepartidoresSection({
   const [mostrarForm,    setMostrarForm]    = useState(false)
   const [modo,           setModo]           = useState<'manual' | 'libre'>(modoInicial)
   const [guardandoModo,  setGuardandoModo]  = useState(false)
+
+  // Estado PIN por repartidor (id → { abierto, valor, error, guardando, guardado })
+  const [pinStates, setPinStates] = useState<Record<string, {
+    abierto: boolean; valor: string; error: string | null; guardando: boolean; guardado: boolean
+  }>>({})
+
+  function getPinState(id: string) {
+    return pinStates[id] ?? { abierto: false, valor: '', error: null, guardando: false, guardado: false }
+  }
+
+  function setPinField<K extends keyof (typeof pinStates)[string]>(
+    id: string, campo: K, val: (typeof pinStates)[string][K]
+  ) {
+    setPinStates((prev) => ({
+      ...prev,
+      [id]: { ...getPinState(id), [campo]: val },
+    }))
+  }
+
+  async function guardarPinRepartidor(id: string) {
+    const state = getPinState(id)
+    if (!/^\d{4}$/.test(state.valor)) {
+      setPinField(id, 'error', 'El PIN debe ser exactamente 4 dígitos')
+      return
+    }
+    setPinField(id, 'guardando', true)
+    setPinField(id, 'error', null)
+    try {
+      const res = await fetch(`/api/repartidores/${id}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: state.valor }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setPinField(id, 'error', json.error ?? 'Error'); return }
+      setPinField(id, 'abierto', false)
+      setPinField(id, 'valor', '')
+      setPinField(id, 'guardado', true)
+      // Marcar pin_hash como configurado en la lista local
+      setRepartidores((prev) => prev.map((r) => r.id === id ? { ...r, pin_hash: 'set' } : r))
+      setTimeout(() => setPinField(id, 'guardado', false), 3000)
+    } catch {
+      setPinField(id, 'error', 'Error de conexión')
+    } finally {
+      setPinField(id, 'guardando', false)
+    }
+  }
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -320,6 +368,70 @@ export default function RepartidoresSection({
                   </button>
                 </div>
               )}
+
+              {/* PIN de seguridad */}
+              {r.activo && (() => {
+                const ps = getPinState(r.id)
+                return (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setPinField(r.id, 'abierto', !ps.abierto)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition',
+                        ps.guardado
+                          ? 'bg-emerald-50 text-emerald-600'
+                          : r.pin_hash
+                          ? 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                      )}
+                    >
+                      <Lock className="w-3 h-3" />
+                      {ps.guardado
+                        ? 'PIN guardado ✓'
+                        : r.pin_hash
+                        ? 'Cambiar PIN'
+                        : 'Establecer PIN'}
+                    </button>
+                    {ps.abierto && (
+                      <div className="mt-2 bg-zinc-50 rounded-xl p-3 space-y-2">
+                        <p className="text-xs font-medium text-zinc-600">PIN de seguridad (4 dígitos)</p>
+                        <p className="text-xs text-zinc-400">
+                          El repartidor necesitará este PIN para registrar cobros parciales (deudas).
+                        </p>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          maxLength={4}
+                          value={ps.valor}
+                          onChange={(e) => {
+                            setPinField(r.id, 'valor', e.target.value.replace(/\D/g, ''))
+                            setPinField(r.id, 'error', null)
+                          }}
+                          placeholder="••••"
+                          className="w-24 px-3 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-900 text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
+                        />
+                        {ps.error && <p className="text-xs text-red-500">{ps.error}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => guardarPinRepartidor(r.id)}
+                            disabled={ps.guardando || ps.valor.length !== 4}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-medium rounded-xl transition disabled:opacity-60"
+                          >
+                            {ps.guardando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => setPinField(r.id, 'abierto', false)}
+                            className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 transition"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           ))}
         </div>

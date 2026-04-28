@@ -4,12 +4,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn, formatFecha, formatHora } from '@/lib/utils'
-import { Send, RefreshCw, ArrowLeft, Bot } from 'lucide-react'
+import { Send, RefreshCw, ArrowLeft, Bot, Mic } from 'lucide-react'
 
 interface Mensaje {
   id: string
   role: string
   contenido: string
+  tipo?: string | null
   created_at: string
 }
 
@@ -314,6 +315,13 @@ export default function ChatView({ conversacion, mensajesIniciales, ferreteriaId
                     'max-w-[min(400px,72vw)]',
                     styles.bubble
                   )}>
+                    {/* Indicador de audio transcrito */}
+                    {msg.tipo === 'audio' && (
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-zinc-400 mb-1.5 select-none">
+                        <Mic className="w-3 h-3" />
+                        Audio transcrito
+                      </span>
+                    )}
                     {msg.contenido}
                     {/* Hora inline al final del mensaje */}
                     <span className={cn(

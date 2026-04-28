@@ -183,7 +183,10 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                         </div>
                       )
                     })() : (
-                      <span className="text-xs text-zinc-300">—</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        Sin costo
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
