@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Loader2, TrendingUp, AlertTriangle } from 'lucide-react'
+import { Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Loader2, TrendingUp, AlertTriangle, Copy } from 'lucide-react'
 import { type Producto, type Categoria } from '@/types/database'
 import { formatPEN } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Modal from '@/components/ui/Modal'
 import CategoryManager from './CategoryManager'
+import DuplicadosPanel from './DuplicadosPanel'
 
 interface ProductsTableProps {
   productos: Producto[]
@@ -29,6 +30,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
   const [confirmEliminar, setConfirmEliminar] = useState<string | null>(null)
   const [loadingToggle, setLoadingToggle] = useState<string | null>(null)
   const [loadingEliminar, setLoadingEliminar] = useState(false)
+  const [modalDuplicados, setModalDuplicados] = useState(false)
 
   // Filtrado local (rápido, sin ir al servidor)
   const productosFiltrados = productos.filter((p) => {
@@ -61,6 +63,21 @@ export default function ProductsTable({ productos: initialProductos, categorias:
       setProductos((prev) => prev.filter((p) => p.id !== id))
       setConfirmEliminar(null)
     }
+  }
+
+  function handleMerge(conservarId: string, eliminarId: string, stockNuevo: number, accion: string) {
+    setProductos((prev) => {
+      // Quitar el eliminado
+      const sinEliminado = prev.filter((p) => p.id !== eliminarId)
+      // Si fue solo eliminación (sin fusión), ya está
+      if (!conservarId) return sinEliminado
+      // Actualizar stock del conservado
+      return sinEliminado.map((p) =>
+        p.id === conservarId
+          ? { ...p, stock: stockNuevo, activo: accion === 'desactivado' ? p.activo : true }
+          : p
+      )
+    })
   }
 
   function getNombreCategoria(categoriaId: string | null) {
@@ -106,6 +123,14 @@ export default function ProductsTable({ productos: initialProductos, categorias:
         >
           <Tag className="w-3.5 h-3.5" />
           Categorías
+        </button>
+
+        <button
+          onClick={() => setModalDuplicados(true)}
+          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700 hover:bg-amber-100 transition font-medium"
+        >
+          <Copy className="w-3.5 h-3.5" />
+          Duplicados
         </button>
       </div>
 
@@ -234,6 +259,15 @@ export default function ProductsTable({ productos: initialProductos, categorias:
       {/* Modal de categorías */}
       <Modal open={modalCategorias} onClose={() => setModalCategorias(false)} title="Gestionar categorías" size="sm">
         <CategoryManager categorias={categorias} onChange={setCategorias} />
+      </Modal>
+
+      {/* Modal de duplicados */}
+      <Modal open={modalDuplicados} onClose={() => setModalDuplicados(false)} title="Detectar y fusionar duplicados" size="lg">
+        <DuplicadosPanel
+          productos={productos}
+          onMerge={handleMerge}
+          onClose={() => setModalDuplicados(false)}
+        />
       </Modal>
 
       {/* Confirm eliminar */}
