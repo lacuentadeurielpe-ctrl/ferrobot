@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
-import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2 } from 'lucide-react'
+import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2, Mic } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
+import PedidoVozModal from './PedidoVozModal'
 import ModalEmitirBoleta from '@/components/comprobantes/ModalEmitirBoleta'
 import ModalEmitirFactura from '@/components/comprobantes/ModalEmitirFactura'
 import { createClient } from '@/lib/supabase/client'
@@ -155,6 +156,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   const [actualizando, setActualizando] = useState<string | null>(null)
   const [pagando, setPagando] = useState<string | null>(null)
   const [modalNuevo, setModalNuevo] = useState(false)
+  const [modalVoz, setModalVoz]     = useState(false)
   const [nuevoPedidoAlert, setNuevoPedidoAlert] = useState(false)
   // Dialog de motivo de cancelación
   const [cancelDialog, setCancelDialog] = useState<{ pedidoId: string; motivo: string } | null>(null)
@@ -568,6 +570,14 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
         >
           <Download className="w-4 h-4" />
           Exportar CSV
+        </button>
+        <button
+          onClick={() => setModalVoz(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl transition"
+          title="Crear pedido por voz con IA"
+        >
+          <Mic className="w-4 h-4" />
+          Por voz
         </button>
         <button
           onClick={() => setModalNuevo(true)}
@@ -1012,6 +1022,15 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
           productos={productos}
           zonas={zonas}
           onClose={() => setModalNuevo(false)}
+        />
+      )}
+
+      {/* Modal pedido por voz */}
+      {modalVoz && (
+        <PedidoVozModal
+          productos={productos}
+          zonas={zonas}
+          onClose={() => setModalVoz(false)}
         />
       )}
 
