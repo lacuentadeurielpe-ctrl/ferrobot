@@ -35,6 +35,7 @@ import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
 import { emitirBoleta, emitirFactura } from '@/lib/comprobantes/emitir'
 import { geocodificarDireccion } from '@/lib/delivery/geocoding'
 import { calcularETA } from '@/lib/delivery/eta'
+import { crearEntrega } from '@/lib/delivery/assignment'
 
 // ── Mapeo intent → tipo de tarea IA ──────────────────────────────────────────
 // Determina cuántos créditos cuesta y qué modelo corresponde usar.
@@ -720,6 +721,17 @@ export async function handleIncomingMessage({
         } catch {
           // ETA es best-effort — si falla, usamos el tiempo de zona como fallback
         }
+      }
+
+      // Crear registro de entrega para pedidos delivery (Fase II)
+      if (dp.modalidad === 'delivery') {
+        crearEntrega({
+          ferreteriaId: ferreteria.id,
+          pedidoId:     pedido.id,
+          repartidorId: null,   // sin repartidor aún — asignación manual desde dashboard
+          etaMinutos:   tiempoEntrega,
+          supabase,
+        }).catch((e) => console.error('[Bot] Error creando entrega:', e))
       }
 
       // Descontar stock (el pedido nace confirmado, no pasa por la API de dashboard)

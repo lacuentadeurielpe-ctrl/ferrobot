@@ -45,7 +45,7 @@ export async function PATCH(
   // Cargar pedido — filtrado por ferreteria_id (TENANT AISLADO)
   const { data: pedidoActual } = await supabase
     .from('pedidos')
-    .select('id, numero_pedido, estado, estado_pago, total, telefono_cliente, clientes(telefono)')
+    .select('id, numero_pedido, estado, estado_pago, total, telefono_cliente, eta_minutos, clientes(telefono)')
     .eq('id', pedidoId)
     .eq('ferreteria_id', repartidor.ferreteria_id)   // TENANT AISLADO
     .single()
@@ -135,6 +135,51 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // ── Sincronizar estado de la entrega ─────────────────────────────────────────
+  if (accion === 'cambiar_estado' && nuevo_estado === 'enviado') {
+    // Pedido salió → entrega en_ruta + timestamp
+    supabase
+      .from('entregas')
+      .update({ estado: 'en_ruta', salio_at: new Date().toISOString() })
+      .eq('pedido_id', pedidoId)
+      .eq('ferreteria_id', repartidor.ferreteria_id)   // TENANT AISLADO
+      .then(({ error: e }) => { if (e) console.error('[Delivery] Error sync entrega en_ruta:', e.message) })
+  }
+
+  if (accion === 'entregado') {
+    // Calcular duración real (desde salio_at)
+    supabase
+      .from('entregas')
+      .select('salio_at')
+      .eq('pedido_id', pedidoId)
+      .eq('ferreteria_id', repartidor.ferreteria_id)
+      .maybeSingle()
+      .then(({ data: ent }) => {
+        const duracionReal = ent?.salio_at
+          ? Math.round((Date.now() - new Date(ent.salio_at).getTime()) / 60_000)
+          : null
+        supabase
+          .from('entregas')
+          .update({
+            estado:            'entregado',
+            llego_at:          new Date().toISOString(),
+            ...(duracionReal != null && { duracion_real_min: duracionReal }),
+          })
+          .eq('pedido_id', pedidoId)
+          .eq('ferreteria_id', repartidor.ferreteria_id)
+          .then(({ error: e }) => { if (e) console.error('[Delivery] Error sync entrega entregado:', e.message) })
+      })
+  }
+
+  if (accion === 'retorno') {
+    supabase
+      .from('entregas')
+      .update({ estado: 'fallida' })
+      .eq('pedido_id', pedidoId)
+      .eq('ferreteria_id', repartidor.ferreteria_id)
+      .then(({ error: e }) => { if (e) console.error('[Delivery] Error sync entrega retorno:', e.message) })
+  }
+
   // ── Si fue pago parcial → crear registro de crédito/deuda ─────────────────
   if (accion === 'entregado' && update.estado_pago === 'credito_activo') {
     const montoCobrado = typeof cobrado_monto === 'number' ? cobrado_monto : parseFloat(cobrado_monto ?? '0') || 0
@@ -164,6 +209,24 @@ export async function PATCH(
     getYCloudApiKey(repartidor.ferreteria_id).then((apiKey) => {
       if (!apiKey) return
       const from = ferr.telefono_whatsapp.replace(/^\+/, '')
+
+      // ── Notificación "en camino" al cliente ─────────────────────────────────
+      if (accion === 'cambiar_estado' && nuevo_estado === 'enviado') {
+        const telefono = (pedidoActual.clientes as any)?.telefono ?? pedidoActual.telefono_cliente
+        if (telefono) {
+          const etaMin = (pedidoActual as any).eta_minutos as number | null
+          const etaTexto = etaMin
+            ? (etaMin < 60
+                ? `~${etaMin} min`
+                : `~${Math.floor(etaMin / 60)}h${etaMin % 60 > 0 ? ` ${etaMin % 60}min` : ''}`)
+            : 'en breve'
+          enviarMensaje({
+            from, to: telefono,
+            texto: `🚚 *${ferr.nombre}*\n\nTu pedido *${pedidoActual.numero_pedido}* ya está *en camino*.\n⏱ ETA: *${etaTexto}* 🎯\n\n¡Prepárate para recibirlo!`,
+            apiKey,
+          }).catch((e) => console.error('[Delivery] Error notif en camino:', e))
+        }
+      }
 
       if (accion === 'entregado') {
         const telefono = (pedidoActual.clientes as any)?.telefono ?? pedidoActual.telefono_cliente

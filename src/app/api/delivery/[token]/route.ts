@@ -13,10 +13,11 @@ const PEDIDO_SELECT = `
   id, numero_pedido, nombre_cliente, telefono_cliente,
   direccion_entrega, total, estado, estado_pago, notas,
   cobrado_monto, cobrado_metodo, incidencia_tipo, incidencia_desc,
-  created_at,
+  created_at, eta_minutos,
   clientes(nombre, telefono),
   zonas_delivery(nombre),
-  items_pedido(id, nombre_producto, cantidad, precio_unitario)
+  items_pedido(id, nombre_producto, cantidad, precio_unitario),
+  entregas(id, estado, eta_actual, vehiculos(nombre, tipo))
 `
 
 export async function GET(

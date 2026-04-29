@@ -28,6 +28,12 @@ interface ItemPedido {
   subtotal: number
 }
 
+interface EntregaResumen {
+  id: string
+  estado: string
+  vehiculos: { nombre: string; tipo: string } | null
+}
+
 interface Pedido {
   id: string
   numero_pedido: string
@@ -54,6 +60,7 @@ interface Pedido {
   clientes: { nombre: string | null; telefono: string } | null
   zonas_delivery: { nombre: string } | null
   items_pedido: ItemPedido[]
+  entregas: EntregaResumen[] | null
 }
 
 // ── Helpers de pago ───────────────────────────────────────────────────────────
@@ -685,15 +692,24 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       {' · '}{pedido.modalidad === 'delivery' ? '🚚 Delivery' : '🏪 Recojo'}
                       {pedido.zonas_delivery && ` — ${pedido.zonas_delivery.nombre}`}
                     </p>
-                    {/* ETA badge — solo para delivery con ETA calculado */}
-                    {pedido.modalidad === 'delivery' && pedido.eta_minutos != null && (
-                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
-                        <Clock className="w-2.5 h-2.5" />
-                        {pedido.eta_minutos < 60
-                          ? `~${pedido.eta_minutos} min`
-                          : `~${Math.floor(pedido.eta_minutos / 60)}h${pedido.eta_minutos % 60 > 0 ? ` ${pedido.eta_minutos % 60}min` : ''}`
-                        } ETA
-                      </span>
+                    {/* ETA + vehículo asignado — solo para delivery */}
+                    {pedido.modalidad === 'delivery' && (pedido.eta_minutos != null || pedido.entregas?.[0]?.vehiculos) && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {pedido.eta_minutos != null && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+                            <Clock className="w-2.5 h-2.5" />
+                            {pedido.eta_minutos < 60
+                              ? `~${pedido.eta_minutos} min`
+                              : `~${Math.floor(pedido.eta_minutos / 60)}h${pedido.eta_minutos % 60 > 0 ? ` ${pedido.eta_minutos % 60}min` : ''}`
+                            }
+                          </span>
+                        )}
+                        {pedido.entregas?.[0]?.vehiculos && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full">
+                            🚗 {pedido.entregas[0].vehiculos.nombre}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   MapPin, Phone, Package, ChevronDown, CheckCircle, AlertTriangle,
   Loader2, RotateCcw, Siren, X, Inbox, BarChart2,
-  FileText, Truck, CreditCard, BadgeCheck, Shield,
+  FileText, Truck, CreditCard, BadgeCheck, Clock,
 } from 'lucide-react'
 import PinModal from '@/components/ui/PinModal'
 import { cn, formatPEN } from '@/lib/utils'
@@ -14,6 +14,13 @@ interface ItemPedido {
   nombre_producto: string
   cantidad: number
   precio_unitario: number
+}
+
+interface EntregaInfo {
+  id: string
+  estado: string
+  eta_actual: string | null
+  vehiculos: { nombre: string; tipo: string } | null
 }
 
 interface PedidoDelivery {
@@ -31,9 +38,11 @@ interface PedidoDelivery {
   incidencia_tipo: string | null
   incidencia_desc: string | null
   created_at: string
+  eta_minutos: number | null
   clientes: { nombre: string | null; telefono: string } | null
   zonas_delivery: { nombre: string } | null
   items_pedido: ItemPedido[]
+  entregas: EntregaInfo[] | null
 }
 
 interface CobroHoy {
@@ -325,6 +334,33 @@ export default function DeliveryView({
               {pagoInfo.label}
             </span>
           </div>
+
+          {/* ETA y vehículo asignado */}
+          {(() => {
+            const entrega = pedido.entregas?.[0]
+            const vehiculo = entrega?.vehiculos
+            const etaMin = pedido.eta_minutos
+            if (!etaMin && !vehiculo) return null
+            return (
+              <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                {etaMin != null && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+                    <Clock className="w-2.5 h-2.5" />
+                    {etaMin < 60
+                      ? `~${etaMin} min`
+                      : `~${Math.floor(etaMin / 60)}h${etaMin % 60 > 0 ? ` ${etaMin % 60}min` : ''}`
+                    }
+                  </span>
+                )}
+                {vehiculo && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full">
+                    <Truck className="w-2.5 h-2.5" />
+                    {vehiculo.nombre}
+                  </span>
+                )}
+              </div>
+            )
+          })()}
 
           {tieneInc && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">

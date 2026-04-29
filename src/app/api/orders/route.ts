@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { geocodificarDireccion } from '@/lib/delivery/geocoding'
 import { calcularETA } from '@/lib/delivery/eta'
+import { crearEntrega } from '@/lib/delivery/assignment'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,70 +94,78 @@ export async function POST(request: Request) {
   if (errItems)
     return NextResponse.json({ error: errItems.message }, { status: 500 })
 
-  // ── ETA asíncrono (fire-and-forget) ─────────────────────────────────────────
-  // Solo para delivery con dirección. No bloquea la respuesta al cliente.
-  if (modalidad === 'delivery' && direccion_entrega?.trim()) {
-    const pedidoIdEta = pedido.id
+  // ── Entrega + ETA (fire-and-forget) ─────────────────────────────────────────
+  // Siempre se crea la entrega para pedidos delivery.
+  // ETA se calcula si hay dirección y coordenadas de ferretería. No bloquea la respuesta.
+  if (modalidad === 'delivery') {
+    const pedidoIdEta    = pedido.id
     const ferreteriaIdEta = session.ferreteriaId
-    const dirEta = direccion_entrega.trim()
+    const dirEta = (direccion_entrega ?? '').trim()
     ;(async () => {
-      try {
-        // 1. Obtener coordenadas de la ferretería
-        const { data: ferreteria } = await supabase
-          .from('ferreterias')
-          .select('lat, lng, nombre')
-          .eq('id', ferreteriaIdEta)
-          .single()
+      let etaMinutos: number | null = null
 
-        if (!ferreteria?.lat || !ferreteria?.lng) return
+      // ── Calcular ETA si hay dirección ────────────────────────────────────────
+      if (dirEta) {
+        try {
+          const { data: ferreteria } = await supabase
+            .from('ferreterias')
+            .select('lat, lng, nombre')
+            .eq('id', ferreteriaIdEta)
+            .single()
 
-        // 2. Geocodificar la dirección del cliente
-        const coords = await geocodificarDireccion(dirEta, ferreteria.nombre ?? 'Perú')
-        if (!coords) return
+          if (ferreteria?.lat && ferreteria?.lng) {
+            const coords = await geocodificarDireccion(dirEta, ferreteria.nombre ?? 'Perú')
 
-        // 3. Obtener velocidad promedio del vehículo activo más rápido (o default 30 km/h)
-        const { data: vehiculos } = await supabase
-          .from('vehiculos')
-          .select('velocidad_promedio_kmh')
-          .eq('ferreteria_id', ferreteriaIdEta)
-          .eq('activo', true)
-          .order('velocidad_promedio_kmh', { ascending: false })
-          .limit(1)
+            if (coords) {
+              const { data: vehiculos } = await supabase
+                .from('vehiculos')
+                .select('velocidad_promedio_kmh')
+                .eq('ferreteria_id', ferreteriaIdEta)
+                .eq('activo', true)
+                .order('velocidad_promedio_kmh', { ascending: false })
+                .limit(1)
 
-        const velocidadKmh = vehiculos?.[0]?.velocidad_promedio_kmh ?? 30
+              const velocidadKmh = vehiculos?.[0]?.velocidad_promedio_kmh ?? 30
 
-        // 4. Contar pedidos delivery activos (excluyendo el recién creado)
-        const { count: cola } = await supabase
-          .from('pedidos')
-          .select('id', { count: 'exact', head: true })
-          .eq('ferreteria_id', ferreteriaIdEta)
-          .eq('modalidad', 'delivery')
-          .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
-          .neq('id', pedidoIdEta)
+              const { count: cola } = await supabase
+                .from('pedidos')
+                .select('id', { count: 'exact', head: true })
+                .eq('ferreteria_id', ferreteriaIdEta)
+                .eq('modalidad', 'delivery')
+                .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
+                .neq('id', pedidoIdEta)
 
-        // 5. Calcular ETA
-        const eta = await calcularETA({
-          ferreteriaLat: ferreteria.lat,
-          ferreteriaLng: ferreteria.lng,
-          clienteLat:    coords.lat,
-          clienteLng:    coords.lng,
-          velocidadKmh,
-          pedidosEnCola: cola ?? 0,
-        })
+              const eta = await calcularETA({
+                ferreteriaLat: ferreteria.lat,
+                ferreteriaLng: ferreteria.lng,
+                clienteLat:    coords.lat,
+                clienteLng:    coords.lng,
+                velocidadKmh,
+                pedidosEnCola: cola ?? 0,
+              })
 
-        // 5. Guardar en el pedido
-        await supabase
-          .from('pedidos')
-          .update({
-            eta_minutos:  eta.tiempoTotalMin,
-            cliente_lat:  coords.lat,
-            cliente_lng:  coords.lng,
-          })
-          .eq('id', pedidoIdEta)
-          .eq('ferreteria_id', ferreteriaIdEta)
-      } catch {
-        // silently ignore — ETA is best-effort
+              etaMinutos = eta.tiempoTotalMin
+
+              await supabase
+                .from('pedidos')
+                .update({ eta_minutos: etaMinutos, cliente_lat: coords.lat, cliente_lng: coords.lng })
+                .eq('id', pedidoIdEta)
+                .eq('ferreteria_id', ferreteriaIdEta)
+            }
+          }
+        } catch {
+          // ETA es best-effort — no falla el pedido
+        }
       }
+
+      // ── Crear registro de entrega (con o sin ETA) ────────────────────────────
+      await crearEntrega({
+        ferreteriaId: ferreteriaIdEta,
+        pedidoId:     pedidoIdEta,
+        repartidorId: null,   // sin repartidor asignado aún (asignación manual desde dashboard)
+        etaMinutos,
+        supabase,
+      })
     })()
   }
 
@@ -174,7 +183,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('pedidos')
-    .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*), eta_minutos, direccion_entrega')
+    .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*), eta_minutos, direccion_entrega, entregas(id, estado, vehiculos(nombre, tipo))')
     .eq('ferreteria_id', session.ferreteriaId)
     .order('created_at', { ascending: false })
 
