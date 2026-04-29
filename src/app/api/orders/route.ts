@@ -125,14 +125,23 @@ export async function POST(request: Request) {
 
         const velocidadKmh = vehiculos?.[0]?.velocidad_promedio_kmh ?? 30
 
-        // 4. Calcular ETA
+        // 4. Contar pedidos delivery activos (excluyendo el recién creado)
+        const { count: cola } = await supabase
+          .from('pedidos')
+          .select('id', { count: 'exact', head: true })
+          .eq('ferreteria_id', ferreteriaIdEta)
+          .eq('modalidad', 'delivery')
+          .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
+          .neq('id', pedidoIdEta)
+
+        // 5. Calcular ETA
         const eta = await calcularETA({
           ferreteriaLat: ferreteria.lat,
           ferreteriaLng: ferreteria.lng,
           clienteLat:    coords.lat,
           clienteLng:    coords.lng,
           velocidadKmh,
-          pedidosEnCola: 0,
+          pedidosEnCola: cola ?? 0,
         })
 
         // 5. Guardar en el pedido

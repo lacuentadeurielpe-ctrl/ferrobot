@@ -33,6 +33,8 @@ import {
 import { MODELO_POR_TAREA } from '@/types/database'
 import { consultarRuc, validarFormatoRuc } from '@/lib/sunat/ruc'
 import { emitirBoleta, emitirFactura } from '@/lib/comprobantes/emitir'
+import { geocodificarDireccion } from '@/lib/delivery/geocoding'
+import { calcularETA } from '@/lib/delivery/eta'
 
 // ── Mapeo intent → tipo de tarea IA ──────────────────────────────────────────
 // Determina cuántos créditos cuesta y qué modelo corresponde usar.
@@ -587,7 +589,7 @@ export async function handleIncomingMessage({
 
       // Buscar zona de delivery si aplica
       let zonaId: string | null = null
-      let tiempoEntrega = 60
+      let tiempoEntrega = 60   // fallback zona/default
 
       if (dp.modalidad === 'delivery' && dp.zona_nombre) {
         const zona = (zonas ?? []).find((z) =>
@@ -653,6 +655,71 @@ export async function handleIncomingMessage({
         await supabase.from('items_pedido').insert(
           itemsParaPedido.map((i: typeof itemsParaPedido[number]) => ({ pedido_id: pedido.id, ...i }))
         )
+      }
+
+      // ── ETA real para delivery ────────────────────────────────────────────────
+      // Intenta geocodificar la dirección del cliente y calcular ETA con Haversine.
+      // Si falla, cae al tiempo de zona (tiempoEntrega ya calculado arriba).
+      if (dp.modalidad === 'delivery' && dp.direccion_entrega?.trim()) {
+        try {
+          const ferreteriaLat = (ferreteria as unknown as { lat?: number }).lat
+          const ferreteriaLng = (ferreteria as unknown as { lng?: number }).lng
+
+          if (ferreteriaLat && ferreteriaLng) {
+            // Geocodificar dirección del cliente (usa caché si ya la geocodificamos antes)
+            const coords = await geocodificarDireccion(
+              dp.direccion_entrega.trim(),
+              ferreteria.nombre ?? 'Perú',
+            )
+
+            if (coords) {
+              // Contar pedidos delivery activos para ajustar la cola
+              const { count: cola } = await supabase
+                .from('pedidos')
+                .select('id', { count: 'exact', head: true })
+                .eq('ferreteria_id', ferreteria.id)
+                .eq('modalidad', 'delivery')
+                .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
+                .neq('id', pedido.id)   // excluir el pedido que acabamos de crear
+
+              // Velocidad del vehículo activo más rápido (o default 30 km/h)
+              const { data: vehiculosActivos } = await supabase
+                .from('vehiculos')
+                .select('velocidad_promedio_kmh')
+                .eq('ferreteria_id', ferreteria.id)
+                .eq('activo', true)
+                .order('velocidad_promedio_kmh', { ascending: false })
+                .limit(1)
+
+              const velocidadKmh = vehiculosActivos?.[0]?.velocidad_promedio_kmh ?? 30
+
+              const eta = await calcularETA({
+                ferreteriaLat,
+                ferreteriaLng,
+                clienteLat:   coords.lat,
+                clienteLng:   coords.lng,
+                velocidadKmh,
+                pedidosEnCola: cola ?? 0,
+              })
+
+              // Guardar ETA y coords del cliente en el pedido
+              await supabase
+                .from('pedidos')
+                .update({
+                  eta_minutos: eta.tiempoTotalMin,
+                  cliente_lat: coords.lat,
+                  cliente_lng: coords.lng,
+                })
+                .eq('id', pedido.id)
+                .eq('ferreteria_id', ferreteria.id)   // FERRETERÍA AISLADA
+
+              // Usar ETA calculado para el mensaje al cliente
+              tiempoEntrega = eta.tiempoTotalMin
+            }
+          }
+        } catch {
+          // ETA es best-effort — si falla, usamos el tiempo de zona como fallback
+        }
       }
 
       // Descontar stock (el pedido nace confirmado, no pasa por la API de dashboard)
