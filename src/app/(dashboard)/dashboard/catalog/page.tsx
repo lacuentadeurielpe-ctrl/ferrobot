@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { Plus, Download } from 'lucide-react'
 import ProductsTable from '@/components/catalog/ProductsTable'
 import CatalogNav from '@/components/catalog/CatalogNav'
 import { getSessionInfo } from '@/lib/auth/roles'
@@ -41,13 +41,23 @@ export default async function CatalogPage() {
             {productos?.length ?? 0} producto{(productos?.length ?? 0) !== 1 ? 's' : ''} registrado{(productos?.length ?? 0) !== 1 ? 's' : ''}
           </p>
         </div>
-        <Link
-          href="/dashboard/catalog/new"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium transition"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo producto
-        </Link>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/catalog/export"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-zinc-200 text-zinc-600 hover:bg-zinc-50 text-sm font-medium transition"
+            title="Descargar inventario completo como Excel"
+          >
+            <Download className="w-4 h-4" />
+            Exportar Excel
+          </a>
+          <Link
+            href="/dashboard/catalog/new"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium transition"
+          >
+            <Plus className="w-4 h-4" />
+            Nuevo producto
+          </Link>
+        </div>
       </div>
 
       <CatalogNav />

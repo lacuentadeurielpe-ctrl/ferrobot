@@ -5,7 +5,7 @@ import {
   Bot, Mic, MicOff, Send, Loader2, Check, X, ChevronDown, ChevronUp,
   TrendingUp, TrendingDown, Package, DollarSign, ToggleLeft, ToggleRight,
   Sparkles, AlertTriangle, Plus, Paperclip, Eye, Image as ImageIcon,
-  CheckCheck, XCircle,
+  CheckCheck, XCircle, FileSpreadsheet, FileText, File as FileIcon,
 } from 'lucide-react'
 import { cn, formatPEN } from '@/lib/utils'
 import { UNIDADES_SUNAT } from '@/lib/constantes/unidades'
@@ -43,15 +43,22 @@ interface MensajeChat {
   id: string
   role: 'user' | 'agent'
   texto: string
-  imagenPreview?: string   // data URL, solo en mensajes de usuario
+  imagenPreview?: string    // data URL, solo para imágenes
+  archivoNombre?: string    // nombre del documento adjunto
+  archivoTipo?: TipoArchivo
   acciones?: AccionLocal[]
   agentesUsados?: string[]
 }
 
-interface ImagenAdjunta {
+type TipoArchivo = 'imagen' | 'excel' | 'csv' | 'texto'
+
+interface ArchivoAdjunto {
+  tipo: TipoArchivo
   base64: string
   mime: string
-  preview: string
+  nombre: string
+  preview?: string        // solo imágenes
+  textoExtraido?: string  // CSV / TXT parseados en browser
 }
 
 // ── Helpers de margen ──────────────────────────────────────────────────────────
@@ -395,7 +402,7 @@ function AccionCard({
 export default function CatalogAgentePage() {
   const [mensajes,    setMensajes]    = useState<MensajeChat[]>([])
   const [input,       setInput]       = useState('')
-  const [imagen,      setImagen]      = useState<ImagenAdjunta | null>(null)
+  const [archivo,     setArchivo]     = useState<ArchivoAdjunto | null>(null)
   const [procesando,  setProcesando]  = useState(false)
   const [escuchando,  setEscuchando]  = useState(false)
   const [soportaVoz,  setSoportaVoz]  = useState(false)
@@ -423,30 +430,64 @@ export default function CatalogAgentePage() {
     .flatMap(m => m.acciones ?? [])
     .filter(a => a.estado === 'pendiente').length
 
-  // ── Imagen ──────────────────────────────────────────────────────────────────
-  function handleImageFile(file: File) {
-    if (file.size > 8 * 1024 * 1024) { setError('La imagen no puede superar 8 MB'); return }
-    if (!file.type.startsWith('image/')) { setError('Solo se aceptan imágenes'); return }
+  // ── Archivos (imagen, Excel, CSV, TXT) ───────────────────────────────────────
+  function handleFile(file: File) {
+    if (file.size > 10 * 1024 * 1024) { setError('El archivo no puede superar 10 MB'); return }
     setError(null)
-    const reader = new FileReader()
-    reader.onload = e => {
-      const dataUrl = e.target?.result as string
-      setImagen({ base64: dataUrl.split(',')[1], mime: file.type, preview: dataUrl })
+    const mime   = file.type
+    const nombre = file.name
+    const ext    = nombre.split('.').pop()?.toLowerCase() ?? ''
+
+    // ── Imagen ────────────────────────────────────────────────────────────────
+    if (mime.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = e => {
+        const dataUrl = e.target?.result as string
+        setArchivo({ tipo: 'imagen', base64: dataUrl.split(',')[1], mime, nombre, preview: dataUrl })
+      }
+      reader.readAsDataURL(file)
+      return
     }
-    reader.readAsDataURL(file)
+
+    // ── CSV / TXT → extraer texto en browser ──────────────────────────────────
+    if (mime === 'text/csv' || mime === 'text/plain' || ext === 'csv' || ext === 'txt') {
+      const reader = new FileReader()
+      reader.onload = e => {
+        const texto  = e.target?.result as string
+        // también guardamos base64 aunque no se use (no hay imagen)
+        setArchivo({ tipo: ext === 'csv' ? 'csv' : 'texto', base64: '', mime: mime || 'text/plain', nombre, textoExtraido: texto })
+      }
+      reader.readAsText(file, 'UTF-8')
+      return
+    }
+
+    // ── Excel → leer como base64, el servidor lo parsea ──────────────────────
+    const esExcel = mime.includes('excel') || mime.includes('spreadsheet') || ext === 'xlsx' || ext === 'xls'
+    if (esExcel) {
+      const reader = new FileReader()
+      reader.onload = e => {
+        const dataUrl = e.target?.result as string
+        const base64  = dataUrl.split(',')[1] ?? dataUrl
+        setArchivo({ tipo: 'excel', base64, mime: mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', nombre })
+      }
+      reader.readAsDataURL(file)
+      return
+    }
+
+    setError('Formato no soportado. Usa imágenes, Excel (.xlsx) o CSV.')
   }
 
   // Pegar imagen con Ctrl+V
   function handlePaste(e: React.ClipboardEvent) {
     const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))
-    if (item) { const file = item.getAsFile(); if (file) handleImageFile(file) }
+    if (item) { const file = item.getAsFile(); if (file) handleFile(file) }
   }
 
-  // Drag & drop en el textarea
+  // Drag & drop — acepta cualquier tipo soportado
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
-    if (file?.type.startsWith('image/')) handleImageFile(file)
+    if (file) handleFile(file)
   }
 
   // ── Voz ─────────────────────────────────────────────────────────────────────
@@ -507,18 +548,29 @@ export default function CatalogAgentePage() {
   // ── Enviar mensaje ──────────────────────────────────────────────────────────
   const enviar = useCallback(async () => {
     const texto = input.trim()
-    if ((!texto && !imagen) || procesando) return
+    if ((!texto && !archivo) || procesando) return
 
     recognitionRef.current?.stop?.(); setEscuchando(false)
 
-    const imgCaptura = imagen
-    setInput(''); setImagen(null); setError(null); setProcesando(true)
+    const archivoCaptura = archivo
+    setInput(''); setArchivo(null); setError(null); setProcesando(true)
+
+    // Texto a mostrar en el bubble de usuario
+    const textoLabel = texto || (
+      archivoCaptura?.tipo === 'imagen'  ? '📷 Imagen adjunta' :
+      archivoCaptura?.tipo === 'excel'   ? `📊 ${archivoCaptura.nombre}` :
+      archivoCaptura?.tipo === 'csv'     ? `📄 ${archivoCaptura.nombre}` :
+      archivoCaptura?.tipo === 'texto'   ? `📝 ${archivoCaptura.nombre}` :
+      ''
+    )
 
     const msgUsuario: MensajeChat = {
       id: crypto.randomUUID(),
       role: 'user',
-      texto: texto || (imgCaptura ? '📷 Imagen adjunta' : ''),
-      imagenPreview: imgCaptura?.preview,
+      texto: textoLabel,
+      imagenPreview: archivoCaptura?.tipo === 'imagen' ? archivoCaptura.preview : undefined,
+      archivoNombre: archivoCaptura?.tipo !== 'imagen' ? archivoCaptura?.nombre : undefined,
+      archivoTipo:   archivoCaptura?.tipo !== 'imagen' ? archivoCaptura?.tipo  : undefined,
     }
     setMensajes(prev => [...prev, msgUsuario])
 
@@ -533,9 +585,13 @@ export default function CatalogAgentePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mensaje:      texto,
-          imagen_base64: imgCaptura?.base64,
-          mime_type:    imgCaptura?.mime,
+          mensaje:         texto,
+          imagen_base64:   archivoCaptura?.tipo === 'imagen' || archivoCaptura?.tipo === 'excel'
+                             ? archivoCaptura?.base64 : undefined,
+          mime_type:       archivoCaptura?.tipo === 'imagen' || archivoCaptura?.tipo === 'excel'
+                             ? archivoCaptura?.mime : undefined,
+          texto_documento: archivoCaptura?.textoExtraido,
+          nombre_archivo:  archivoCaptura?.nombre,
           historial,
         }),
       })
@@ -566,7 +622,7 @@ export default function CatalogAgentePage() {
       setProcesando(false)
       textareaRef.current?.focus()
     }
-  }, [input, imagen, procesando, mensajes])
+  }, [input, archivo, procesando, mensajes])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() }
@@ -643,7 +699,8 @@ export default function CatalogAgentePage() {
 
           {/* Tips de imagen y voz */}
           <div className="mt-6 flex gap-3 flex-wrap justify-center text-xs text-zinc-400">
-            <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> Sube una foto de lista de precios o factura</span>
+            <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> Foto de lista de precios</span>
+            <span className="flex items-center gap-1"><FileSpreadsheet className="w-3.5 h-3.5" /> Excel o CSV de proveedor</span>
             <span className="flex items-center gap-1"><Mic className="w-3.5 h-3.5" /> Dicta con el micrófono</span>
             <span className="flex items-center gap-1"><Paperclip className="w-3.5 h-3.5" /> Pega imágenes con Ctrl+V</span>
           </div>
@@ -678,6 +735,11 @@ export default function CatalogAgentePage() {
                         <Bot className="w-2 h-2" /> Catálogo
                       </span>
                     )}
+                    {msg.agentesUsados?.includes('documento') && (
+                      <span className="text-[9px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                        <FileIcon className="w-2 h-2" /> Documento
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -685,6 +747,16 @@ export default function CatalogAgentePage() {
                 {msg.imagenPreview && (
                   <img src={msg.imagenPreview} alt="adjunta"
                     className="max-w-[220px] max-h-[160px] object-cover rounded-xl mb-2 border border-white/20" />
+                )}
+
+                {/* Documento adjunto (usuario) */}
+                {msg.archivoNombre && (
+                  <div className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2 py-1 mb-2 w-fit max-w-full">
+                    {msg.archivoTipo === 'excel'
+                      ? <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                      : <FileText className="w-3.5 h-3.5 text-zinc-300 shrink-0" />}
+                    <span className="text-[11px] text-white/80 truncate">{msg.archivoNombre}</span>
+                  </div>
                 )}
 
                 <span className="whitespace-pre-wrap leading-relaxed">{msg.texto}</span>
@@ -727,32 +799,57 @@ export default function CatalogAgentePage() {
       {/* ── Input bar ────────────────────────────────────────────────────── */}
       <div className={cn('shrink-0 border-t border-zinc-100 pt-4', mensajes.length === 0 && 'mt-6')}>
 
-        {/* Preview de imagen adjunta */}
-        {imagen && (
+        {/* Preview del archivo adjunto */}
+        {archivo && archivo.tipo === 'imagen' && (
           <div className="mb-2 flex items-center gap-2 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
-            <img src={imagen.preview} alt="adjunta" className="w-10 h-10 object-cover rounded-lg border border-sky-200" />
+            <img src={archivo.preview} alt="adjunta" className="w-10 h-10 object-cover rounded-lg border border-sky-200" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-sky-700">Imagen adjunta</p>
-              <p className="text-[10px] text-sky-500 truncate">{imagen.mime}</p>
+              <p className="text-[10px] text-sky-500 truncate">{archivo.nombre}</p>
             </div>
-            <button onClick={() => setImagen(null)} className="text-sky-400 hover:text-sky-700 transition">
+            <button onClick={() => setArchivo(null)} className="text-sky-400 hover:text-sky-700 transition">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {archivo && archivo.tipo !== 'imagen' && (
+          <div className={cn(
+            'mb-2 flex items-center gap-2 rounded-xl px-3 py-2 border',
+            archivo.tipo === 'excel' ? 'bg-emerald-50 border-emerald-200' : 'bg-zinc-50 border-zinc-200',
+          )}>
+            {archivo.tipo === 'excel'
+              ? <FileSpreadsheet className="w-5 h-5 text-emerald-600 shrink-0" />
+              : <FileText className="w-5 h-5 text-zinc-500 shrink-0" />}
+            <div className="flex-1 min-w-0">
+              <p className={cn('text-xs font-medium truncate', archivo.tipo === 'excel' ? 'text-emerald-700' : 'text-zinc-700')}>
+                {archivo.nombre}
+              </p>
+              <p className="text-[10px] text-zinc-400">
+                {archivo.tipo === 'excel' ? 'Excel — el asistente leerá las filas' :
+                 archivo.tipo === 'csv'   ? `CSV — ${archivo.textoExtraido?.split('\n').length ?? 0} líneas` :
+                 'Texto plano'}
+              </p>
+            </div>
+            <button onClick={() => setArchivo(null)} className="text-zinc-400 hover:text-zinc-600 transition">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
         <div className="flex items-end gap-2 bg-white border border-zinc-200 rounded-2xl px-3 py-2.5 focus-within:border-zinc-400 transition">
-          {/* Adjuntar imagen */}
+          {/* Adjuntar archivo */}
           <button onClick={() => fileInputRef.current?.click()}
-            title="Adjuntar imagen (o pega con Ctrl+V)"
+            title="Adjuntar imagen, Excel o CSV (o pega con Ctrl+V)"
             className={cn(
               'shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition mb-0.5',
-              imagen ? 'bg-sky-100 text-sky-600' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700'
+              archivo ? 'bg-sky-100 text-sky-600' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700'
             )}>
             <Paperclip className="w-4 h-4" />
           </button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleImageFile(f); e.target.value = '' }} />
+          <input ref={fileInputRef} type="file"
+            accept="image/*,.csv,.xlsx,.xls,.txt"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
 
           {/* Voz */}
           {soportaVoz && (
@@ -778,22 +875,24 @@ export default function CatalogAgentePage() {
             onDragOver={e => e.preventDefault()}
             placeholder={
               escuchando ? '🎙️ Escuchando...' :
-              imagen ? 'Describe la imagen o envía así...' :
-              'Escribe, dicta o adjunta una imagen...'
+              archivo?.tipo === 'imagen'  ? 'Describe la imagen o envía así...' :
+              archivo?.tipo === 'excel'   ? 'Agrega instrucciones o envía así para leer el Excel...' :
+              archivo                    ? 'Agrega instrucciones o envía así...' :
+              'Escribe, dicta o adjunta imagen/Excel/CSV...'
             }
             rows={1}
             disabled={procesando}
             className="flex-1 resize-none text-sm text-zinc-900 placeholder:text-zinc-400 outline-none bg-transparent min-h-[32px] leading-relaxed disabled:opacity-50" />
 
           {/* Enviar */}
-          <button onClick={enviar} disabled={(!input.trim() && !imagen) || procesando}
+          <button onClick={enviar} disabled={(!input.trim() && !archivo) || procesando}
             className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white transition disabled:opacity-40 mb-0.5">
             {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
         </div>
 
         <p className="text-[10px] text-zinc-400 mt-1.5 px-1">
-          Enter para enviar · Shift+Enter nueva línea · Ctrl+V para pegar imágenes · Los cambios solo se guardan al confirmar
+          Enter para enviar · Shift+Enter nueva línea · Ctrl+V para pegar imágenes · Acepta imagen, Excel y CSV · Los cambios solo se guardan al confirmar
         </p>
       </div>
     </div>

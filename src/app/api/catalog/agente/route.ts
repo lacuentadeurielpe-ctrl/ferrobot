@@ -1,8 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionInfo } from '@/lib/auth/roles'
 import { createClient } from '@/lib/supabase/server'
+import ExcelJS from 'exceljs'
 
 export const dynamic = 'force-dynamic'
+
+// ── Mime types de Excel ────────────────────────────────────────────────────────
+const EXCEL_MIMES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/excel',
+  'application/x-excel',
+  'application/x-msexcel',
+])
+
+// ── Convierte un buffer de Excel en texto tabular ──────────────────────────────
+async function excelToText(buffer: Buffer<ArrayBufferLike>, nombreArchivo: string): Promise<string> {
+  const wb = new ExcelJS.Workbook()
+  // ExcelJS types don't align with newer @types/node Buffer — pass as ArrayBuffer
+  const ab = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await wb.xlsx.load(ab as any)
+  const lineas: string[] = [`[Archivo: ${nombreArchivo}]`]
+
+  wb.eachSheet(sheet => {
+    if (sheet.rowCount === 0) return
+    lineas.push(`\n[Hoja: ${sheet.name}]`)
+    sheet.eachRow({ includeEmpty: false }, row => {
+      const celdas: string[] = []
+      row.eachCell({ includeEmpty: false }, cell => {
+        const v = cell.value
+        if (v === null || v === undefined) { celdas.push(''); return }
+        if (typeof v === 'object' && 'text' in v)   { celdas.push(String((v as {text:unknown}).text ?? '')); return }
+        if (typeof v === 'object' && 'result' in v) { celdas.push(String((v as {result:unknown}).result ?? '')); return }
+        if (v instanceof Date) { celdas.push(v.toLocaleDateString('es-PE')); return }
+        celdas.push(String(v))
+      })
+      if (celdas.some(c => c.trim())) lineas.push(celdas.join(' | '))
+    })
+  })
+
+  return lineas.join('\n')
+}
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 
@@ -425,22 +464,51 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}))
   const {
-    mensaje       = '',
+    mensaje        = '',
     imagen_base64,
     mime_type,
-    historial     = [],
+    texto_documento,
+    nombre_archivo  = 'archivo',
+    historial      = [],
   } = body as {
     mensaje?: string
     imagen_base64?: string
     mime_type?: string
+    texto_documento?: string   // texto pre-extraído en browser (CSV / TXT)
+    nombre_archivo?: string
     historial?: { role: 'user' | 'assistant'; content: string }[]
   }
 
-  const tieneTexto  = mensaje.trim().length > 0
-  const tieneImagen = !!(imagen_base64 && mime_type)
+  // ── Clasificar el archivo adjunto ─────────────────────────────────────────
+  const esImagen = !!(imagen_base64 && mime_type && mime_type.startsWith('image/'))
+  const esExcel  = !!(imagen_base64 && mime_type && EXCEL_MIMES.has(mime_type))
+  // CSV/TXT llegan ya como texto_documento desde el browser
+
+  // ── Parsear Excel en el servidor → texto para el agente de catálogo ──────
+  let textoDocumento = texto_documento?.trim() ?? ''
+
+  if (esExcel && imagen_base64) {
+    try {
+      const buffer  = Buffer.from(imagen_base64, 'base64')
+      const parsed  = await excelToText(buffer, nombre_archivo)
+      textoDocumento = parsed + (textoDocumento ? '\n\n' + textoDocumento : '')
+    } catch (err) {
+      console.error('[excel parse]', err)
+      textoDocumento = `[No se pudo leer ${nombre_archivo} — verifica que sea un Excel válido]`
+    }
+  }
+
+  // Mensaje final para el agente de catálogo
+  const mensajeCatalogo = [
+    textoDocumento ? `[Contenido del documento "${nombre_archivo}"]:\n${textoDocumento}` : '',
+    mensaje.trim(),
+  ].filter(Boolean).join('\n\n')
+
+  const tieneTexto  = mensajeCatalogo.length > 0
+  const tieneImagen = esImagen  // solo imágenes van al agente de visión
 
   if (!tieneTexto && !tieneImagen) {
-    return NextResponse.json({ error: 'Envía un mensaje o una imagen' }, { status: 400 })
+    return NextResponse.json({ error: 'Envía un mensaje, imagen o documento' }, { status: 400 })
   }
 
   // ── Cargar catálogo — FERRETERÍA AISLADA ─────────────────────────────────
@@ -493,9 +561,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (tieneTexto) {
-    agentesUsados.push('catalogo')
+    agentesUsados.push(esExcel || textoDocumento ? 'documento' : 'catalogo')
     promesas.push(
-      runCatalogAgent(mensaje, historial, catalogoCompacto, apiKey)
+      runCatalogAgent(mensajeCatalogo, historial, catalogoCompacto, apiKey)
         .catch(err => {
           console.error('[catalog agent]', err)
           return { mensaje: 'Error al procesar el mensaje.', acciones: [] }
@@ -514,13 +582,13 @@ export async function POST(req: NextRequest) {
     acciones  = resultados[0].acciones
   } else {
     // Ambos agentes corrieron — construir mensaje combinado
-    const [visionResult, catalogoResult] = resultados
+    const [visionResult, textoResult] = resultados
     const partes: string[] = []
     if (visionResult.acciones.length > 0)  partes.push(`📷 ${visionResult.mensaje}`)
-    if (catalogoResult.acciones.length > 0) partes.push(`📝 ${catalogoResult.mensaje}`)
-    if (partes.length === 0) partes.push(catalogoResult.mensaje)
+    if (textoResult.acciones.length > 0)   partes.push(`📝 ${textoResult.mensaje}`)
+    if (partes.length === 0) partes.push(textoResult.mensaje)
     mensajeIA = partes.join('\n')
-    acciones  = [...visionResult.acciones, ...catalogoResult.acciones]
+    acciones  = [...visionResult.acciones, ...textoResult.acciones]
   }
 
   const respuesta: RespuestaAgente = {
