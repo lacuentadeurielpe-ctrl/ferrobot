@@ -12,6 +12,7 @@ import PerfilBotSection from '@/components/settings/PerfilBotSection'
 import AgentesSection from '@/components/settings/AgentesSection'
 import ConversionSection from '@/components/settings/ConversionSection'
 import AuditoriaTab from '@/components/settings/AuditoriaTab'
+import VehiculosSection from '@/components/settings/VehiculosSection'
 import { Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -42,6 +43,7 @@ const TAB_GROUPS = [
     tabs: [
       { id: 'equipo',       label: 'Empleados'    },
       { id: 'repartidores', label: 'Repartidores' },
+      { id: 'vehiculos',    label: 'Vehículos'    },
       { id: 'historial',    label: 'Historial'    },
     ],
   },
@@ -269,6 +271,15 @@ export default async function SettingsPage({
       {/* ── Complementarios ─────────────────────────────────────────── */}
       {tabActivo === 'complementarios' && (
         <ComplementariosSection productos={productosActivos ?? []} />
+      )}
+
+      {/* ── Vehículos de delivery ───────────────────────────────────── */}
+      {tabActivo === 'vehiculos' && (
+        <VehiculosSection
+          ferreteriaLat={(ferreteria as unknown as { lat?: number }).lat ?? undefined}
+          ferreteriaLng={(ferreteria as unknown as { lng?: number }).lng ?? undefined}
+          ferreteriaDir={ferreteria.direccion ?? undefined}
+        />
       )}
 
       {/* ── Historial de auditoría ──────────────────────────────────── */}

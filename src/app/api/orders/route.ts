@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { geocodificarDireccion } from '@/lib/delivery/geocoding'
+import { calcularETA } from '@/lib/delivery/eta'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,6 +93,64 @@ export async function POST(request: Request) {
   if (errItems)
     return NextResponse.json({ error: errItems.message }, { status: 500 })
 
+  // ── ETA asíncrono (fire-and-forget) ─────────────────────────────────────────
+  // Solo para delivery con dirección. No bloquea la respuesta al cliente.
+  if (modalidad === 'delivery' && direccion_entrega?.trim()) {
+    const pedidoIdEta = pedido.id
+    const ferreteriaIdEta = session.ferreteriaId
+    const dirEta = direccion_entrega.trim()
+    ;(async () => {
+      try {
+        // 1. Obtener coordenadas de la ferretería
+        const { data: ferreteria } = await supabase
+          .from('ferreterias')
+          .select('lat, lng, nombre')
+          .eq('id', ferreteriaIdEta)
+          .single()
+
+        if (!ferreteria?.lat || !ferreteria?.lng) return
+
+        // 2. Geocodificar la dirección del cliente
+        const coords = await geocodificarDireccion(dirEta, ferreteria.nombre ?? 'Perú')
+        if (!coords) return
+
+        // 3. Obtener velocidad promedio del vehículo activo más rápido (o default 30 km/h)
+        const { data: vehiculos } = await supabase
+          .from('vehiculos')
+          .select('velocidad_promedio_kmh')
+          .eq('ferreteria_id', ferreteriaIdEta)
+          .eq('activo', true)
+          .order('velocidad_promedio_kmh', { ascending: false })
+          .limit(1)
+
+        const velocidadKmh = vehiculos?.[0]?.velocidad_promedio_kmh ?? 30
+
+        // 4. Calcular ETA
+        const eta = await calcularETA({
+          ferreteriaLat: ferreteria.lat,
+          ferreteriaLng: ferreteria.lng,
+          clienteLat:    coords.lat,
+          clienteLng:    coords.lng,
+          velocidadKmh,
+          pedidosEnCola: 0,
+        })
+
+        // 5. Guardar en el pedido
+        await supabase
+          .from('pedidos')
+          .update({
+            eta_minutos:  eta.tiempoTotalMin,
+            cliente_lat:  coords.lat,
+            cliente_lng:  coords.lng,
+          })
+          .eq('id', pedidoIdEta)
+          .eq('ferreteria_id', ferreteriaIdEta)
+      } catch {
+        // silently ignore — ETA is best-effort
+      }
+    })()
+  }
+
   return NextResponse.json({ id: pedido.id, numero_pedido: pedido.numero_pedido }, { status: 201 })
 }
 
@@ -105,7 +165,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('pedidos')
-    .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*)')
+    .select('*, clientes(nombre, telefono), zonas_delivery(nombre), items_pedido(*), eta_minutos, direccion_entrega')
     .eq('ferreteria_id', session.ferreteriaId)
     .order('created_at', { ascending: false })
 

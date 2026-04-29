@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
-import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2, Mic } from 'lucide-react'
+import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2, Mic, Clock } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import PedidoVozModal from './PedidoVozModal'
 import ModalEmitirBoleta from '@/components/comprobantes/ModalEmitirBoleta'
@@ -49,6 +49,8 @@ interface Pedido {
   created_at: string
   nombre_cliente: string
   telefono_cliente: string
+  eta_minutos: number | null
+  direccion_entrega: string | null
   clientes: { nombre: string | null; telefono: string } | null
   zonas_delivery: { nombre: string } | null
   items_pedido: ItemPedido[]
@@ -683,6 +685,16 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       {' · '}{pedido.modalidad === 'delivery' ? '🚚 Delivery' : '🏪 Recojo'}
                       {pedido.zonas_delivery && ` — ${pedido.zonas_delivery.nombre}`}
                     </p>
+                    {/* ETA badge — solo para delivery con ETA calculado */}
+                    {pedido.modalidad === 'delivery' && pedido.eta_minutos != null && (
+                      <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+                        <Clock className="w-2.5 h-2.5" />
+                        {pedido.eta_minutos < 60
+                          ? `~${pedido.eta_minutos} min`
+                          : `~${Math.floor(pedido.eta_minutos / 60)}h${pedido.eta_minutos % 60 > 0 ? ` ${pedido.eta_minutos % 60}min` : ''}`
+                        } ETA
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-sm font-bold text-zinc-900 shrink-0 tabular-nums">
@@ -765,6 +777,20 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                         })()}
                       </tfoot>
                     </table>
+                    {pedido.direccion_entrega && (
+                      <p className="text-xs text-zinc-500 mb-2">
+                        <span className="font-medium">📍 Dirección:</span> {pedido.direccion_entrega}
+                        {pedido.eta_minutos != null && (
+                          <span className="ml-2 inline-flex items-center gap-0.5 text-sky-600 font-medium">
+                            <Clock className="w-3 h-3" />
+                            {pedido.eta_minutos < 60
+                              ? `~${pedido.eta_minutos} min`
+                              : `~${Math.floor(pedido.eta_minutos / 60)}h${pedido.eta_minutos % 60 > 0 ? ` ${pedido.eta_minutos % 60}min` : ''}`
+                            }
+                          </span>
+                        )}
+                      </p>
+                    )}
                     {pedido.notas && (
                       <p className="text-xs text-zinc-500 mb-2">
                         <span className="font-medium">Notas:</span> {pedido.notas}
