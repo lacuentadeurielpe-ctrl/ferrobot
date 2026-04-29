@@ -2,14 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Package, Bot, Upload, Sparkles } from 'lucide-react'
+import { Package, Bot, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TABS = [
   { href: '/dashboard/catalog',        label: 'Productos',      icon: Package,   exact: true },
-  { href: '/dashboard/catalog/agente', label: 'Agente IA',      icon: Bot,       badge: '✦' },
+  { href: '/dashboard/catalog/agente', label: 'Asistente IA',   icon: Bot,       badge: '✦' },
   { href: '/dashboard/catalog/upload', label: 'Importar',       icon: Upload },
-  { href: '/dashboard/catalog/ai',     label: 'Extracción IA',  icon: Sparkles },
 ]
 
 export default function CatalogNav() {
