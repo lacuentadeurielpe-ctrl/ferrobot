@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { X, Plus, Trash2, Search, Loader2, Package, Check } from 'lucide-react'
+import { X, Plus, Trash2, Search, Loader2, Package, Check, CalendarClock } from 'lucide-react'
 
 interface Producto {
   id: string
@@ -52,6 +52,17 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
   const [notas, setNotas] = useState('')
 
   const [estadoInicial, setEstadoInicial] = useState<'pendiente' | 'confirmado'>('confirmado')
+
+  // Fase V: entrega programada
+  const [esProgramado, setEsProgramado] = useState(false)
+  const [fechaProgramada, setFechaProgramada] = useState('')   // "YYYY-MM-DDTHH:MM" local Lima
+  // Mínimo = ahora + 30 min (redondeado a los próximos 15 min) en Lima
+  const minFechaProgramada = (() => {
+    const d = new Date(Date.now() + 30 * 60_000)
+    d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  })()
 
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -110,6 +121,18 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
     if (!nombreCliente.trim()) { setError('El nombre del cliente es obligatorio'); return }
     if (!telefonoCliente.trim()) { setError('El teléfono del cliente es obligatorio'); return }
     if (modalidad === 'delivery' && !direccion.trim()) { setError('La dirección es obligatoria para delivery'); return }
+    if (esProgramado && !fechaProgramada) { setError('Indica la fecha y hora de entrega programada'); return }
+
+    // Convertir fecha Lima → ISO UTC para almacenamiento
+    let fechaUtc: string | undefined
+    if (esProgramado && fechaProgramada) {
+      const d = new Date(`${fechaProgramada}:00-05:00`)   // Lima = UTC-5
+      if (isNaN(d.getTime())) {
+        setError('Fecha de entrega inválida')
+        return
+      }
+      fechaUtc = d.toISOString()
+    }
 
     setGuardando(true)
     setError(null)
@@ -126,6 +149,7 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
           zona_delivery_id: modalidad === 'delivery' && zonaId ? zonaId : undefined,
           notas: notas.trim() || undefined,
           items,
+          fecha_entrega_programada: fechaUtc,
         }),
       })
 
@@ -136,8 +160,8 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
 
       const { id: pedidoId } = await res.json()
 
-      // Si el dueño lo crea como confirmado, disparar comprobante automáticamente
-      if (estadoInicial === 'confirmado') {
+      // Si el dueño lo crea como confirmado Y no es programado, disparar comprobante
+      if (estadoInicial === 'confirmado' && !esProgramado) {
         await fetch(`/api/orders/${pedidoId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -415,6 +439,49 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
               placeholder="Observaciones, instrucciones especiales…"
               className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
             />
+          </div>
+
+          {/* ── ENTREGA PROGRAMADA ── */}
+          <div>
+            <button
+              type="button"
+              onClick={() => { setEsProgramado((v) => !v); if (esProgramado) setFechaProgramada('') }}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition',
+                esProgramado
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-indigo-200 hover:text-indigo-600'
+              )}
+            >
+              <CalendarClock className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">
+                {esProgramado ? 'Entrega programada activada' : 'Programar para fecha futura'}
+              </span>
+              <span className={cn(
+                'text-xs px-2 py-0.5 rounded-full font-normal',
+                esProgramado ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-400'
+              )}>
+                {esProgramado ? 'activo' : 'opcional'}
+              </span>
+            </button>
+
+            {esProgramado && (
+              <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <label className="block text-xs text-indigo-600 font-medium mb-1.5">
+                  Fecha y hora de entrega (hora Lima)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={fechaProgramada}
+                  min={minFechaProgramada}
+                  onChange={(e) => setFechaProgramada(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-indigo-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition text-gray-800"
+                />
+                <p className="text-xs text-indigo-400 mt-1.5">
+                  El pedido se activará automáticamente esa mañana y se notificará al cliente.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

@@ -6,7 +6,7 @@ import { generarYEnviarComprobante } from '@/lib/pdf/generar-comprobante'
 import { getYCloudApiKey } from '@/lib/tenant'
 import { logAccion } from '@/lib/audit'
 
-const ESTADOS_VALIDOS = ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado', 'cancelado']
+const ESTADOS_VALIDOS = ['programado', 'pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado', 'cancelado']
 
 // Mensajes WhatsApp al cliente según el nuevo estado
 function mensajeEstado(numeroPedido: string, estado: string, nombreFerreteria: string): string | null {

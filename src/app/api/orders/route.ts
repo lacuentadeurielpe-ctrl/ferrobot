@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     zona_delivery_id,
     notas,
     items,
+    fecha_entrega_programada,
   }: {
     nombre_cliente: string
     telefono_cliente: string
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
     zona_delivery_id?: string
     notas?: string
     items: ItemNuevoPedido[]
+    /** Fase V: ISO UTC de entrega programada (ya convertido por el cliente) */
+    fecha_entrega_programada?: string
   } = body
 
   if (!nombre_cliente?.trim()) return NextResponse.json({ error: 'Nombre del cliente requerido' }, { status: 400 })
@@ -58,20 +61,24 @@ export async function POST(request: Request) {
   if (errNum || !numeroPedido)
     return NextResponse.json({ error: `Error generando número: ${errNum?.message}` }, { status: 500 })
 
+  // Si hay fecha programada, el pedido nace en 'programado' y no en 'pendiente'
+  const estadoInicial = fecha_entrega_programada ? 'programado' : 'pendiente'
+
   const { data: pedido, error: errPedido } = await supabase
     .from('pedidos')
     .insert({
-      ferreteria_id: session.ferreteriaId,
-      numero_pedido: numeroPedido,
-      nombre_cliente: nombre_cliente.trim(),
-      telefono_cliente: telefono_cliente.trim(),
+      ferreteria_id:            session.ferreteriaId,
+      numero_pedido:            numeroPedido,
+      nombre_cliente:           nombre_cliente.trim(),
+      telefono_cliente:         telefono_cliente.trim(),
       modalidad,
-      direccion_entrega: direccion_entrega?.trim() ?? null,
-      zona_delivery_id: zona_delivery_id ?? null,
-      notas: notas?.trim() ?? null,
-      estado: 'pendiente',
+      direccion_entrega:        direccion_entrega?.trim() ?? null,
+      zona_delivery_id:         zona_delivery_id ?? null,
+      notas:                    notas?.trim() ?? null,
+      estado:                   estadoInicial,
       total,
       costo_total,
+      fecha_entrega_programada: fecha_entrega_programada ?? null,
     })
     .select('id, numero_pedido')
     .single()
@@ -94,10 +101,9 @@ export async function POST(request: Request) {
   if (errItems)
     return NextResponse.json({ error: errItems.message }, { status: 500 })
 
-  // ── Entrega + ETA (fire-and-forget) ─────────────────────────────────────────
-  // Siempre se crea la entrega para pedidos delivery.
-  // ETA se calcula si hay dirección y coordenadas de ferretería. No bloquea la respuesta.
-  if (modalidad === 'delivery') {
+  // ── Entrega + ETA (fire-and-forget, solo pedidos inmediatos) ─────────────────
+  // Los pedidos programados no crean entrega aún — el cron los activa el día indicado.
+  if (modalidad === 'delivery' && !fecha_entrega_programada) {
     const pedidoIdEta    = pedido.id
     const ferreteriaIdEta = session.ferreteriaId
     const dirEta = (direccion_entrega ?? '').trim()

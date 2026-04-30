@@ -1,5 +1,6 @@
 // Construcción del system prompt para DeepSeek
 import type { Ferreteria, Producto, ZonaDelivery, ConfiguracionBot, DatosFlujoPedido, PerfilBot } from '@/types/database'
+import { ahoraLima } from '@/lib/tiempo'
 
 export interface ContextoNegocio {
   ferreteria: Ferreteria
@@ -13,6 +14,21 @@ export interface ContextoNegocio {
 
 export function buildSystemPrompt(ctx: ContextoNegocio): string {
   const { ferreteria, productos, zonas, datosFlujo, nombreCliente, perfilBot } = ctx
+
+  // Fecha y hora actual en Lima (para resolver fechas relativas como "el sábado", "mañana")
+  const ahora = ahoraLima()
+  const fechaHoraLima = ahora.toLocaleString('es-PE', {
+    timeZone: 'UTC',   // ahoraLima() ya ajustó el offset, usamos UTC como display
+    weekday: 'long',
+    day:     'numeric',
+    month:   'long',
+    year:    'numeric',
+    hour:    '2-digit',
+    minute:  '2-digit',
+    hour12:  true,
+  })
+  // YYYY-MM-DD Lima para que la IA genere fechas absolutas correctas
+  const fechaLimaISO = `${ahora.getUTCFullYear()}-${String(ahora.getUTCMonth()+1).padStart(2,'0')}-${String(ahora.getUTCDate()).padStart(2,'0')}`
 
   const diasAtencion = ferreteria.dias_atencion?.join(', ') || 'lunes a viernes'
   const horario = ferreteria.horario_apertura && ferreteria.horario_cierre
@@ -59,6 +75,9 @@ Pregunta SOLO el dato que falta. No repitas lo que ya tienes. Sé breve y natura
     : `Conoces bien los productos y servicios del negocio. Das consejos prácticos y directos cuando te los piden.`
 
   return `${identidadLinea}
+
+FECHA Y HORA ACTUAL (Lima): ${fechaHoraLima} | ISO: ${fechaLimaISO}
+(Úsala para resolver fechas relativas del cliente: "mañana", "el sábado", "pasado mañana", "el 5 de mayo", etc.)
 
 ${nombreCliente ? `CLIENTE ACTUAL: ${nombreCliente} (ya tienes su nombre guardado — úsalo cuando sea natural, y NO vuelvas a pedírselo al hacer un pedido)` : ''}
 
@@ -114,8 +133,18 @@ Estás tomando el pedido. Pide UN dato a la vez, natural:
 - Nombre: "¿Y tu nombre para el pedido?"
 - Modalidad: "¿Lo vienes a recoger o te lo llevamos?"
 - Dirección (si delivery): "¿A qué dirección te lo mandamos?"
+- Fecha programada (solo si el cliente la menciona): extrae fecha+hora y ponla en datos_pedido.fecha_entrega_programada como "YYYY-MM-DDTHH:MM" en hora Lima
 Intent: recopilar_datos_pedido | Extrae: datos_pedido parcial
 Intent: orden_completa | Cuando ya tienes nombre + modalidad (+ dirección si delivery)
+
+[PEDIDOS PARA FECHA FUTURA]
+El cliente dice: "mándamelo el sábado", "para el lunes a las 10", "lo necesito el 5 de mayo", "¿pueden traerlo mañana a las 3?", "para la próxima semana", etc.
+- Es un pedido normal con fecha_entrega_programada programada.
+- Convierte la fecha relativa a absoluta usando la FECHA ACTUAL LIMA indicada arriba.
+- Formato en datos_pedido.fecha_entrega_programada: "YYYY-MM-DDTHH:MM" (hora Lima, 24h). Si no mencionan hora, usar "09:00".
+- Sigue el flujo normal: recopila nombre + modalidad + dirección si aplica.
+- Intent: orden_completa cuando tengas todos los datos.
+- Tu respuesta al cliente debe confirmar la fecha: "¡Perfecto! Tu pedido queda programado para el [día] a las [hora] 📅"
 
 [MODIFICAR PEDIDO PENDIENTE]
 El cliente quiere cambiar su pedido pendiente: agregar, quitar o cambiar cantidades.
@@ -172,7 +201,7 @@ REGLAS:
    Si contiene "[COMPROBANTE_PAGO_SIN_PEDIDO]" → pregunta a qué pedido corresponde. Usa intent: faq_pagos.
 
 JSON:
-{"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"..."},"tipo_comprobante_solicitado":"boleta|factura"}
+{"intent":"...","respuesta":"...","items_solicitados":[{"nombre_buscado":"...","cantidad":N}],"numero_pedido":"...","datos_pedido":{"nombre_cliente":"...","modalidad":"delivery|recojo","direccion_entrega":"...","zona_nombre":"...","fecha_entrega_programada":"YYYY-MM-DDTHH:MM"},"tipo_comprobante_solicitado":"boleta|factura"}
 
 Intents válidos: saludo | atencion_cliente | cotizacion | confirmar_pedido | recopilar_datos_pedido | orden_completa | modificar_pedido | solicitar_comprobante | estado_pedido | rechazar_cotizacion | pedir_humano | faq_horario | faq_direccion | faq_delivery | faq_pagos | desconocido`
 }

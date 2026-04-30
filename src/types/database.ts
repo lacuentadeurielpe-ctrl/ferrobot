@@ -31,6 +31,7 @@ export type EstadoCotizacion =
   | 'rechazada'
 
 export type EstadoPedido =
+  | 'programado'      // pedido con fecha futura, aún no activo
   | 'pendiente'
   | 'confirmado'
   | 'en_preparacion'

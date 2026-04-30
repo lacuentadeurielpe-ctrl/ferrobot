@@ -43,6 +43,7 @@ export function formatHora(time: string | null): string {
 // Devuelve etiqueta legible del estado de un pedido
 export function labelEstadoPedido(estado: string): string {
   const labels: Record<string, string> = {
+    programado:     'Programado',
     pendiente:      'Pendiente',
     confirmado:     'Confirmado',
     en_preparacion: 'En preparación',
@@ -56,6 +57,7 @@ export function labelEstadoPedido(estado: string): string {
 // Devuelve color Tailwind para el badge de estado de pedido
 export function colorEstadoPedido(estado: string): string {
   const colores: Record<string, string> = {
+    programado:     'bg-indigo-100 text-indigo-700',
     pendiente:      'bg-yellow-100 text-yellow-800',
     confirmado:     'bg-blue-100 text-blue-800',
     en_preparacion: 'bg-orange-100 text-orange-800',
@@ -64,6 +66,22 @@ export function colorEstadoPedido(estado: string): string {
     cancelado:      'bg-red-100 text-red-800',
   }
   return colores[estado] ?? 'bg-gray-100 text-gray-800'
+}
+
+/**
+ * Formatea una fecha ISO UTC como fecha+hora en zona Lima.
+ * Ej: "sáb 3 may · 3:00 PM"
+ */
+export function formatFechaHoraLima(isoUtc: string): string {
+  return new Date(isoUtc).toLocaleString('es-PE', {
+    timeZone: 'America/Lima',
+    weekday: 'short',
+    day:     'numeric',
+    month:   'short',
+    hour:    '2-digit',
+    minute:  '2-digit',
+    hour12:  true,
+  })
 }
 
 // ── Estado de pago — compartido por dashboard, panel repartidor y bot ─────────

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido, labelEstadoPago, colorEstadoPago } from '@/lib/utils'
+import { cn, formatPEN, formatFecha, formatFechaHoraLima, labelEstadoPedido, colorEstadoPedido, labelEstadoPago, colorEstadoPago } from '@/lib/utils'
 import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2, Mic, Clock } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import PedidoVozModal from './PedidoVozModal'
@@ -57,6 +57,7 @@ interface Pedido {
   telefono_cliente: string
   eta_minutos: number | null
   direccion_entrega: string | null
+  fecha_entrega_programada: string | null
   clientes: { nombre: string | null; telefono: string } | null
   zonas_delivery: { nombre: string } | null
   items_pedido: ItemPedido[]
@@ -94,7 +95,7 @@ interface Zona {
   tiempo_estimado_min: number
 }
 
-const ESTADOS = ['pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado', 'cancelado']
+const ESTADOS = ['programado', 'pendiente', 'confirmado', 'en_preparacion', 'enviado', 'entregado', 'cancelado']
 
 const RANGOS_FECHA = [
   { label: 'Todos', value: '' },
@@ -670,8 +671,17 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       {' · '}{pedido.modalidad === 'delivery' ? '🚚 Delivery' : '🏪 Recojo'}
                       {pedido.zonas_delivery && ` — ${pedido.zonas_delivery.nombre}`}
                     </p>
-                    {/* ETA + vehículo asignado — solo para delivery */}
-                    {pedido.modalidad === 'delivery' && (pedido.eta_minutos != null || pedido.entregas?.[0]?.vehiculos) && (
+                    {/* Fecha programada — solo para pedidos en estado 'programado' */}
+                    {pedido.estado === 'programado' && pedido.fecha_entrega_programada && (
+                      <div className="flex gap-1 mt-1">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full">
+                          <Clock className="w-2.5 h-2.5" />
+                          📅 {formatFechaHoraLima(pedido.fecha_entrega_programada)}
+                        </span>
+                      </div>
+                    )}
+                    {/* ETA + vehículo asignado — solo para delivery inmediato */}
+                    {pedido.estado !== 'programado' && pedido.modalidad === 'delivery' && (pedido.eta_minutos != null || pedido.entregas?.[0]?.vehiculos) && (
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {pedido.eta_minutos != null && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">

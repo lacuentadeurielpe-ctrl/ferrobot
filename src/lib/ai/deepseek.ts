@@ -36,6 +36,8 @@ export interface DatosPedidoAI {
   modalidad?: 'delivery' | 'recojo'
   direccion_entrega?: string
   zona_nombre?: string
+  /** Fase V: fecha/hora de entrega programada en formato ISO Lima "YYYY-MM-DDTHH:MM" */
+  fecha_entrega_programada?: string
 }
 
 // Respuesta estructurada que retorna DeepSeek

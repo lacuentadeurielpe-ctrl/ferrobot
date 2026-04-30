@@ -628,22 +628,41 @@ export async function handleIncomingMessage({
         (sum: number, i: typeof itemsParaPedido[number]) => sum + i.costo_unitario * i.cantidad, 0
       )
 
-      // Crear el pedido — nace directamente en 'confirmado' (el cliente ya confirmó por WhatsApp)
+      // ── Fase V: pedido programado vs inmediato ────────────────────────────────
+      // Si el cliente indicó una fecha futura, nace en 'programado'.
+      // De lo contrario nace en 'confirmado' (flujo normal).
+      const esProgramado = Boolean(dp.fecha_entrega_programada)
+
+      // Convertir fecha Lima "YYYY-MM-DDTHH:MM" → ISO UTC para almacenamiento
+      let fechaEntregaUtc: string | null = null
+      if (esProgramado && dp.fecha_entrega_programada) {
+        // Lima = UTC-5, sumamos 5h para llevar a UTC
+        const limaLocal = dp.fecha_entrega_programada  // "2026-05-03T15:00"
+        const utcDate   = new Date(`${limaLocal}:00-05:00`)
+        fechaEntregaUtc = isNaN(utcDate.getTime()) ? null : utcDate.toISOString()
+        // Si la conversión falló, tratar como pedido inmediato
+        if (!fechaEntregaUtc) {
+          console.warn('[Bot] fecha_entrega_programada inválida, ignorando:', limaLocal)
+        }
+      }
+
+      // Crear el pedido
       const { data: pedido } = await supabase
         .from('pedidos')
         .insert({
-          ferreteria_id: ferreteria.id,
-          cotizacion_id: cotizacion.id,
-          cliente_id: conversacion.cliente_id,
-          numero_pedido: numeroPedido,
-          nombre_cliente: dp.nombre_cliente,
-          telefono_cliente: telefonoCliente,
-          direccion_entrega: dp.direccion_entrega ?? null,
-          zona_delivery_id: zonaId,
-          modalidad: dp.modalidad,
-          estado: 'confirmado',
-          total: cotizacion.total,
-          costo_total: costoTotal,
+          ferreteria_id:           ferreteria.id,
+          cotizacion_id:           cotizacion.id,
+          cliente_id:              conversacion.cliente_id,
+          numero_pedido:           numeroPedido,
+          nombre_cliente:          dp.nombre_cliente,
+          telefono_cliente:        telefonoCliente,
+          direccion_entrega:       dp.direccion_entrega ?? null,
+          zona_delivery_id:        zonaId,
+          modalidad:               dp.modalidad,
+          estado:                  fechaEntregaUtc ? 'programado' : 'confirmado',
+          total:                   cotizacion.total,
+          costo_total:             costoTotal,
+          fecha_entrega_programada: fechaEntregaUtc ?? null,
         })
         .select().single()
 
@@ -658,32 +677,28 @@ export async function handleIncomingMessage({
         )
       }
 
-      // ── ETA real para delivery ────────────────────────────────────────────────
-      // Intenta geocodificar la dirección del cliente y calcular ETA con Haversine.
-      // Si falla, cae al tiempo de zona (tiempoEntrega ya calculado arriba).
-      if (dp.modalidad === 'delivery' && dp.direccion_entrega?.trim()) {
+      // ── ETA real para delivery (solo pedidos inmediatos) ──────────────────────
+      // Los pedidos programados no calculan ETA — se calcula cuando el cron los activa.
+      if (!fechaEntregaUtc && dp.modalidad === 'delivery' && dp.direccion_entrega?.trim()) {
         try {
           const ferreteriaLat = (ferreteria as unknown as { lat?: number }).lat
           const ferreteriaLng = (ferreteria as unknown as { lng?: number }).lng
 
           if (ferreteriaLat && ferreteriaLng) {
-            // Geocodificar dirección del cliente (usa caché si ya la geocodificamos antes)
             const coords = await geocodificarDireccion(
               dp.direccion_entrega.trim(),
               ferreteria.nombre ?? 'Perú',
             )
 
             if (coords) {
-              // Contar pedidos delivery activos para ajustar la cola
               const { count: cola } = await supabase
                 .from('pedidos')
                 .select('id', { count: 'exact', head: true })
                 .eq('ferreteria_id', ferreteria.id)
                 .eq('modalidad', 'delivery')
                 .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
-                .neq('id', pedido.id)   // excluir el pedido que acabamos de crear
+                .neq('id', pedido.id)
 
-              // Velocidad del vehículo activo más rápido (o default 30 km/h)
               const { data: vehiculosActivos } = await supabase
                 .from('vehiculos')
                 .select('velocidad_promedio_kmh')
@@ -703,7 +718,6 @@ export async function handleIncomingMessage({
                 pedidosEnCola: cola ?? 0,
               })
 
-              // Guardar ETA y coords del cliente en el pedido
               await supabase
                 .from('pedidos')
                 .update({
@@ -714,7 +728,6 @@ export async function handleIncomingMessage({
                 .eq('id', pedido.id)
                 .eq('ferreteria_id', ferreteria.id)   // FERRETERÍA AISLADA
 
-              // Usar ETA calculado para el mensaje al cliente
               tiempoEntrega = eta.tiempoTotalMin
             }
           }
@@ -723,18 +736,19 @@ export async function handleIncomingMessage({
         }
       }
 
-      // Crear registro de entrega para pedidos delivery (Fase II)
-      if (dp.modalidad === 'delivery') {
+      // Crear registro de entrega para pedidos delivery inmediatos (Fase II)
+      // Los programados crearán su entrega cuando el cron los active
+      if (!fechaEntregaUtc && dp.modalidad === 'delivery') {
         crearEntrega({
           ferreteriaId: ferreteria.id,
           pedidoId:     pedido.id,
-          repartidorId: null,   // sin repartidor aún — asignación manual desde dashboard
+          repartidorId: null,
           etaMinutos:   tiempoEntrega,
           supabase,
         }).catch((e) => console.error('[Bot] Error creando entrega:', e))
       }
 
-      // Descontar stock (el pedido nace confirmado, no pasa por la API de dashboard)
+      // Descontar stock (reserva inmediata aunque el pedido sea programado)
       supabase.rpc('reducir_stock_pedido', { p_pedido_id: pedido.id })
         .then(({ error: e }) => {
           if (e) console.error('[Bot] Error descontando stock:', e.message)
@@ -812,16 +826,41 @@ export async function handleIncomingMessage({
         .map((i: any) => `• ${i.nombre_producto}: ${i.cantidad} × S/${i.precio_unitario.toFixed(2)}`)
         .join('\n')
 
-      const modalidadTexto = dp.modalidad === 'delivery'
-        ? `Delivery → ${dp.direccion_entrega ?? 'dirección a confirmar'} (~${tiempoEntrega} min)`
-        : `Recojo en tienda — ${ferreteria.direccion ?? 'consultar dirección'}`
+      if (fechaEntregaUtc) {
+        // ── Pedido programado — mostrar fecha/hora Lima ───────────────────────
+        const fechaDisplay = new Date(fechaEntregaUtc).toLocaleString('es-PE', {
+          timeZone:    'America/Lima',
+          weekday:     'long',
+          day:         'numeric',
+          month:       'long',
+          hour:        '2-digit',
+          minute:      '2-digit',
+          hour12:      true,
+        })
+        const modalidadProg = dp.modalidad === 'delivery'
+          ? `Delivery → ${dp.direccion_entrega ?? 'dirección a confirmar'}`
+          : `Recojo en tienda — ${ferreteria.direccion ?? 'consultar dirección'}`
 
-      mensajeFinal =
-        `✅ *Pedido confirmado — ${numeroPedido}*\n\n` +
-        `${lineasProductos}\n\n` +
-        `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
-        `${modalidadTexto}\n\n` +
-        `¡Tu pedido ya está confirmado y lo estamos preparando! Gracias, ${dp.nombre_cliente} 🙏`
+        mensajeFinal =
+          `📅 *Pedido programado — ${numeroPedido}*\n\n` +
+          `${lineasProductos}\n\n` +
+          `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
+          `${modalidadProg}\n` +
+          `📆 *Entrega programada:* ${fechaDisplay}\n\n` +
+          `¡Tu pedido está reservado para esa fecha! Te avisaremos cuando esté en camino. Gracias, ${dp.nombre_cliente} 🙏`
+      } else {
+        // ── Pedido inmediato — flujo normal ────────────────────────────────────
+        const modalidadTexto = dp.modalidad === 'delivery'
+          ? `Delivery → ${dp.direccion_entrega ?? 'dirección a confirmar'} (~${tiempoEntrega} min)`
+          : `Recojo en tienda — ${ferreteria.direccion ?? 'consultar dirección'}`
+
+        mensajeFinal =
+          `✅ *Pedido confirmado — ${numeroPedido}*\n\n` +
+          `${lineasProductos}\n\n` +
+          `*Total: S/${cotizacion.total.toFixed(2)}*\n` +
+          `${modalidadTexto}\n\n` +
+          `¡Tu pedido ya está confirmado y lo estamos preparando! Gracias, ${dp.nombre_cliente} 🙏`
+      }
 
       // ── Enviar instrucciones de pago si hay métodos digitales configurados
       const metodosActivos: string[] = (ferreteria as any).metodos_pago_activos ?? []
