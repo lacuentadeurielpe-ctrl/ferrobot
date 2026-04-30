@@ -17,7 +17,7 @@ const PEDIDO_SELECT = `
   clientes(nombre, telefono),
   zonas_delivery(nombre),
   items_pedido(id, nombre_producto, cantidad, precio_unitario),
-  entregas(id, estado, eta_actual, vehiculos(nombre, tipo))
+  entregas(id, estado, eta_actual, orden_en_ruta, vehiculos(nombre, tipo))
 `
 
 export async function GET(
@@ -42,7 +42,7 @@ export async function GET(
   const modo = ferr?.modo_asignacion_delivery ?? 'manual'
 
   // Pedidos asignados a este repartidor (activos)
-  const { data: pedidos, error } = await supabase
+  const { data: pedidosRaw, error } = await supabase
     .from('pedidos')
     .select(PEDIDO_SELECT)
     .eq('ferreteria_id', repartidor.ferreteria_id)
@@ -50,7 +50,15 @@ export async function GET(
     .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
     .order('created_at', { ascending: true })
 
+  // Ordenar por orden_en_ruta de la entrega (si fue optimizado)
+  const pedidos = (pedidosRaw ?? []).sort((a, b) => {
+    const aOrden = (a.entregas as any)?.[0]?.orden_en_ruta ?? 9999
+    const bOrden = (b.entregas as any)?.[0]?.orden_en_ruta ?? 9999
+    return aOrden - bOrden
+  })
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
 
   // Cobros del día (pedidos entregados hoy por este repartidor)
   const hoy = new Date().toISOString().slice(0, 10)

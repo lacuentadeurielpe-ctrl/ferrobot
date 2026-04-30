@@ -18,6 +18,7 @@ import {
   TrendingUp,
   BarChart2,
   Activity,
+  Truck,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -47,9 +48,10 @@ const navGroups: NavGroup[] = [
   {
     label: 'Gestión',
     items: [
-      { label: 'Catálogo', href: '/dashboard/catalog',  icon: Package,    permiso: 'ver_stock' },
-      { label: 'Clientes', href: '/dashboard/clientes', icon: Users,      permiso: 'ver_historial_clientes' },
-      { label: 'Créditos', href: '/dashboard/creditos', icon: CreditCard, permiso: 'ver_creditos' },
+      { label: 'Catálogo',  href: '/dashboard/catalog',   icon: Package,    permiso: 'ver_stock' },
+      { label: 'Clientes',  href: '/dashboard/clientes',  icon: Users,      permiso: 'ver_historial_clientes' },
+      { label: 'Créditos',  href: '/dashboard/creditos',  icon: CreditCard, permiso: 'ver_creditos' },
+      { label: 'Delivery',  href: '/dashboard/delivery',  icon: Truck,      permiso: 'delivery_ver_pedidos' },
     ],
   },
   {

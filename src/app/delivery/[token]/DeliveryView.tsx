@@ -20,6 +20,7 @@ interface EntregaInfo {
   id: string
   estado: string
   eta_actual: string | null
+  orden_en_ruta: number | null
   vehiculos: { nombre: string; tipo: string } | null
 }
 
@@ -275,10 +276,11 @@ export default function DeliveryView({
   }
 
   // ── Tarjeta de pedido ─────────────────────────────────────────────────────
-  function TarjetaPedido({ pedido, idx, showAcciones }: {
+  function TarjetaPedido({ pedido, idx, showAcciones, totalPedidos }: {
     pedido: PedidoDelivery
     idx: number
     showAcciones: boolean
+    totalPedidos?: number
   }) {
     const isOpen       = expandido === pedido.id
     const nombre       = pedido.clientes?.nombre ?? pedido.nombre_cliente ?? 'Cliente'
@@ -291,6 +293,9 @@ export default function DeliveryView({
     const montoNum     = parseFloat(monto) || 0
     const esParcial    = montoNum > 0 && montoNum < pedido.total
     const enProceso    = cargando === pedido.id
+    // Número de parada: priorizar orden_en_ruta de la entrega, si no usar idx+1
+    const entrega      = pedido.entregas?.[0]
+    const numParada    = entrega?.orden_en_ruta ?? (idx + 1)
 
     return (
       <div className={cn(
@@ -305,11 +310,18 @@ export default function DeliveryView({
                 'w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0',
                 tieneInc ? 'bg-amber-100 text-amber-600' : 'bg-zinc-100 text-zinc-600'
               )}>
-                {idx + 1}
+                {numParada}
               </div>
               <div>
                 <p className="font-semibold text-zinc-900 text-sm">{nombre}</p>
-                <p className="text-xs text-zinc-400 font-mono">{pedido.numero_pedido}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-zinc-400 font-mono">{pedido.numero_pedido}</p>
+                  {totalPedidos && totalPedidos > 1 && (
+                    <span className="text-[10px] text-zinc-400">
+                      · parada {numParada}/{totalPedidos}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="text-right shrink-0 flex flex-col items-end gap-1">
@@ -610,7 +622,7 @@ export default function DeliveryView({
             </div>
           ) : (
             pedidos.map((p, i) => (
-              <TarjetaPedido key={p.id} pedido={p} idx={i} showAcciones />
+              <TarjetaPedido key={p.id} pedido={p} idx={i} showAcciones totalPedidos={pedidos.length} />
             ))
           )}
         </div>
@@ -628,7 +640,7 @@ export default function DeliveryView({
           ) : (
             disponibles.map((p, i) => (
               <div key={p.id}>
-                <TarjetaPedido pedido={p} idx={i} showAcciones={false} />
+                <TarjetaPedido pedido={p} idx={i} showAcciones={false} totalPedidos={disponibles.length} />
                 <div className="px-4 py-3 bg-white border border-t-0 border-zinc-200 rounded-b-2xl -mt-2">
                   <button
                     onClick={() => aceptarPedido(p.id)}
