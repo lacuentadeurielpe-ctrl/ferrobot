@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { enviarMensaje } from '@/lib/whatsapp/ycloud'
 import { getYCloudApiKey } from '@/lib/tenant'
+import { recalcularETAsCola } from '@/lib/delivery/assignment'
 
 function adminClient() {
   return createClient(
@@ -178,6 +179,13 @@ export async function PATCH(
       .eq('pedido_id', pedidoId)
       .eq('ferreteria_id', repartidor.ferreteria_id)
       .then(({ error: e }) => { if (e) console.error('[Delivery] Error sync entrega retorno:', e.message) })
+  }
+
+  // ── Recalcular ETAs de la cola cuando la cola se reduce ───────────────────
+  // entregado y retorno liberan una posición → los demás pedidos ganan tiempo.
+  if (accion === 'entregado' || accion === 'retorno') {
+    recalcularETAsCola(repartidor.ferreteria_id, supabase)
+      .catch((e) => console.error('[Delivery] recalcularETAsCola error:', e))
   }
 
   // ── Si fue pago parcial → crear registro de crédito/deuda ─────────────────

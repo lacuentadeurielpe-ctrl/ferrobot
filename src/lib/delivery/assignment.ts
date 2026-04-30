@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { calcularETAHaversineSync } from './eta'
 
 // ── Selección de vehículo ────────────────────────────────────────────────────
 
@@ -58,6 +59,102 @@ export async function seleccionarVehiculo(
 }
 
 // ── Creación de entrega ──────────────────────────────────────────────────────
+
+// ── Recalculador en cascada ───────────────────────────────────────────────────
+
+/**
+ * Recalcula los ETAs de TODOS los pedidos delivery pendientes de la ferretería.
+ * Se llama en background cuando una entrega se completa, falla o retorna,
+ * ya que la cola se redujo y todos los demás ganan tiempo.
+ *
+ * No hace llamadas externas (solo Haversine con coords ya guardadas).
+ * Es idempotente — si un pedido no tiene coords, lo omite sin error.
+ */
+export async function recalcularETAsCola(
+  ferreteriaId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+): Promise<void> {
+  try {
+    // 1. Coordenadas de la ferretería
+    const { data: ferreteria } = await supabase
+      .from('ferreterias')
+      .select('lat, lng')
+      .eq('id', ferreteriaId)
+      .single()
+
+    if (!ferreteria?.lat || !ferreteria?.lng) return
+
+    // 2. Pedidos delivery activos con coords guardadas
+    const { data: pedidos } = await supabase
+      .from('pedidos')
+      .select('id, cliente_lat, cliente_lng')
+      .eq('ferreteria_id', ferreteriaId)   // FERRETERÍA AISLADA
+      .eq('modalidad', 'delivery')
+      .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
+      .not('cliente_lat', 'is', null)
+      .not('cliente_lng', 'is', null)
+
+    if (!pedidos?.length) return
+
+    // 3. Contar TODOS los activos (con y sin coords) para la cola real
+    const { count: totalActivos } = await supabase
+      .from('pedidos')
+      .select('id', { count: 'exact', head: true })
+      .eq('ferreteria_id', ferreteriaId)
+      .eq('modalidad', 'delivery')
+      .in('estado', ['confirmado', 'en_preparacion', 'enviado'])
+
+    // 4. Velocidad de vehículo por pedido (una sola query)
+    const { data: entregas } = await supabase
+      .from('entregas')
+      .select('pedido_id, vehiculos(velocidad_promedio_kmh)')
+      .eq('ferreteria_id', ferreteriaId)
+      .in('pedido_id', pedidos.map((p) => p.id))
+
+    const veloMap = new Map<string, number>(
+      (entregas ?? []).map((e) => [
+        e.pedido_id as string,
+        ((e.vehiculos as unknown as { velocidad_promedio_kmh?: number } | null)
+          ?.velocidad_promedio_kmh ?? 30),
+      ]),
+    )
+
+    // 5. Recalcular y actualizar en paralelo
+    await Promise.all(
+      pedidos.map((pedido) => {
+        const cola         = (totalActivos ?? pedidos.length) - 1  // excluir este mismo
+        const velocidadKmh = veloMap.get(pedido.id) ?? 30
+
+        const eta = calcularETAHaversineSync({
+          ferreteriaLat: ferreteria.lat as number,
+          ferreteriaLng: ferreteria.lng as number,
+          clienteLat:    pedido.cliente_lat as number,
+          clienteLng:    pedido.cliente_lng as number,
+          velocidadKmh,
+          pedidosEnCola: Math.max(0, cola),
+        })
+
+        const etaActual = new Date(Date.now() + eta.tiempoTotalMin * 60_000).toISOString()
+
+        return Promise.all([
+          supabase
+            .from('pedidos')
+            .update({ eta_minutos: eta.tiempoTotalMin })
+            .eq('id', pedido.id)
+            .eq('ferreteria_id', ferreteriaId),   // FERRETERÍA AISLADA
+          supabase
+            .from('entregas')
+            .update({ eta_actual: etaActual })
+            .eq('pedido_id', pedido.id)
+            .eq('ferreteria_id', ferreteriaId),   // FERRETERÍA AISLADA
+        ])
+      }),
+    )
+  } catch (e) {
+    console.error('[Delivery] recalcularETAsCola error:', e)
+  }
+}
 
 export interface ParamsCrearEntrega {
   ferreteriaId: string

@@ -82,7 +82,33 @@ async function calcularPorORS(
   }
 }
 
-// ── Función principal ─────────────────────────────────────────────────────────
+// ── Versión síncrona (solo Haversine, sin llamadas externas) ──────────────────
+// Usada para recálculos en cascada donde ya tenemos las coordenadas guardadas.
+
+export function calcularETAHaversineSync(params: ParamsETA): ResultadoETA {
+  const {
+    ferreteriaLat, ferreteriaLng,
+    clienteLat,    clienteLng,
+    velocidadKmh = 30,
+    pedidosEnCola = 0,
+  } = params
+
+  const tPrep     = T_PREP_BASE + pedidosEnCola * T_PREP_COLA
+  const distLineal = haversineKm(ferreteriaLat, ferreteriaLng, clienteLat, clienteLng)
+  const distKm    = Math.round(distLineal * FACTOR_URBANO * 10) / 10
+  const tRuta     = Math.ceil((distKm / velocidadKmh) * 60)
+  const total     = tPrep + tRuta
+
+  return {
+    distanciaKm:    distKm,
+    tiempoRutaMin:  tRuta,
+    tiempoTotalMin: total,
+    etaHora:        new Date(Date.now() + total * 60_000),
+    fuente:         'haversine',
+  }
+}
+
+// ── Función principal (async, intenta ORS si hay API key) ─────────────────────
 
 export async function calcularETA(params: ParamsETA): Promise<ResultadoETA> {
   const {

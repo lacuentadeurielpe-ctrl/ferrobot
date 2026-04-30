@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { recalcularETAsCola } from '@/lib/delivery/assignment'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +58,12 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+
+  // Si la entrega se completó o falló, recalcular ETAs del resto de la cola
+  if (estado === 'entregado' || estado === 'fallida') {
+    recalcularETAsCola(session.ferreteriaId, supabase)
+      .catch((e) => console.error('[Entregas] recalcularETAsCola error:', e))
+  }
 
   return NextResponse.json(data)
 }
