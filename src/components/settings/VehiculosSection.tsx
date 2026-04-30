@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Bike, Car, Truck, Package2, Plus, Pencil, Trash2,
-  Loader2, Check, X, AlertTriangle, MapPin, Gauge,
+  Loader2, Check, AlertTriangle, MapPin, Gauge,
   Weight, Clock, CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -68,6 +68,8 @@ export default function VehiculosSection({ ferreteriaLat, ferreteriaLng, ferrete
   const [tieneUbicacion, setTieneUbicacion] = useState(!!(ferreteriaLat && ferreteriaLng))
   const [geocodificando, setGeocodificando] = useState(false)
   const [geoError,       setGeoError]       = useState<string | null>(null)
+  const [customDir,      setCustomDir]      = useState(ferreteriaDir ?? '')
+  const [mostrarCambiarDir, setMostrarCambiarDir] = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -91,12 +93,19 @@ export default function VehiculosSection({ ferreteriaLat, ferreteriaLng, ferrete
   }
 
   async function geocodificarLocal() {
+    if (!customDir.trim()) return
     setGeocodificando(true)
     setGeoError(null)
-    const res = await fetch('/api/settings/geocode', { method: 'POST' })
+    const res = await fetch('/api/settings/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direccion: customDir.trim() }),
+    })
     const data = await res.json()
     if (res.ok) {
       setTieneUbicacion(true)
+      setMostrarCambiarDir(false)
+      if (data.direccion) setCustomDir(data.direccion)
     } else {
       setGeoError(data.error ?? 'Error al ubicar la dirección')
     }
@@ -184,40 +193,101 @@ export default function VehiculosSection({ ferreteriaLat, ferreteriaLng, ferrete
   return (
     <div className="space-y-5">
 
-      {/* Banner de ubicación */}
+      {/* Banner de ubicación — ETA no activa */}
       {!tieneUbicacion && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-800">Activa el cálculo de ETA</p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              {ferreteriaDir
-                ? `Ubicaremos tu local en: "${ferreteriaDir}"`
-                : 'Primero configura la dirección de tu negocio en la pestaña General.'}
-            </p>
-            {geoError && <p className="text-xs text-red-600 mt-1">{geoError}</p>}
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Activa el cálculo de ETA</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Escribe la dirección completa de tu local (incluyendo ciudad o distrito) para que podamos ubicarlo en el mapa.
+              </p>
+            </div>
           </div>
-          {ferreteriaDir && (
+          <div className="flex gap-2">
+            <input
+              value={customDir}
+              onChange={e => { setCustomDir(e.target.value); setGeoError(null) }}
+              onKeyDown={e => e.key === 'Enter' && geocodificarLocal()}
+              placeholder="Ej: Av. Lima 123, San Martín de Porres, Lima"
+              className="flex-1 px-3 py-2 rounded-xl border border-amber-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-zinc-400"
+            />
             <button
               onClick={geocodificarLocal}
-              disabled={geocodificando}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50 shrink-0"
+              disabled={geocodificando || !customDir.trim()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl transition disabled:opacity-50 shrink-0"
             >
               {geocodificando
                 ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 : <MapPin className="w-3.5 h-3.5" />}
               Activar ETA
             </button>
+          </div>
+          {geoError && (
+            <p className="text-xs text-red-600 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0" /> {geoError}
+            </p>
           )}
         </div>
       )}
 
-      {tieneUbicacion && (
+      {/* Banner de ubicación — ETA activa */}
+      {tieneUbicacion && !mostrarCambiarDir && (
         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
           <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-          <p className="text-sm text-emerald-700">
+          <p className="text-sm text-emerald-700 flex-1">
             <span className="font-semibold">ETA activa</span> — el sistema calculará tiempos de entrega automáticamente para pedidos delivery.
           </p>
+          <button
+            onClick={() => { setMostrarCambiarDir(true); setGeoError(null) }}
+            className="text-xs text-emerald-600 hover:text-emerald-800 underline underline-offset-2 shrink-0"
+          >
+            Cambiar dirección
+          </button>
+        </div>
+      )}
+
+      {/* Panel para cambiar dirección cuando ya tiene ubicación */}
+      {tieneUbicacion && mostrarCambiarDir && (
+        <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <MapPin className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-zinc-800">Actualizar ubicación del local</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Escribe la dirección completa con ciudad o distrito.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={customDir}
+              onChange={e => { setCustomDir(e.target.value); setGeoError(null) }}
+              onKeyDown={e => e.key === 'Enter' && geocodificarLocal()}
+              placeholder="Ej: Av. Lima 123, San Martín de Porres, Lima"
+              className="flex-1 px-3 py-2 rounded-xl border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 placeholder:text-zinc-400"
+            />
+            <button
+              onClick={geocodificarLocal}
+              disabled={geocodificando || !customDir.trim()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl transition disabled:opacity-50 shrink-0"
+            >
+              {geocodificando
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <MapPin className="w-3.5 h-3.5" />}
+              Actualizar
+            </button>
+            <button
+              onClick={() => { setMostrarCambiarDir(false); setGeoError(null) }}
+              className="px-3 py-2 text-xs text-zinc-500 hover:text-zinc-700 rounded-xl hover:bg-zinc-100 transition"
+            >
+              Cancelar
+            </button>
+          </div>
+          {geoError && (
+            <p className="text-xs text-red-600 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0" /> {geoError}
+            </p>
+          )}
         </div>
       )}
 
