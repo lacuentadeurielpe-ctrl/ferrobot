@@ -46,7 +46,7 @@ export async function PATCH(
   // Cargar pedido — filtrado por ferreteria_id (TENANT AISLADO)
   const { data: pedidoActual } = await supabase
     .from('pedidos')
-    .select('id, numero_pedido, estado, estado_pago, total, telefono_cliente, eta_minutos, clientes(telefono)')
+    .select('id, numero_pedido, estado, estado_pago, total, monto_pagado, cliente_id, telefono_cliente, eta_minutos, clientes(telefono)')
     .eq('id', pedidoId)
     .eq('ferreteria_id', repartidor.ferreteria_id)   // TENANT AISLADO
     .single()
@@ -86,26 +86,31 @@ export async function PATCH(
     update.cobrado_monto = cobrado_monto ?? null
     update.cobrado_metodo = cobrado_metodo ?? null
 
-    const montoCobrado = typeof cobrado_monto === 'number' ? cobrado_monto : parseFloat(cobrado_monto ?? '0') || 0
-    const totalPedido  = pedidoActual.total ?? 0
+    const montoCobrado      = typeof cobrado_monto === 'number' ? cobrado_monto : parseFloat(cobrado_monto ?? '0') || 0
+    const totalPedido       = pedidoActual.total ?? 0
+    // Considerar lo que ya pagó el cliente por WhatsApp/Yape antes de la entrega
+    const montoPagadoPrevio = pedidoActual.monto_pagado ?? 0
+    const saldoPendiente    = Math.max(0, totalPedido - montoPagadoPrevio)
 
     // Si ya estaba pagado (vía WhatsApp/Yape previo) → no tocar estado_pago
     if (pedidoActual.estado_pago !== 'pagado') {
-      if (montoCobrado >= totalPedido && totalPedido > 0) {
-        // Pago completo
-        update.estado_pago = 'pagado'
-        update.pago_confirmado_at = new Date().toISOString()
+      if (saldoPendiente === 0 || montoCobrado >= saldoPendiente) {
+        // Cubre el saldo pendiente completo → pagado
+        update.estado_pago         = 'pagado'
+        update.monto_pagado        = totalPedido   // marca como totalmente cubierto
+        update.pago_confirmado_at  = new Date().toISOString()
         update.pago_confirmado_por = `repartidor:${repartidor.nombre}`
-        update.metodo_pago = cobrado_metodo ?? null
-      } else if (montoCobrado > 0 && montoCobrado < totalPedido) {
-        // Pago parcial — requiere permiso
+        update.metodo_pago         = cobrado_metodo ?? null
+      } else if (montoCobrado > 0 && montoCobrado < saldoPendiente) {
+        // Pago parcial del saldo restante — requiere permiso
         if (!repartidor.puede_registrar_deuda) {
           return NextResponse.json({
             error: 'No tienes permiso para registrar cobros parciales. Consulta con el encargado.',
             code: 'sin_permiso_deuda',
           }, { status: 403 })
         }
-        update.estado_pago = 'credito_activo'
+        update.estado_pago  = 'credito_activo'
+        update.monto_pagado = montoPagadoPrevio + montoCobrado   // acumular pagos
       }
       // montoCobrado === 0 → deja estado_pago como está (pendiente)
     }
@@ -195,21 +200,29 @@ export async function PATCH(
 
   // ── Si fue pago parcial → crear registro de crédito/deuda ─────────────────
   if (accion === 'entregado' && update.estado_pago === 'credito_activo') {
-    const montoCobrado = typeof cobrado_monto === 'number' ? cobrado_monto : parseFloat(cobrado_monto ?? '0') || 0
-    const deuda = pedidoActual.total - montoCobrado
+    const montoCobrado      = typeof cobrado_monto === 'number' ? cobrado_monto : parseFloat(cobrado_monto ?? '0') || 0
+    const totalPedido       = pedidoActual.total ?? 0
+    const montoPagadoPrevio = pedidoActual.monto_pagado ?? 0
+    const saldoPendiente    = Math.max(0, totalPedido - montoPagadoPrevio)
+    const deuda             = saldoPendiente - montoCobrado   // lo que quedó sin cubrir
+
     if (deuda > 0) {
       const fechaLimite = new Date()
       fechaLimite.setDate(fechaLimite.getDate() + 30)
 
+      const notasDeuda = montoPagadoPrevio > 0
+        ? `Deuda por entrega parcial. Total: S/${totalPedido.toFixed(2)} — Pagado prev. (digital): S/${montoPagadoPrevio.toFixed(2)} — Cobrado por repartidor: S/${montoCobrado.toFixed(2)} — Saldo: S/${deuda.toFixed(2)}. Repartidor: ${repartidor.nombre}`
+        : `Deuda por entrega parcial. Cobrado: S/${montoCobrado.toFixed(2)} de S/${totalPedido.toFixed(2)}. Repartidor: ${repartidor.nombre}`
+
       supabase.from('creditos').insert({
-        ferreteria_id: repartidor.ferreteria_id,   // TENANT AISLADO
-        cliente_id:    null,                        // se puede vincular luego desde el dashboard
+        ferreteria_id: repartidor.ferreteria_id,          // TENANT AISLADO
+        cliente_id:    (pedidoActual as any).cliente_id ?? null,   // vincular cliente real
         pedido_id:     pedidoId,
         monto_total:   deuda,
         monto_pagado:  0,
         fecha_limite:  fechaLimite.toISOString().slice(0, 10),
         estado:        'activo',
-        notas:         `Deuda generada por entrega parcial. Cobrado: S/${montoCobrado.toFixed(2)} de S/${pedidoActual.total.toFixed(2)}. Repartidor: ${repartidor.nombre}`,
+        notas:         notasDeuda,
         aprobado_por:  `repartidor:${repartidor.nombre}`,
       }).then(({ error: errCred }) => {
         if (errCred) console.error('[Delivery] Error creando crédito:', errCred.message)

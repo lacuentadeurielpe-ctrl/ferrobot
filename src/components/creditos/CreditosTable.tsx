@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { cn, formatPEN, formatFecha } from '@/lib/utils'
-import { ChevronDown, CreditCard, CheckCircle2, AlertTriangle, Clock, Plus, Loader2, X } from 'lucide-react'
+import { ChevronDown, CreditCard, CheckCircle2, AlertTriangle, Clock, Plus, Loader2, X, Phone, ExternalLink } from 'lucide-react'
 import { checkPermiso, type PermisoMap } from '@/lib/auth/permisos'
 import type { Rol } from '@/lib/auth/roles'
 
@@ -269,14 +270,39 @@ export default function CreditosTable({
                   <ChevronDown className={cn('w-4 h-4 text-gray-400 shrink-0 transition-transform', isOpen && 'rotate-180')} />
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {credito.clientes?.nombre ?? 'Cliente desconocido'}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {credito.pedidos?.numero_pedido && (
-                        <><span className="font-mono">{credito.pedidos.numero_pedido}</span> · </>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {credito.clientes?.nombre ?? 'Cliente desconocido'}
+                      </p>
+                      {credito.clientes?.id && (
+                        <Link
+                          href={`/dashboard/clientes/${credito.clientes.id}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-zinc-400 hover:text-zinc-600 transition shrink-0"
+                          title="Ver cliente"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
                       )}
-                      Límite: {new Date(credito.fecha_limite + 'T00:00:00').toLocaleDateString('es-PE')}
+                      {credito.clientes?.telefono && (
+                        <a
+                          href={`tel:+${credito.clientes.telefono}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-zinc-400 hover:text-emerald-600 transition shrink-0"
+                          title={`Llamar: +${credito.clientes.telefono}`}
+                        >
+                          <Phone className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {credito.pedidos?.numero_pedido && (
+                        <span className="font-mono text-zinc-500 font-medium">{credito.pedidos.numero_pedido}</span>
+                      )}
+                      {credito.pedidos?.total && (
+                        <span className="text-zinc-400"> · pedido {formatPEN(credito.pedidos.total)}</span>
+                      )}
+                      <span className="text-zinc-400"> · vence {new Date(credito.fecha_limite + 'T00:00:00').toLocaleDateString('es-PE')}</span>
                     </p>
                   </div>
 
