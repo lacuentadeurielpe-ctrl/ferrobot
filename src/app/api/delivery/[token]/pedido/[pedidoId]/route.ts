@@ -137,14 +137,19 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // ── Sincronizar estado de la entrega ─────────────────────────────────────────
+  let entregaIdParaTracking: string | null = null
+
   if (accion === 'cambiar_estado' && nuevo_estado === 'enviado') {
-    // Pedido salió → entrega en_ruta + timestamp
-    supabase
+    // Pedido salió → entrega en_ruta + timestamp; recuperar id para link de tracking
+    const { data: entSync, error: e } = await supabase
       .from('entregas')
       .update({ estado: 'en_ruta', salio_at: new Date().toISOString() })
       .eq('pedido_id', pedidoId)
       .eq('ferreteria_id', repartidor.ferreteria_id)   // TENANT AISLADO
-      .then(({ error: e }) => { if (e) console.error('[Delivery] Error sync entrega en_ruta:', e.message) })
+      .select('id')
+      .single()
+    if (e) console.error('[Delivery] Error sync entrega en_ruta:', e.message)
+    else entregaIdParaTracking = entSync?.id ?? null
   }
 
   if (accion === 'entregado') {
@@ -218,7 +223,7 @@ export async function PATCH(
       if (!apiKey) return
       const from = ferr.telefono_whatsapp.replace(/^\+/, '')
 
-      // ── Notificación "en camino" al cliente ─────────────────────────────────
+      // ── Notificación "en camino" al cliente — con link de tracking ────────
       if (accion === 'cambiar_estado' && nuevo_estado === 'enviado') {
         const telefono = (pedidoActual.clientes as any)?.telefono ?? pedidoActual.telefono_cliente
         if (telefono) {
@@ -228,9 +233,13 @@ export async function PATCH(
                 ? `~${etaMin} min`
                 : `~${Math.floor(etaMin / 60)}h${etaMin % 60 > 0 ? ` ${etaMin % 60}min` : ''}`)
             : 'en breve'
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+          const trackingLink = entregaIdParaTracking
+            ? `\n📍 Sigue tu entrega en vivo: ${appUrl}/tracking/${entregaIdParaTracking}`
+            : ''
           enviarMensaje({
             from, to: telefono,
-            texto: `🚚 *${ferr.nombre}*\n\nTu pedido *${pedidoActual.numero_pedido}* ya está *en camino*.\n⏱ ETA: *${etaTexto}* 🎯\n\n¡Prepárate para recibirlo!`,
+            texto: `🚚 *${ferr.nombre}*\n\nTu pedido *${pedidoActual.numero_pedido}* ya está *en camino*.\n⏱ ETA: *${etaTexto}* 🎯${trackingLink}\n\n¡Prepárate para recibirlo!`,
             apiKey,
           }).catch((e) => console.error('[Delivery] Error notif en camino:', e))
         }

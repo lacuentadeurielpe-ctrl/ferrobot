@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   MapPin, Phone, Package, ChevronDown, CheckCircle, AlertTriangle,
   Loader2, RotateCcw, Siren, X, Inbox, BarChart2,
-  FileText, Truck, CreditCard, BadgeCheck, Clock,
+  FileText, Truck, CreditCard, BadgeCheck, Clock, Navigation, NavigationOff,
 } from 'lucide-react'
 import PinModal from '@/components/ui/PinModal'
 import { cn, formatPEN } from '@/lib/utils'
@@ -105,6 +105,56 @@ export default function DeliveryView({
   const [expandido, setExpandido] = useState<string | null>(inicialAsignados[0]?.id ?? null)
   const [cargando,  setCargando]  = useState<string | null>(null) // pedidoId en proceso
   const [aceptando, setAceptando] = useState<string | null>(null)
+
+  // ── GPS Tracking ──────────────────────────────────────────────────────────
+  const [trackingActivo,   setTrackingActivo]   = useState(false)
+  const [trackingError,    setTrackingError]    = useState<string | null>(null)
+  const watchIdRef    = useRef<number | null>(null)
+  const lastSentRef   = useRef<number>(0)
+
+  function iniciarTracking() {
+    if (!navigator.geolocation) {
+      setTrackingError('Tu navegador no soporta geolocalización')
+      return
+    }
+    setTrackingError(null)
+    setTrackingActivo(true)
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const now = Date.now()
+        if (now - lastSentRef.current < 28_000) return   // throttle: máx 1 req/28s
+        lastSentRef.current = now
+        fetch(`/api/delivery/${token}/ubicacion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        }).catch(() => {/* fire-and-forget */})
+      },
+      (err) => {
+        setTrackingError(
+          err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en tu navegador.' :
+          err.code === 2 ? 'No se pudo obtener la ubicación. Verifica el GPS.' :
+          'Error de geolocalización. Intenta de nuevo.',
+        )
+        setTrackingActivo(false)
+      },
+      { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
+    )
+  }
+
+  function detenerTracking() {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+    setTrackingActivo(false)
+  }
+
+  // Limpiar al desmontar
+  useEffect(() => {
+    return () => { if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current) }
+  }, [])
 
   // Estado inline de cobro por pedido (sin modal)
   const [cobros, setCobros] = useState<Record<string, { monto: string; metodo: string }>>({})
@@ -622,7 +672,7 @@ export default function DeliveryView({
             </div>
           ) : (
             <>
-              {/* ── Banner de ruta ── */}
+              {/* ── Banner de ruta + GPS tracking ── */}
               {(() => {
                 const rutaOptimizada = pedidos.some(p => p.entregas?.[0]?.orden_en_ruta != null)
                 const etaMax = pedidos.length > 0
@@ -630,29 +680,61 @@ export default function DeliveryView({
                   : 0
                 const multiParada = pedidos.length >= 2
                 return (
-                  <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Truck className="w-4 h-4 text-orange-600 shrink-0" />
-                      <p className="text-sm font-semibold text-orange-800">
-                        {multiParada ? `Ruta con ${pedidos.length} paradas` : 'Tu entrega de hoy'}
-                      </p>
-                      {rutaOptimizada && multiParada && (
-                        <span className="text-[10px] bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full font-medium">
-                          ✓ Optimizada
-                        </span>
+                  <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 space-y-2.5">
+                    {/* Fila título */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-orange-600 shrink-0" />
+                        <p className="text-sm font-semibold text-orange-800">
+                          {multiParada ? `Ruta con ${pedidos.length} paradas` : 'Tu entrega de hoy'}
+                        </p>
+                        {rutaOptimizada && multiParada && (
+                          <span className="text-[10px] bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full font-medium">
+                            ✓ Optimizada
+                          </span>
+                        )}
+                      </div>
+                      {/* Botón GPS */}
+                      {trackingActivo ? (
+                        <button
+                          onClick={detenerTracking}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold bg-green-100 border border-green-300 text-green-800 rounded-xl hover:bg-green-200 transition shrink-0"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                          GPS activo
+                          <NavigationOff className="w-3 h-3" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={iniciarTracking}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition shrink-0"
+                        >
+                          <Navigation className="w-3 h-3" />
+                          Iniciar ruta
+                        </button>
                       )}
                     </div>
+
+                    {/* Info */}
                     {multiParada && (
                       <p className="text-xs text-orange-700">
-                        📦 Carga el vehículo en orden <strong>inverso</strong>: la parada {pedidos.length} abajo, la parada 1 arriba.
+                        📦 Carga en orden <strong>inverso</strong>: parada {pedidos.length} abajo, parada 1 arriba.
                       </p>
                     )}
                     {etaMax > 0 && (
-                      <p className="text-xs text-orange-600 mt-1">
+                      <p className="text-xs text-orange-600">
                         ⏱ {multiParada ? 'ETA última parada' : 'ETA estimado'}:{' '}
                         <strong>
                           {etaMax < 60 ? `~${etaMax} min` : `~${Math.floor(etaMax / 60)}h${etaMax % 60 > 0 ? ` ${etaMax % 60}min` : ''}`}
                         </strong>
+                      </p>
+                    )}
+                    {trackingError && (
+                      <p className="text-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">⚠️ {trackingError}</p>
+                    )}
+                    {trackingActivo && (
+                      <p className="text-[11px] text-green-700">
+                        📍 Compartiendo tu ubicación en tiempo real con los clientes
                       </p>
                     )}
                   </div>

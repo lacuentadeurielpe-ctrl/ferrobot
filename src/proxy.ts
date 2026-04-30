@@ -13,6 +13,8 @@ const RUTAS_PUBLICAS = [
   '/api/mercadopago/callback', // Callback OAuth de MP — redirige al usuario tras autorizar
   '/invite',      // Página de aceptar invitación de equipo (token público)
   '/delivery',    // Interfaz del repartidor en su celular (token público)
+  '/tracking',    // Página de tracking pública para el cliente (sin login)
+  '/api/tracking',// API de tracking — datos de posición GPS (sin auth)
   // Panel de superadmin — tiene su propio sistema de autenticación
   // (Supabase Auth + tabla superadmins + header x-superadmin-secret)
   '/superadmin',
