@@ -13,12 +13,34 @@ export async function GET() {
   const supabase = await createClient()
 
   // Marcar automáticamente como vencidos los que pasaron fecha_limite
-  await supabase
+  // y sincronizar pedidos.estado_pago → 'credito_vencido' para visibilidad universal
+  const hoy = new Date().toISOString().slice(0, 10)
+  const { data: creditosAVencer } = await supabase
     .from('creditos')
-    .update({ estado: 'vencido' })
+    .select('id, pedido_id')
     .eq('ferreteria_id', session.ferreteriaId)
     .eq('estado', 'activo')
-    .lt('fecha_limite', new Date().toISOString().slice(0, 10))
+    .lt('fecha_limite', hoy)
+
+  if (creditosAVencer && creditosAVencer.length > 0) {
+    await supabase
+      .from('creditos')
+      .update({ estado: 'vencido' })
+      .in('id', creditosAVencer.map(c => c.id))
+
+    const pedidoIds = creditosAVencer
+      .filter(c => c.pedido_id)
+      .map(c => c.pedido_id as string)
+
+    if (pedidoIds.length > 0) {
+      await supabase
+        .from('pedidos')
+        .update({ estado_pago: 'credito_vencido' })
+        .in('id', pedidoIds)
+        .eq('ferreteria_id', session.ferreteriaId)
+        .eq('estado_pago', 'credito_activo')   // solo si sigue como deuda activa
+    }
+  }
 
   const { data, error } = await supabase
     .from('creditos')

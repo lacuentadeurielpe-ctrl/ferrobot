@@ -43,12 +43,12 @@ export function formatHora(time: string | null): string {
 // Devuelve etiqueta legible del estado de un pedido
 export function labelEstadoPedido(estado: string): string {
   const labels: Record<string, string> = {
-    pendiente: 'Pendiente',
-    confirmado: 'Confirmado',
+    pendiente:      'Pendiente',
+    confirmado:     'Confirmado',
     en_preparacion: 'En preparación',
-    enviado: 'Enviado',
-    entregado: 'Entregado',
-    cancelado: 'Cancelado',
+    enviado:        'En camino',   // "En camino" — más claro que "Enviado"
+    entregado:      'Entregado',
+    cancelado:      'Cancelado',
   }
   return labels[estado] ?? estado
 }
@@ -56,14 +56,42 @@ export function labelEstadoPedido(estado: string): string {
 // Devuelve color Tailwind para el badge de estado de pedido
 export function colorEstadoPedido(estado: string): string {
   const colores: Record<string, string> = {
-    pendiente: 'bg-yellow-100 text-yellow-800',
-    confirmado: 'bg-blue-100 text-blue-800',
+    pendiente:      'bg-yellow-100 text-yellow-800',
+    confirmado:     'bg-blue-100 text-blue-800',
     en_preparacion: 'bg-orange-100 text-orange-800',
-    enviado: 'bg-purple-100 text-purple-800',
-    entregado: 'bg-green-100 text-green-800',
-    cancelado: 'bg-red-100 text-red-800',
+    enviado:        'bg-purple-100 text-purple-800',
+    entregado:      'bg-green-100 text-green-800',
+    cancelado:      'bg-red-100 text-red-800',
   }
   return colores[estado] ?? 'bg-gray-100 text-gray-800'
+}
+
+// ── Estado de pago — compartido por dashboard, panel repartidor y bot ─────────
+
+// Devuelve etiqueta legible del estado de pago de un pedido
+export function labelEstadoPago(estado: string): string {
+  const labels: Record<string, string> = {
+    pendiente:           'Sin pago',
+    verificando:         'Verificando',
+    pagado:              'Pagado',
+    credito_activo:      'Deuda activa',
+    credito_vencido:     'Deuda vencida',
+    reembolso_pendiente: 'Reembolso',
+  }
+  return labels[estado] ?? estado
+}
+
+// Devuelve clases Tailwind para el badge de estado de pago
+export function colorEstadoPago(estado: string): string {
+  const colores: Record<string, string> = {
+    pendiente:           'bg-zinc-100 text-zinc-500',
+    verificando:         'bg-amber-100 text-amber-700',
+    pagado:              'bg-green-100 text-green-700',
+    credito_activo:      'bg-orange-100 text-orange-700',
+    credito_vencido:     'bg-red-100 text-red-600',
+    reembolso_pendiente: 'bg-purple-100 text-purple-700',
+  }
+  return colores[estado] ?? 'bg-zinc-100 text-zinc-500'
 }
 
 // Obtiene las iniciales de un nombre (para avatares)

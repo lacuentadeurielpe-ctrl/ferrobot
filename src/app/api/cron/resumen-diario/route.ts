@@ -43,15 +43,35 @@ export async function GET(request: Request) {
 
   const resultados: Array<{ ferreteria: string; ok: boolean; error?: string }> = []
 
-  // Marcar créditos vencidos (ejecutar una vez, aplica a todas las ferreterías)
+  // Marcar créditos vencidos y sincronizar pedidos.estado_pago → 'credito_vencido'
   try {
     const hoy = new Date().toISOString().slice(0, 10)
-    await supabase
+    const { data: creditosAVencer } = await supabase
       .from('creditos')
-      .update({ estado: 'vencido' })
+      .select('id, pedido_id')
       .eq('estado', 'activo')
       .lt('fecha_limite', hoy)
-    console.log('[cron/resumen-diario] Créditos vencidos marcados')
+
+    if (creditosAVencer && creditosAVencer.length > 0) {
+      await supabase
+        .from('creditos')
+        .update({ estado: 'vencido' })
+        .in('id', creditosAVencer.map(c => c.id))
+
+      const pedidoIds = creditosAVencer
+        .filter(c => c.pedido_id)
+        .map(c => c.pedido_id as string)
+
+      if (pedidoIds.length > 0) {
+        await supabase
+          .from('pedidos')
+          .update({ estado_pago: 'credito_vencido' })
+          .in('id', pedidoIds)
+          .eq('estado_pago', 'credito_activo')
+      }
+
+      console.log(`[cron/resumen-diario] ${creditosAVencer.length} crédito(s) vencido(s) marcados`)
+    }
   } catch (e) {
     console.error('[cron/resumen-diario] Error marcando créditos vencidos:', e)
   }
@@ -69,9 +89,9 @@ export async function GET(request: Request) {
 
       const pedidosHoy = pedidos ?? []
       const totalPedidos = pedidosHoy.length
-      const completados = pedidosHoy.filter(p => p.estado === 'entregado' || p.estado === 'completado').length
-      const enCamino = pedidosHoy.filter(p => p.estado === 'en_camino' || p.estado === 'confirmado').length
-      const pendientes = pedidosHoy.filter(p => p.estado === 'pendiente').length
+      const completados = pedidosHoy.filter(p => p.estado === 'entregado').length
+      const enCamino    = pedidosHoy.filter(p => ['enviado', 'en_preparacion', 'confirmado'].includes(p.estado)).length
+      const pendientes  = pedidosHoy.filter(p => p.estado === 'pendiente').length
       const cancelados = pedidosHoy.filter(p => p.estado === 'cancelado').length
       const ingresos = pedidosHoy
         .filter(p => p.estado !== 'cancelado')

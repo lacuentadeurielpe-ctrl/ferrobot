@@ -7,7 +7,7 @@ import {
   FileText, Truck, CreditCard, BadgeCheck, Clock, Navigation, NavigationOff,
 } from 'lucide-react'
 import PinModal from '@/components/ui/PinModal'
-import { cn, formatPEN } from '@/lib/utils'
+import { cn, formatPEN, labelEstadoPago, colorEstadoPago } from '@/lib/utils'
 
 interface ItemPedido {
   id: string
@@ -71,12 +71,7 @@ const ESTADO_LABELS: Record<string, { label: string; icon: string; color: string
   entregado:      { label: 'Entregado',       icon: '✔️', color: 'text-green-600'  },
 }
 
-const PAGO_LABELS: Record<string, { label: string; color: string }> = {
-  pendiente:      { label: 'Pago pendiente',      color: 'bg-zinc-100 text-zinc-600'    },
-  pagado:         { label: 'Pagado ✓',             color: 'bg-green-100 text-green-700'  },
-  credito_activo: { label: 'Deuda activa',         color: 'bg-amber-100 text-amber-700'  },
-  verificando:    { label: 'Verificando pago',     color: 'bg-blue-50 text-blue-600'     },
-}
+// labelEstadoPago / colorEstadoPago importados desde @/lib/utils (fuente única de verdad)
 
 type Tab = 'mis_pedidos' | 'disponibles' | 'rendicion'
 
@@ -338,7 +333,8 @@ export default function DeliveryView({
     const tieneInc     = !!pedido.incidencia_tipo
     const yaPagado     = pedido.estado_pago === 'pagado'
     const estadoInfo   = ESTADO_LABELS[pedido.estado] ?? { label: pedido.estado, icon: '•', color: 'text-zinc-500' }
-    const pagoInfo     = PAGO_LABELS[pedido.estado_pago] ?? PAGO_LABELS['pendiente']
+    const pagoLabel    = labelEstadoPago(pedido.estado_pago)
+    const pagoColor    = colorEstadoPago(pedido.estado_pago)
     const { monto, metodo } = cobroDeState(pedido.id)
     const montoNum     = parseFloat(monto) || 0
     const esParcial    = montoNum > 0 && montoNum < pedido.total
@@ -392,8 +388,8 @@ export default function DeliveryView({
             <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-100', estadoInfo.color)}>
               {estadoInfo.icon} {estadoInfo.label}
             </span>
-            <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', pagoInfo.color)}>
-              {pagoInfo.label}
+            <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', pagoColor)}>
+              {pagoLabel}
             </span>
           </div>
 
@@ -832,9 +828,9 @@ export default function DeliveryView({
                   {c.estado_pago && (
                     <span className={cn(
                       'text-xs px-2 py-0.5 rounded-full font-medium',
-                      (PAGO_LABELS[c.estado_pago] ?? PAGO_LABELS['pendiente']).color
+                      colorEstadoPago(c.estado_pago)
                     )}>
-                      {(PAGO_LABELS[c.estado_pago] ?? PAGO_LABELS['pendiente']).label}
+                      {labelEstadoPago(c.estado_pago)}
                     </span>
                   )}
                 </div>

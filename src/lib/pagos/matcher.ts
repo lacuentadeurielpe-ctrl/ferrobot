@@ -277,30 +277,50 @@ export async function procesarPago(params: MatchParams): Promise<ResultadoMatch>
   if (pedidosParciales.length === 1) {
     const pedido = pedidosParciales[0]
     const nuevoMontoPagado = (pedido.monto_pagado ?? 0) + datos.monto!
-    const saldoRestante = pedido.total - nuevoMontoPagado
+    const saldoRestante    = pedido.total - nuevoMontoPagado
+    const nuevoEstadoPago  = saldoRestante <= 0 ? 'pagado' : 'credito_activo'
 
     await supabase
       .from('pedidos')
       .update({
         monto_pagado: nuevoMontoPagado,
-        estado_pago: saldoRestante <= 0 ? 'pagado' : 'parcial',
+        estado_pago:  nuevoEstadoPago,
       })
       .eq('id', pedido.id)
       .eq('ferreteria_id', ferreteriaId)   // FERRETERÍA AISLADA
 
+    // Si queda saldo pendiente → crear deuda en creditos (igual que el repartidor)
+    if (saldoRestante > 0) {
+      const fechaLimiteCredito = new Date()
+      fechaLimiteCredito.setDate(fechaLimiteCredito.getDate() + 30)
+      await supabase.from('creditos').insert({
+        ferreteria_id: ferreteriaId,
+        cliente_id:    clienteId ?? null,
+        pedido_id:     pedido.id,
+        monto_total:   saldoRestante,
+        monto_pagado:  0,
+        fecha_limite:  fechaLimiteCredito.toISOString().slice(0, 10),
+        estado:        'activo',
+        notas:         `Deuda generada por pago parcial vía WhatsApp. Abonado: S/${datos.monto!.toFixed(2)} de S/${pedido.total.toFixed(2)}. Op: ${datos.numero_operacion ?? 'N/A'}`,
+        aprobado_por:  'bot:pago_automatico',
+      })
+    }
+
     const pagoId = await registrarPago(supabase, {
       ferreteriaId, clienteId, pedidoId: pedido.id, datos, urlCaptura,
       estado: 'confirmado_auto',
-      notas: `Pago parcial. Nuevo monto pagado: S/${nuevoMontoPagado.toFixed(2)} / S/${pedido.total.toFixed(2)}.`,
+      notas: `Pago ${nuevoEstadoPago === 'pagado' ? 'completo' : 'parcial'}. Monto pagado: S/${nuevoMontoPagado.toFixed(2)} / S/${pedido.total.toFixed(2)}.`,
     })
 
     return {
       ok: true,
       estado: 'confirmado_auto',
       mensajeCliente:
-        `✅ Recibí tu pago parcial de *S/${datos.monto!.toFixed(2)}* para el pedido *${pedido.numero_pedido}*.\n\n` +
-        `Pagado: S/${nuevoMontoPagado.toFixed(2)} / S/${pedido.total.toFixed(2)}\n` +
-        `Saldo pendiente: *S/${saldoRestante.toFixed(2)}* (puede pagarse contra entrega) 🙏`,
+        nuevoEstadoPago === 'pagado'
+          ? `✅ ¡Pago completo! Recibí tu ${datos.tipo === 'yape' ? 'Yape' : datos.tipo === 'plin' ? 'Plin' : 'transferencia'} de *S/${datos.monto!.toFixed(2)}* para el pedido *${pedido.numero_pedido}* 🎉\n\n¡Gracias! Tu pedido queda como *pagado* 🙏`
+          : `✅ Recibí tu pago parcial de *S/${datos.monto!.toFixed(2)}* para el pedido *${pedido.numero_pedido}*.\n\n` +
+            `Pagado: S/${nuevoMontoPagado.toFixed(2)} / S/${pedido.total.toFixed(2)}\n` +
+            `Saldo pendiente: *S/${saldoRestante.toFixed(2)}* — quedó registrado como deuda. El encargado se comunicará contigo para coordinar el pago restante 🙏`,
       pagoId,
       pedidoId: pedido.id,
       pedidoNumero: pedido.numero_pedido,

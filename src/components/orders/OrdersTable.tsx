@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido } from '@/lib/utils'
+import { cn, formatPEN, formatFecha, labelEstadoPedido, colorEstadoPedido, labelEstadoPago, colorEstadoPago } from '@/lib/utils'
 import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2, Mic, Clock } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import PedidoVozModal from './PedidoVozModal'
@@ -77,29 +77,7 @@ function labelMetodoPago(metodo: string | null): string {
   return labels[metodo] ?? metodo
 }
 
-function labelEstadoPago(estado: string): string {
-  const labels: Record<string, string> = {
-    pendiente: 'Sin pago',
-    verificando: 'Verificando',
-    pagado: 'Pagado',
-    credito_activo: 'Crédito activo',
-    credito_vencido: 'Crédito vencido',
-    reembolso_pendiente: 'Reembolso',
-  }
-  return labels[estado] ?? estado
-}
-
-function colorEstadoPago(estado: string): string {
-  const colors: Record<string, string> = {
-    pendiente: 'bg-zinc-100 text-zinc-500',
-    verificando: 'bg-amber-100 text-amber-700',
-    pagado: 'bg-green-100 text-green-700',
-    credito_activo: 'bg-blue-100 text-blue-700',
-    credito_vencido: 'bg-red-100 text-red-600',
-    reembolso_pendiente: 'bg-purple-100 text-purple-700',
-  }
-  return colors[estado] ?? 'bg-zinc-100 text-zinc-500'
-}
+// labelEstadoPago y colorEstadoPago importados desde @/lib/utils (fuente única de verdad)
 
 interface Producto {
   id: string
