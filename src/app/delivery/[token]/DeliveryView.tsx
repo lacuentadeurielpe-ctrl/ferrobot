@@ -622,30 +622,34 @@ export default function DeliveryView({
             </div>
           ) : (
             <>
-              {/* ── Banner de ruta multi-parada ── */}
-              {pedidos.length >= 2 && (() => {
-                // Calcular si la ruta está optimizada (al menos un pedido tiene orden_en_ruta)
+              {/* ── Banner de ruta ── */}
+              {(() => {
                 const rutaOptimizada = pedidos.some(p => p.entregas?.[0]?.orden_en_ruta != null)
-                const etaMax = Math.max(...pedidos.map(p => p.eta_minutos ?? 0))
+                const etaMax = pedidos.length > 0
+                  ? Math.max(...pedidos.map(p => p.eta_minutos ?? 0))
+                  : 0
+                const multiParada = pedidos.length >= 2
                 return (
                   <div className="bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3">
                     <div className="flex items-center gap-2 mb-1.5">
                       <Truck className="w-4 h-4 text-orange-600 shrink-0" />
                       <p className="text-sm font-semibold text-orange-800">
-                        Ruta con {pedidos.length} paradas
+                        {multiParada ? `Ruta con ${pedidos.length} paradas` : 'Tu entrega de hoy'}
                       </p>
-                      {rutaOptimizada && (
+                      {rutaOptimizada && multiParada && (
                         <span className="text-[10px] bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full font-medium">
                           ✓ Optimizada
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-orange-700">
-                      📦 Carga el vehículo en orden <strong>inverso</strong>: la parada {pedidos.length} abajo, la parada 1 arriba.
-                    </p>
+                    {multiParada && (
+                      <p className="text-xs text-orange-700">
+                        📦 Carga el vehículo en orden <strong>inverso</strong>: la parada {pedidos.length} abajo, la parada 1 arriba.
+                      </p>
+                    )}
                     {etaMax > 0 && (
                       <p className="text-xs text-orange-600 mt-1">
-                        ⏱ ETA última parada:{' '}
+                        ⏱ {multiParada ? 'ETA última parada' : 'ETA estimado'}:{' '}
                         <strong>
                           {etaMax < 60 ? `~${etaMax} min` : `~${Math.floor(etaMax / 60)}h${etaMax % 60 > 0 ? ` ${etaMax % 60}min` : ''}`}
                         </strong>
