@@ -44,11 +44,13 @@ export async function GET(request: Request) {
   const resultados: Array<{ ferreteria: string; ok: boolean; error?: string }> = []
 
   // Marcar créditos vencidos y sincronizar pedidos.estado_pago → 'credito_vencido'
+  // FERRETERÍA AISLADA: el update de pedidos se agrupa por ferreteria_id para
+  // no usar un .in() sin filtro de tenant con el admin client (bypasea RLS).
   try {
     const hoy = new Date().toISOString().slice(0, 10)
     const { data: creditosAVencer } = await supabase
       .from('creditos')
-      .select('id, pedido_id')
+      .select('id, pedido_id, ferreteria_id')   // ferreteria_id para aislar el update
       .eq('estado', 'activo')
       .lt('fecha_limite', hoy)
 
@@ -58,15 +60,21 @@ export async function GET(request: Request) {
         .update({ estado: 'vencido' })
         .in('id', creditosAVencer.map(c => c.id))
 
-      const pedidoIds = creditosAVencer
-        .filter(c => c.pedido_id)
-        .map(c => c.pedido_id as string)
+      // Agrupar pedido_ids por ferreteria_id para filtrar correctamente
+      const porFerreteria = new Map<string, string[]>()
+      for (const c of creditosAVencer) {
+        if (!c.pedido_id || !c.ferreteria_id) continue
+        const lista = porFerreteria.get(c.ferreteria_id) ?? []
+        lista.push(c.pedido_id)
+        porFerreteria.set(c.ferreteria_id, lista)
+      }
 
-      if (pedidoIds.length > 0) {
+      for (const [fid, pedidoIds] of porFerreteria) {
         await supabase
           .from('pedidos')
           .update({ estado_pago: 'credito_vencido' })
           .in('id', pedidoIds)
+          .eq('ferreteria_id', fid)              // FERRETERÍA AISLADA
           .eq('estado_pago', 'credito_activo')
       }
 
