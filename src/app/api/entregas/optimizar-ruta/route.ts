@@ -24,6 +24,18 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
 
+  // ── Verificar que el repartidor pertenece a ESTA ferretería ──────────────
+  const { data: repCheck } = await supabase
+    .from('repartidores')
+    .select('id')
+    .eq('id', repartidor_id)
+    .eq('ferreteria_id', session.ferreteriaId)   // FERRETERÍA AISLADA
+    .single()
+
+  if (!repCheck) {
+    return NextResponse.json({ error: 'Repartidor no encontrado' }, { status: 404 })
+  }
+
   // ── Coordenadas de la ferretería ──────────────────────────────────────────
   const { data: ferreteria } = await supabase
     .from('ferreterias')
