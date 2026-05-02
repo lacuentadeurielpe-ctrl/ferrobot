@@ -1,5 +1,5 @@
 // Búsqueda de productos en el catálogo y construcción de cotizaciones
-import type { Producto, ReglaDescuento } from '@/types/database'
+import type { Producto, ReglaDescuento, UnidadProducto } from '@/types/database'
 import type { ItemSolicitado } from '@/lib/ai/deepseek'
 import { formatPEN } from '@/lib/utils'
 
@@ -15,6 +15,8 @@ export interface ResultadoBusqueda {
   nota: string | null
   requiere_aprobacion: boolean
   modo_aplicado: 'base' | 'descuento' | 'negociacion'
+  // Unidad alternativa aplicada (si el cliente pidió por lata, m³, etc.)
+  unidad_alternativa?: UnidadProducto
 }
 
 // Normaliza texto: minúsculas, sin tildes, solo alfanumérico+espacios
@@ -131,6 +133,20 @@ function calcularPrecio(
   }
 }
 
+// Busca una unidad alternativa por nombre dentro del producto
+function buscarUnidadAlternativa(nombreBuscado: string, producto: Producto): UnidadProducto | null {
+  const unidades = (producto.unidades_producto ?? []).filter(u => u.activo)
+  if (unidades.length === 0) return null
+  const termino = normalizar(nombreBuscado)
+  // Buscar por coincidencia en la etiqueta o código de unidad
+  return unidades.find(u =>
+    normalizar(u.etiqueta).includes(termino) ||
+    termino.includes(normalizar(u.etiqueta)) ||
+    normalizar(u.unidad).includes(termino) ||
+    termino.includes(normalizar(u.unidad))
+  ) ?? null
+}
+
 // Procesa todos los items solicitados y retorna resultados detallados
 export function procesarItemsSolicitados(
   itemsSolicitados: ItemSolicitado[],
@@ -156,19 +172,31 @@ export function procesarItemsSolicitados(
       }
     }
 
+    // ── Unidad alternativa (ej: cliente pidió "por metro cúbico") ─────────────
+    const unidadAlt = buscarUnidadAlternativa(item.nombre_buscado, producto)
+
     const stockDisponible = producto.stock
-    const stockOk = stockDisponible >= item.cantidad
+    const puedeVenderSinStock = producto.venta_sin_stock === true
+
+    const stockOk = stockDisponible >= item.cantidad || puedeVenderSinStock
     const stockParcial = !stockOk && stockDisponible > 0
-    const sinStock = stockDisponible === 0
+    const sinStock = !puedeVenderSinStock && stockDisponible === 0
 
     const cantidadFinal = stockOk ? item.cantidad : stockDisponible
-    const { precio_unitario, requiere_aprobacion, modo, nota } = calcularPrecio(producto, cantidadFinal)
+
+    // Si hay unidad alternativa, usar su precio directamente
+    const precioBase = unidadAlt ? unidadAlt.precio : undefined
+    const { precio_unitario, requiere_aprobacion, modo, nota } = precioBase
+      ? { precio_unitario: precioBase, requiere_aprobacion: false, modo: 'base' as const, nota: `Por ${unidadAlt!.etiqueta}` }
+      : calcularPrecio(producto, cantidadFinal)
 
     let notaFinal = nota
-    if (stockParcial) {
-      notaFinal = `Solo hay ${stockDisponible} ${producto.unidad}${stockDisponible !== 1 ? 's' : ''} disponibles (cantidad ajustada)`
-    } else if (sinStock) {
+    if (sinStock) {
       notaFinal = 'Sin stock disponible'
+    } else if (stockParcial) {
+      notaFinal = `Solo hay ${stockDisponible} ${producto.unidad}${stockDisponible !== 1 ? 's' : ''} disponibles (cantidad ajustada)`
+    } else if (puedeVenderSinStock && stockDisponible === 0) {
+      notaFinal = (notaFinal ? notaFinal + ' · ' : '') + 'Disponible bajo pedido'
     }
 
     return {
@@ -183,6 +211,7 @@ export function procesarItemsSolicitados(
       nota: notaFinal,
       requiere_aprobacion,
       modo_aplicado: modo,
+      unidad_alternativa: unidadAlt ?? undefined,
     }
   })
 
@@ -218,7 +247,10 @@ export function formatearCotizacion(
 
   for (const r of disponibles) {
     texto += `\n✅ *${r.producto!.nombre}*\n`
-    texto += `   ${r.cantidad} ${r.producto!.unidad}${r.cantidad !== 1 ? 's' : ''} × ${formatPEN(r.precio_unitario)}\n`
+    const unidadLabel = r.unidad_alternativa
+      ? r.unidad_alternativa.etiqueta
+      : `${r.producto!.unidad}${r.cantidad !== 1 ? 's' : ''}`
+    texto += `   ${r.cantidad} ${unidadLabel} × ${formatPEN(r.precio_unitario)}\n`
     if (r.nota) {
       texto += `   _${r.nota}_\n`
     } else if (r.modo_aplicado === 'descuento') {

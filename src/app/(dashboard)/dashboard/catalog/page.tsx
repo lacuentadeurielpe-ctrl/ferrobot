@@ -16,7 +16,7 @@ export default async function CatalogPage() {
   const [{ data: productos }, { data: categorias }, { data: configBot }] = await Promise.all([
     supabase
       .from('productos')
-      .select('*, categorias(id, nombre), reglas_descuento(*)')
+      .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
       .eq('ferreteria_id', session.ferreteriaId)
       .order('nombre'),
     supabase

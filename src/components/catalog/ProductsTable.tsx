@@ -186,6 +186,11 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     <span className="text-sm font-bold text-zinc-900 tabular-nums">
                       {formatPEN(producto.precio_base)}
                     </span>
+                    {producto.afecto_igv && (
+                      <p className="text-[10px] text-zinc-400 mt-0.5 tabular-nums">
+                        +IGV {formatPEN(producto.precio_base * 0.18 / 1.18)}
+                      </p>
+                    )}
                     {producto.modo_negociacion && (
                       <p className="text-[10px] text-zinc-400 mt-0.5 font-medium">negociable</p>
                     )}
@@ -215,9 +220,12 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`text-sm font-semibold tabular-nums ${producto.stock === 0 ? 'text-red-500' : producto.stock < 10 ? 'text-amber-600' : 'text-zinc-700'}`}>
+                    <span className={`text-sm font-semibold tabular-nums ${producto.stock === 0 && !producto.venta_sin_stock ? 'text-red-500' : producto.stock < 10 ? 'text-amber-600' : 'text-zinc-700'}`}>
                       {producto.stock}
                     </span>
+                    {producto.venta_sin_stock && (
+                      <p className="text-[10px] text-blue-500 font-medium mt-0.5">bajo pedido</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActivo(producto)} disabled={loadingToggle === producto.id}

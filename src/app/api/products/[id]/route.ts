@@ -10,14 +10,14 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const { id } = await params
   const { data, error } = await supabase
     .from('productos')
-    .select('*, categorias(id, nombre), reglas_descuento(*)')
+    .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
     .eq('id', id).single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
   return NextResponse.json(data)
 }
 
-// PATCH /api/products/[id] — actualizar producto y reemplazar reglas de descuento
+// PATCH /api/products/[id] — actualizar producto, reglas de descuento y unidades adicionales
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -25,7 +25,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { id } = await params
   const body = await request.json()
-  const { reglas_descuento, ...productoData } = body
+  const { reglas_descuento, unidades_producto: unidadesInput, ...productoData } = body
 
   // Actualizar campos del producto
   const { error: errProducto } = await supabase
@@ -47,9 +47,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
+  // Reemplazar unidades adicionales si se enviaron
+  if (unidadesInput !== undefined) {
+    // Obtener ferreteria_id del producto para FERRETERÍA AISLADA
+    const { data: prod } = await supabase
+      .from('productos').select('ferreteria_id').eq('id', id).single()
+
+    await supabase.from('unidades_producto').delete().eq('producto_id', id)
+
+    if (unidadesInput.length > 0 && prod) {
+      const unidades = unidadesInput.map((u: Record<string, unknown>) => ({
+        ...u,
+        producto_id: id,
+        ferreteria_id: prod.ferreteria_id,
+      }))
+      const { error: errU } = await supabase.from('unidades_producto').insert(unidades)
+      if (errU) return NextResponse.json({ error: errU.message }, { status: 500 })
+    }
+  }
+
   const { data: productoCompleto } = await supabase
     .from('productos')
-    .select('*, categorias(id, nombre), reglas_descuento(*)')
+    .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
     .eq('id', id).single()
 
   return NextResponse.json(productoCompleto)

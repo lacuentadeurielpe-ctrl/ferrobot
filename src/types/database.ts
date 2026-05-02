@@ -179,12 +179,26 @@ export interface Producto {
   modo_negociacion: boolean
   umbral_negociacion_cantidad: number | null
   afecto_igv: boolean            // F1: si aplica IGV al producto
+  venta_sin_stock: boolean       // permite vender aunque stock = 0
   activo: boolean
   created_at: string
   updated_at: string
   // joins
   categorias?: Categoria
   reglas_descuento?: ReglaDescuento[]
+  unidades_producto?: UnidadProducto[]
+}
+
+export interface UnidadProducto {
+  id: string
+  ferreteria_id: string
+  producto_id: string
+  unidad: string            // código SUNAT o libre, ej: 'lata', 'MTR3'
+  etiqueta: string          // nombre legible, ej: 'Por lata', 'Por metro cúbico'
+  precio: number            // precio de venta para esta unidad
+  factor_conversion: number // cuántas unidades base representa (1 m³ = 18 latas → 18)
+  activo: boolean
+  created_at: string
 }
 
 export interface ReglaDescuento {

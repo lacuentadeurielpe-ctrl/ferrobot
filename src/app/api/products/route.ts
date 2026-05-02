@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('productos')
-    .select('*, categorias(id, nombre), reglas_descuento(*)')
+    .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
     .order('nombre', { ascending: true })
 
   if (categoriaId) query = query.eq('categoria_id', categoriaId)
@@ -35,12 +35,41 @@ export async function POST(request: Request) {
 
   const supabase = await createClient()
   const body = await request.json()
-  const { reglas_descuento, ...productoData } = body
+  const { reglas_descuento, unidades_producto: unidadesInput, ...productoData } = body
 
   // Validaciones básicas
   if (!productoData.nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
   if (productoData.precio_base == null || productoData.precio_base < 0)
     return NextResponse.json({ error: 'Precio inválido' }, { status: 400 })
+
+  // ── Resolver categoria string → categoria_id UUID (usado por el agente IA) ──
+  // El agente manda { categoria: "Cemento" } — lo convertimos a { categoria_id: "uuid" }
+  if (productoData.categoria && !productoData.categoria_id) {
+    const nombreCat = String(productoData.categoria).trim()
+    if (nombreCat) {
+      // Buscar categoría existente por nombre (case-insensitive)
+      const { data: catExistente } = await supabase
+        .from('categorias')
+        .select('id')
+        .eq('ferreteria_id', session.ferreteriaId)
+        .ilike('nombre', nombreCat)
+        .limit(1)
+        .single()
+
+      if (catExistente) {
+        productoData.categoria_id = catExistente.id
+      } else {
+        // Crear la categoría si no existe
+        const { data: catNueva } = await supabase
+          .from('categorias')
+          .insert({ ferreteria_id: session.ferreteriaId, nombre: nombreCat, orden: 99 })
+          .select('id')
+          .single()
+        if (catNueva) productoData.categoria_id = catNueva.id
+      }
+    }
+    delete productoData.categoria  // quitar el campo string antes del insert
+  }
 
   // Crear el producto
   const { data: producto, error: errProducto } = await supabase
@@ -60,10 +89,20 @@ export async function POST(request: Request) {
     if (errReglas) return NextResponse.json({ error: errReglas.message }, { status: 500 })
   }
 
-  // Retornar producto completo con reglas
+  // Crear unidades adicionales si las hay
+  if (unidadesInput?.length > 0) {
+    const unidades = unidadesInput.map((u: Record<string, unknown>) => ({
+      ...u,
+      producto_id: producto.id,
+      ferreteria_id: session.ferreteriaId,
+    }))
+    await supabase.from('unidades_producto').insert(unidades)
+  }
+
+  // Retornar producto completo con reglas y unidades
   const { data: productoCompleto } = await supabase
     .from('productos')
-    .select('*, categorias(id, nombre), reglas_descuento(*)')
+    .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
     .eq('id', producto.id).single()
 
   return NextResponse.json(productoCompleto, { status: 201 })
