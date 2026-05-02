@@ -16,9 +16,10 @@ interface ProductsTableProps {
   productos: Producto[]
   categorias: Categoria[]
   margenMinimo?: number
+  igvGlobal?: boolean
 }
 
-export default function ProductsTable({ productos: initialProductos, categorias: initialCategorias, margenMinimo = 10 }: ProductsTableProps) {
+export default function ProductsTable({ productos: initialProductos, categorias: initialCategorias, margenMinimo = 10, igvGlobal = false }: ProductsTableProps) {
   const router = useRouter()
 
   const [productos, setProductos] = useState(initialProductos)
@@ -186,10 +187,13 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     <span className="text-sm font-bold text-zinc-900 tabular-nums">
                       {formatPEN(producto.precio_base)}
                     </span>
-                    {producto.afecto_igv && (
+                    {igvGlobal && producto.afecto_igv && (
                       <p className="text-[10px] text-zinc-400 mt-0.5 tabular-nums">
-                        +IGV {formatPEN(producto.precio_base * 0.18 / 1.18)}
+                        IGV incl. {formatPEN(producto.precio_base * 0.18 / 1.18)}
                       </p>
+                    )}
+                    {igvGlobal && !producto.afecto_igv && (
+                      <p className="text-[10px] text-amber-500 mt-0.5 font-medium">exonerado</p>
                     )}
                     {producto.modo_negociacion && (
                       <p className="text-[10px] text-zinc-400 mt-0.5 font-medium">negociable</p>
@@ -197,8 +201,12 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                   </td>
                   <td className="px-4 py-3 text-right">
                     {producto.precio_compra > 0 ? (() => {
-                      const utilidad = producto.precio_base - producto.precio_compra
-                      const margen = producto.precio_base > 0 ? (utilidad / producto.precio_base) * 100 : 0
+                      // Si precios incluyen IGV, calcular ganancia sobre el neto
+                      const precioNeto = igvGlobal && producto.afecto_igv
+                        ? producto.precio_base / 1.18
+                        : producto.precio_base
+                      const utilidad = precioNeto - producto.precio_compra
+                      const margen = precioNeto > 0 ? (utilidad / precioNeto) * 100 : 0
                       const bajo = margen < margenMinimo
                       return (
                         <div className="space-y-0.5">
@@ -208,7 +216,9 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                               ? <AlertTriangle className="w-3 h-3" />
                               : <TrendingUp className="w-3 h-3" />
                             }
-                            {margen.toFixed(0)}%
+                            <span className="tabular-nums">{formatPEN(utilidad)}</span>
+                            <span className="opacity-60">·</span>
+                            <span className="tabular-nums">{margen.toFixed(0)}%</span>
                           </div>
                         </div>
                       )

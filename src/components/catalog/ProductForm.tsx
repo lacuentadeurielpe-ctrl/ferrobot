@@ -43,12 +43,13 @@ interface ProductFormProps {
   producto?: Producto
   categorias: Categoria[]
   margenMinimo?: number
+  igvGlobal?: boolean   // ferreterias.igv_incluido_en_precios — configuración global del negocio
   onSuccess?: () => void
 }
 
 const IGV_RATE = 0.18
 
-export default function ProductForm({ producto, categorias, margenMinimo = 10, onSuccess }: ProductFormProps) {
+export default function ProductForm({ producto, categorias, margenMinimo = 10, igvGlobal = false, onSuccess }: ProductFormProps) {
   const router = useRouter()
   const isEdit = !!producto
 
@@ -127,8 +128,10 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
   // ── Rentabilidad con IGV ───────────────────────────────────────────────────
   const precioVenta = parseFloat(form.precio_base) || 0
   const precioCompra = parseFloat(form.precio_compra) || 0
-  // Si el precio ya incluye IGV, extraemos el neto
-  const precioSinIgv = form.afecto_igv && precioVenta > 0 ? precioVenta / (1 + IGV_RATE) : precioVenta
+  // IGV se extrae del precio solo cuando: la config global dice "precios incluyen IGV"
+  // Y este producto específico está afecto a IGV (no es exonerado)
+  const precioConIgvIncluido = igvGlobal && form.afecto_igv && precioVenta > 0
+  const precioSinIgv = precioConIgvIncluido ? precioVenta / (1 + IGV_RATE) : precioVenta
   const igvMonto = precioVenta - precioSinIgv
   const utilidad = precioSinIgv - precioCompra
   const margen = precioSinIgv > 0 ? (utilidad / precioSinIgv) * 100 : 0
@@ -334,7 +337,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
               <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Precio de venta (S/) <span className="text-red-500">*</span>
                 <span className="ml-1 text-xs text-zinc-400 font-normal">
-                  {form.afecto_igv ? 'incluye IGV' : 'sin IGV'}
+                  {igvGlobal && form.afecto_igv ? 'IGV incluido' : igvGlobal ? 'exonerado' : 'sin IGV'}
                 </span>
               </label>
               <input
@@ -357,8 +360,8 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                   ? 'bg-red-50 border border-red-200'
                   : 'bg-green-50 border border-green-200'
               )}>
-                {/* Desglose IGV */}
-                {form.afecto_igv && (
+                {/* Desglose IGV — solo cuando aplica */}
+                {precioConIgvIncluido && (
                   <div className="flex items-center gap-2 text-xs text-zinc-500 pb-1.5 border-b border-zinc-200/60">
                     <Receipt className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                     <span className="tabular-nums">
@@ -367,7 +370,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                     </span>
                   </div>
                 )}
-                {/* Utilidad */}
+                {/* Utilidad: S/ monto + % */}
                 <div className="flex items-center gap-2">
                   {tieneCosto && margenBajo
                     ? <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
@@ -376,7 +379,11 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
                   <div className="flex-1 min-w-0">
                     {tieneCosto ? (
                       <p className={cn('text-sm font-semibold', tieneCosto && margenBajo ? 'text-red-700' : 'text-green-700')}>
-                        Ganancia{form.afecto_igv ? ' neta' : ''}: {formatPEN(utilidad)} / {labelUnidad(form.unidad)} ({margen.toFixed(1)}%)
+                        Ganancia{precioConIgvIncluido ? ' neta' : ''}:{' '}
+                        <span className="tabular-nums">{formatPEN(utilidad)}</span>
+                        {' '}·{' '}
+                        <span className="tabular-nums">{margen.toFixed(1)}%</span>
+                        <span className="text-xs font-normal ml-1 opacity-70">/ {labelUnidad(form.unidad)}</span>
                       </p>
                     ) : (
                       <p className="text-sm font-semibold text-amber-700">
@@ -423,29 +430,45 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, o
             </div>
           </div>
 
-          {/* IGV */}
-          <div className="rounded-xl border border-zinc-100 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-zinc-800">Afecto a IGV</p>
+          {/* IGV — muestra config global + toggle de excepción por producto */}
+          <div className="rounded-xl border border-zinc-100 p-4 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <Receipt className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-zinc-800">Configuración de IGV</p>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  El precio de venta incluye 18% de IGV — se muestra el desglose en la cotización
+                  {igvGlobal
+                    ? 'Tu negocio tiene configurado que los precios ya incluyen IGV (18%).'
+                    : 'Tu negocio tiene configurado que los precios no incluyen IGV (se suma al emitir comprobante).'}
+                  {' '}
+                  <a href="/dashboard/settings#facturacion" className="text-zinc-400 hover:text-zinc-700 underline transition">
+                    Cambiar en Configuración
+                  </a>
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setForm((p) => ({ ...p, afecto_igv: !p.afecto_igv }))}
-                className={cn(
-                  'relative inline-flex h-6 w-11 items-center rounded-full transition',
-                  form.afecto_igv ? 'bg-zinc-900' : 'bg-zinc-200'
-                )}
-              >
-                <span className={cn(
-                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition',
-                  form.afecto_igv ? 'translate-x-6' : 'translate-x-1'
-                )} />
-              </button>
             </div>
+            {/* Solo mostrar toggle de excepción cuando el negocio tiene IGV global activo */}
+            {igvGlobal && (
+              <div className="flex items-center justify-between pt-2 border-t border-zinc-100">
+                <div>
+                  <p className="text-sm text-zinc-700">Este producto está exonerado de IGV</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">Actívalo solo si este producto no está gravado (ej: artículos exonerados por SUNAT)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, afecto_igv: !p.afecto_igv }))}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition ml-4 shrink-0',
+                    !form.afecto_igv ? 'bg-amber-500' : 'bg-zinc-200'
+                  )}
+                >
+                  <span className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition',
+                    !form.afecto_igv ? 'translate-x-6' : 'translate-x-1'
+                  )} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Venta sin stock */}

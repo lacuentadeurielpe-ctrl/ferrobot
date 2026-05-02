@@ -12,10 +12,10 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
   const supabase = await createClient()
 
-  const [{ data: producto }, { data: categorias }, { data: config }] = await Promise.all([
+  const [{ data: producto }, { data: categorias }, { data: config }, { data: ferreteria }] = await Promise.all([
     supabase
       .from('productos')
-      .select('*, categorias(id, nombre), reglas_descuento(*)')
+      .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
       .eq('id', id)
       .eq('ferreteria_id', session.ferreteriaId)
       .single(),
@@ -23,6 +23,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
       .from('categorias').select('*').eq('ferreteria_id', session.ferreteriaId).order('nombre'),
     supabase
       .from('configuracion_bot').select('margen_minimo_porcentaje').eq('ferreteria_id', session.ferreteriaId).single(),
+    supabase
+      .from('ferreterias').select('igv_incluido_en_precios').eq('id', session.ferreteriaId).single(),
   ])
 
   if (!producto) notFound()
@@ -44,6 +46,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           producto={producto}
           categorias={categorias ?? []}
           margenMinimo={config?.margen_minimo_porcentaje ?? 10}
+          igvGlobal={ferreteria?.igv_incluido_en_precios ?? false}
         />
       </div>
     </div>
