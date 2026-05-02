@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from('productos')
     .select('*, categorias(id, nombre), reglas_descuento(*), unidades_producto(*)')
+    .eq('ferreteria_id', session.ferreteriaId)
     .order('nombre', { ascending: true })
 
   if (categoriaId) query = query.eq('categoria_id', categoriaId)
