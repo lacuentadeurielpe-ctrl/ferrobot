@@ -192,8 +192,8 @@ export default function ProductsTable({ productos: initialProductos, categorias:
               <tr className="border-b border-zinc-100 bg-zinc-50">
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Producto</th>
                 <th className="text-left px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Categoría</th>
-                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Precio venta</th>
-                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Costo / Margen</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Precio</th>
+                <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Ganancia</th>
                 <th className="text-right px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Stock</th>
                 <th className="text-center px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Estado</th>
                 <th className="px-4 py-3 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Descuentos</th>
@@ -219,25 +219,26 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                       <span className="text-xs text-zinc-300">—</span>
                     )}
                   </td>
+                  {/* Columna Precio — limpia, sin datos de IGV en la tabla */}
                   <td className="px-4 py-3 text-right">
                     <span className="text-sm font-bold text-zinc-900 tabular-nums">
                       {formatPEN(producto.precio_base)}
                     </span>
-                    {igv && producto.afecto_igv && (
-                      <p className="text-[10px] text-zinc-400 mt-0.5 tabular-nums">
-                        IGV incl. {formatPEN(producto.precio_base * 0.18 / 1.18)}
-                      </p>
-                    )}
-                    {igv && !producto.afecto_igv && (
-                      <p className="text-[10px] text-amber-500 mt-0.5 font-medium">exonerado</p>
-                    )}
-                    {producto.modo_negociacion && (
-                      <p className="text-[10px] text-zinc-400 mt-0.5 font-medium">negociable</p>
-                    )}
+                    <div className="flex items-center justify-end gap-1 mt-0.5 flex-wrap">
+                      {igv && producto.afecto_igv && (
+                        <span className="text-[9px] font-semibold bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-full">c/IGV</span>
+                      )}
+                      {igv && !producto.afecto_igv && (
+                        <span className="text-[9px] font-semibold bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full">exonerado</span>
+                      )}
+                      {producto.modo_negociacion && (
+                        <span className="text-[9px] font-semibold bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-full">negociable</span>
+                      )}
+                    </div>
                   </td>
+                  {/* Columna Ganancia — S/ monto + % en una sola línea */}
                   <td className="px-4 py-3 text-right">
                     {producto.precio_compra > 0 ? (() => {
-                      // Si precios incluyen IGV, calcular ganancia sobre el neto
                       const precioNeto = igv && producto.afecto_igv
                         ? producto.precio_base / 1.18
                         : producto.precio_base
@@ -245,24 +246,14 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                       const margen = precioNeto > 0 ? (utilidad / precioNeto) * 100 : 0
                       const bajo = margen < margenMinimo
                       return (
-                        <div className="space-y-0.5">
-                          <p className="text-xs text-zinc-400 tabular-nums">{formatPEN(producto.precio_compra)}</p>
-                          <div className={`flex items-center justify-end gap-1 text-xs font-semibold ${bajo ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {bajo
-                              ? <AlertTriangle className="w-3 h-3" />
-                              : <TrendingUp className="w-3 h-3" />
-                            }
-                            <span className="tabular-nums">{formatPEN(utilidad)}</span>
-                            <span className="opacity-60">·</span>
-                            <span className="tabular-nums">{margen.toFixed(0)}%</span>
-                          </div>
+                        <div className={`flex items-center justify-end gap-1 text-sm font-semibold tabular-nums ${bajo ? 'text-red-500' : 'text-emerald-600'}`}>
+                          {bajo ? <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> : <TrendingUp className="w-3.5 h-3.5 shrink-0" />}
+                          {formatPEN(utilidad)}
+                          <span className="text-xs font-normal opacity-60">({margen.toFixed(0)}%)</span>
                         </div>
                       )
                     })() : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-                        <AlertTriangle className="w-2.5 h-2.5" />
-                        Sin costo
-                      </span>
+                      <span className="text-xs text-zinc-300">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
