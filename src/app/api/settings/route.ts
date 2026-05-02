@@ -36,6 +36,7 @@ export async function PATCH(request: Request) {
     'modo_asignacion_delivery',
     'datos_yape', 'datos_plin', 'datos_transferencia', 'metodos_pago_activos',
     'tolerancia_dias_pago',
+    'igv_incluido_en_precios',
   ]
 
   const update: Record<string, unknown> = {}

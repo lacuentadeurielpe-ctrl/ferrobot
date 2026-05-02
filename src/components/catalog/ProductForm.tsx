@@ -438,12 +438,8 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, i
                 <p className="text-sm font-medium text-zinc-800">Configuración de IGV</p>
                 <p className="text-xs text-zinc-500 mt-0.5">
                   {igvGlobal
-                    ? 'Tu negocio tiene configurado que los precios ya incluyen IGV (18%).'
-                    : 'Tu negocio tiene configurado que los precios no incluyen IGV (se suma al emitir comprobante).'}
-                  {' '}
-                  <a href="/dashboard/settings#facturacion" className="text-zinc-400 hover:text-zinc-700 underline transition">
-                    Cambiar en Configuración
-                  </a>
+                    ? 'Los precios incluyen IGV 18% — se muestra el desglose en la rentabilidad.'
+                    : 'Los precios no incluyen IGV. Puedes cambiarlo desde el catálogo (botón IGV en la barra de filtros).'}
                 </p>
               </div>
             </div>

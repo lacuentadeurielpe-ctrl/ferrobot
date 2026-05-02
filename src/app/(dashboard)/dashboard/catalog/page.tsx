@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Download, Receipt, Settings } from 'lucide-react'
+import { Plus, Download } from 'lucide-react'
 import ProductsTable from '@/components/catalog/ProductsTable'
 import CatalogNav from '@/components/catalog/CatalogNav'
 import { getSessionInfo } from '@/lib/auth/roles'
@@ -68,25 +68,6 @@ export default async function CatalogPage() {
       </div>
 
       <CatalogNav />
-
-      {/* Banner global IGV */}
-      <div className="mb-4 flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-sm
-        border-zinc-100 bg-zinc-50 text-zinc-600">
-        <Receipt className="w-4 h-4 text-zinc-400 shrink-0" />
-        <span>
-          <strong>IGV:</strong>{' '}
-          {igvGlobal
-            ? 'Los precios de tus productos ya incluyen el 18% de IGV'
-            : 'Los precios de tus productos no incluyen IGV (se añade al emitir comprobante)'}
-        </span>
-        <Link
-          href="/dashboard/settings#facturacion"
-          className="ml-auto flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 transition shrink-0"
-        >
-          <Settings className="w-3 h-3" />
-          Cambiar
-        </Link>
-      </div>
 
       <ProductsTable
         productos={productos ?? []}

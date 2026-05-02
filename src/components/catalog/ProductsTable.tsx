@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Loader2, TrendingUp, AlertTriangle, Copy } from 'lucide-react'
+import { Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Loader2, TrendingUp, AlertTriangle, Copy, Receipt } from 'lucide-react'
 import { type Producto, type Categoria } from '@/types/database'
 import { formatPEN } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
@@ -32,6 +32,25 @@ export default function ProductsTable({ productos: initialProductos, categorias:
   const [loadingToggle, setLoadingToggle] = useState<string | null>(null)
   const [loadingEliminar, setLoadingEliminar] = useState(false)
   const [modalDuplicados, setModalDuplicados] = useState(false)
+
+  // IGV global — togglable directamente desde catálogo
+  const [igv, setIgv] = useState(igvGlobal)
+  const [savingIgv, setSavingIgv] = useState(false)
+
+  async function toggleIgv() {
+    setSavingIgv(true)
+    const nuevo = !igv
+    const res = await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ igv_incluido_en_precios: nuevo }),
+    })
+    setSavingIgv(false)
+    if (res.ok) {
+      setIgv(nuevo)
+      router.refresh()
+    }
+  }
 
   // Filtrado local (rápido, sin ir al servidor)
   const productosFiltrados = productos.filter((p) => {
@@ -133,6 +152,23 @@ export default function ProductsTable({ productos: initialProductos, categorias:
           <Copy className="w-3.5 h-3.5" />
           Duplicados
         </button>
+
+        {/* Toggle IGV global — directamente desde catálogo */}
+        <button
+          onClick={toggleIgv}
+          disabled={savingIgv}
+          title={igv ? 'Precios incluyen IGV — click para desactivar' : 'Precios sin IGV — click para activar'}
+          className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-600 hover:bg-zinc-50 transition font-medium disabled:opacity-50"
+        >
+          {savingIgv
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <Receipt className="w-3.5 h-3.5" />
+          }
+          <span>IGV</span>
+          <span className={`w-8 h-4 rounded-full transition relative ${igv ? 'bg-zinc-900' : 'bg-zinc-300'}`}>
+            <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all ${igv ? 'left-[18px]' : 'left-0.5'}`} />
+          </span>
+        </button>
       </div>
 
       {/* Conteo */}
@@ -187,12 +223,12 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     <span className="text-sm font-bold text-zinc-900 tabular-nums">
                       {formatPEN(producto.precio_base)}
                     </span>
-                    {igvGlobal && producto.afecto_igv && (
+                    {igv && producto.afecto_igv && (
                       <p className="text-[10px] text-zinc-400 mt-0.5 tabular-nums">
                         IGV incl. {formatPEN(producto.precio_base * 0.18 / 1.18)}
                       </p>
                     )}
-                    {igvGlobal && !producto.afecto_igv && (
+                    {igv && !producto.afecto_igv && (
                       <p className="text-[10px] text-amber-500 mt-0.5 font-medium">exonerado</p>
                     )}
                     {producto.modo_negociacion && (
@@ -202,7 +238,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                   <td className="px-4 py-3 text-right">
                     {producto.precio_compra > 0 ? (() => {
                       // Si precios incluyen IGV, calcular ganancia sobre el neto
-                      const precioNeto = igvGlobal && producto.afecto_igv
+                      const precioNeto = igv && producto.afecto_igv
                         ? producto.precio_base / 1.18
                         : producto.precio_base
                       const utilidad = precioNeto - producto.precio_compra
