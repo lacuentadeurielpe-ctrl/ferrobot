@@ -236,20 +236,26 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                       )}
                     </div>
                   </td>
-                  {/* Columna Ganancia — S/ monto + % en una sola línea */}
+                  {/* Columna Ganancia */}
                   <td className="px-4 py-3 text-right">
                     {producto.precio_compra > 0 ? (() => {
-                      const precioNeto = igv && producto.afecto_igv
+                      const conIgv = igv && producto.afecto_igv
+                      const precioNeto = conIgv
                         ? producto.precio_base / 1.18
                         : producto.precio_base
                       const utilidad = precioNeto - producto.precio_compra
                       const margen = precioNeto > 0 ? (utilidad / precioNeto) * 100 : 0
                       const bajo = margen < margenMinimo
                       return (
-                        <div className={`flex items-center justify-end gap-1 text-sm font-semibold tabular-nums ${bajo ? 'text-red-500' : 'text-emerald-600'}`}>
-                          {bajo ? <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> : <TrendingUp className="w-3.5 h-3.5 shrink-0" />}
-                          {formatPEN(utilidad)}
-                          <span className="text-xs font-normal opacity-60">({margen.toFixed(0)}%)</span>
+                        <div>
+                          <div className={`flex items-center justify-end gap-1 text-sm font-semibold tabular-nums ${bajo ? 'text-red-500' : 'text-emerald-600'}`}>
+                            {bajo ? <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> : <TrendingUp className="w-3.5 h-3.5 shrink-0" />}
+                            {formatPEN(utilidad)}
+                            <span className="text-xs font-normal opacity-60">({margen.toFixed(0)}%)</span>
+                          </div>
+                          {conIgv && (
+                            <p className="text-[9px] text-zinc-400 mt-0.5 text-right">sobre precio neto s/IGV</p>
+                          )}
                         </div>
                       )
                     })() : (

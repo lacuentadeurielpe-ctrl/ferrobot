@@ -400,19 +400,21 @@ function AccionCard({
 // ── Página principal ───────────────────────────────────────────────────────────
 
 export default function CatalogAgentePage() {
-  const [mensajes,    setMensajes]    = useState<MensajeChat[]>([])
-  const [input,       setInput]       = useState('')
-  const [archivo,     setArchivo]     = useState<ArchivoAdjunto | null>(null)
-  const [procesando,  setProcesando]  = useState(false)
-  const [escuchando,  setEscuchando]  = useState(false)
-  const [soportaVoz,  setSoportaVoz]  = useState(false)
-  const [margenMin,   setMargenMin]   = useState(10)
-  const [error,       setError]       = useState<string | null>(null)
+  const [mensajes,     setMensajes]     = useState<MensajeChat[]>([])
+  const [input,        setInput]        = useState('')
+  const [archivo,      setArchivo]      = useState<ArchivoAdjunto | null>(null)
+  const [procesando,   setProcesando]   = useState(false)
+  const [escuchando,   setEscuchando]   = useState(false)
+  const [textoInterim, setTextoInterim] = useState('')   // transcripción en tiempo real
+  const [soportaVoz,   setSoportaVoz]   = useState(false)
+  const [margenMin,    setMargenMin]    = useState(10)
+  const [error,        setError]        = useState<string | null>(null)
 
-  const bottomRef      = useRef<HTMLDivElement>(null)
-  const textareaRef    = useRef<HTMLTextAreaElement>(null)
-  const recognitionRef = useRef<any>(null)
-  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const bottomRef       = useRef<HTMLDivElement>(null)
+  const textareaRef     = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef  = useRef<any>(null)
+  const fileInputRef    = useRef<HTMLInputElement>(null)
+  const escuchandoRef   = useRef(false)   // ref para closures (estado siempre actual)
 
   useEffect(() => {
     setSoportaVoz(!!(
@@ -491,18 +493,73 @@ export default function CatalogAgentePage() {
   }
 
   // ── Voz ─────────────────────────────────────────────────────────────────────
-  function toggleVoz() {
-    if (escuchando) { recognitionRef.current?.stop?.(); setEscuchando(false); return }
+  // Inicia una sesión de reconocimiento y se auto-reinicia mientras escuchandoRef=true
+  const iniciarRecognition = useCallback(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SR) return
+    if (!SR || !escuchandoRef.current) return
+
     const rec = new SR()
-    rec.lang = 'es-PE'; rec.continuous = true; rec.interimResults = false
+    rec.lang          = 'es-PE'
+    rec.continuous    = false   // false = más fiable en todos los navegadores
+    rec.interimResults = true   // muestra texto mientras hablas
+
     rec.onresult = (e: any) => {
-      const t = Array.from(e.results as SpeechRecognitionResultList).map((r: any) => r[0].transcript).join(' ').trim()
-      setInput(prev => prev ? prev + ' ' + t : t)
+      let interim = ''
+      let final   = ''
+      // Solo procesar resultados nuevos (desde e.resultIndex)
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const transcript = e.results[i][0].transcript
+        if (e.results[i].isFinal) final   += transcript
+        else                       interim += transcript
+      }
+      if (final.trim()) {
+        setInput(prev => (prev ? prev.trimEnd() + ' ' : '') + final.trim())
+        setTextoInterim('')
+      } else {
+        setTextoInterim(interim)
+      }
     }
-    rec.onerror = rec.onend = () => setEscuchando(false)
-    recognitionRef.current = rec; rec.start(); setEscuchando(true)
+
+    rec.onerror = (e: any) => {
+      setTextoInterim('')
+      if (e.error === 'not-allowed' || e.error === 'permission-denied') {
+        setError('Permiso de micrófono denegado. Habilítalo en la barra de tu navegador.')
+        escuchandoRef.current = false
+        setEscuchando(false)
+      }
+      // Para otros errores (aborted, network) dejamos que onend maneje el reinicio
+    }
+
+    rec.onend = () => {
+      setTextoInterim('')
+      // Si el usuario sigue en modo escucha, reiniciar automáticamente
+      if (escuchandoRef.current) {
+        setTimeout(() => iniciarRecognition(), 80)
+      }
+    }
+
+    recognitionRef.current = rec
+    try { rec.start() } catch {
+      escuchandoRef.current = false
+      setEscuchando(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleVoz() {
+    if (escuchandoRef.current) {
+      escuchandoRef.current = false
+      recognitionRef.current?.stop?.()
+      recognitionRef.current = null
+      setEscuchando(false)
+      setTextoInterim('')
+      return
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) { setError('Tu navegador no soporta reconocimiento de voz.'); return }
+    setError(null)
+    escuchandoRef.current = true
+    setEscuchando(true)
+    iniciarRecognition()
   }
 
   // ── Actualizar acción ────────────────────────────────────────────────────────
@@ -550,7 +607,14 @@ export default function CatalogAgentePage() {
     const texto = input.trim()
     if ((!texto && !archivo) || procesando) return
 
-    recognitionRef.current?.stop?.(); setEscuchando(false)
+    // Parar micrófono si está activo
+    if (escuchandoRef.current) {
+      escuchandoRef.current = false
+      recognitionRef.current?.stop?.()
+      recognitionRef.current = null
+      setEscuchando(false)
+      setTextoInterim('')
+    }
 
     const archivoCaptura = archivo
     setInput(''); setArchivo(null); setError(null); setProcesando(true)
@@ -890,6 +954,14 @@ export default function CatalogAgentePage() {
             {procesando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </button>
         </div>
+
+        {/* Transcripción en vivo — aparece mientras el usuario habla */}
+        {escuchando && textoInterim && (
+          <p className="text-[11px] text-zinc-400 italic mt-1.5 px-1 flex items-center gap-1.5 leading-snug">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse shrink-0" />
+            {textoInterim}
+          </p>
+        )}
 
         <p className="text-[10px] text-zinc-400 mt-1.5 px-1">
           Enter para enviar · Shift+Enter nueva línea · Ctrl+V para pegar imágenes · Acepta imagen, Excel y CSV · Los cambios solo se guardan al confirmar
