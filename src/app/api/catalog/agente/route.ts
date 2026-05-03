@@ -219,6 +219,10 @@ ACTUALIZACIÓN MASIVA (bulk):
 
 ━━━ REGLAS CRÍTICAS ━━━
 
+⚠️ SOLO PUEDES USAR EXACTAMENTE ESTOS TIPOS: actualizar_precio | actualizar_stock | actualizar_precio_compra | activar | desactivar | nuevo_producto | bulk_precio
+   NUNCA inventes tipos nuevos como "actualizar_nombre", "informacion", "mensaje", etc.
+   Si no encaja en ninguno de los 7 tipos → incluye el comentario en mensaje_ia y acciones: [].
+
 1. NUNCA retornes acciones vacías si hay una intención clara — siempre intenta interpretar.
 2. Si el nombre tiene errores tipográficos o está incompleto → busca el producto más parecido en el catálogo.
 3. Si el nombre definitivamente no existe en el catálogo → crea nuevo_producto.
@@ -477,7 +481,13 @@ async function runCatalogAgent(
   const content = data.choices?.[0]?.message?.content ?? '{}'
   const parsed = JSON.parse(content) as { mensaje_ia?: string; acciones?: AccionAgente[] }
 
-  const acciones = (parsed.acciones ?? []).map(a => ({ ...a, fuente: 'catalogo' as const }))
+  const TIPOS_VALIDOS: TipoAccion[] = [
+    'actualizar_precio', 'actualizar_stock', 'actualizar_precio_compra',
+    'activar', 'desactivar', 'nuevo_producto', 'bulk_precio',
+  ]
+  const acciones = (parsed.acciones ?? [])
+    .filter(a => TIPOS_VALIDOS.includes(a.tipo))
+    .map(a => ({ ...a, fuente: 'catalogo' as const }))
 
   return {
     mensaje: parsed.mensaje_ia ?? 'Listo.',

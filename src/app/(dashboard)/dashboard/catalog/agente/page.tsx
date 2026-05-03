@@ -181,6 +181,9 @@ function AccionCard({
   onDiscard: () => void
 }) {
   const meta  = TIPO_META[accion.tipo]
+  // Si el modelo devuelve un tipo no reconocido, ignorar silenciosamente
+  if (!meta) return null
+
   const isDone = accion.estado === 'ok' || accion.estado === 'descartado'
   const isVision = accion.fuente === 'vision'
 
@@ -665,13 +668,14 @@ export default function CatalogAgentePage() {
 
       setMargenMin(data.margen_minimo ?? 10)
 
-      const accionesLocales: AccionLocal[] = (data.acciones ?? []).map(
-        (a: AccionAgente, idx: number) => ({
+      const TIPOS_VALIDOS = new Set(Object.keys(TIPO_META))
+      const accionesLocales: AccionLocal[] = (data.acciones ?? [])
+        .filter((a: AccionAgente) => TIPOS_VALIDOS.has(a.tipo))
+        .map((a: AccionAgente, idx: number) => ({
           ...a,
           _id: `${Date.now()}-${idx}`,
           estado: 'pendiente' as EstadoAccion,
-        })
-      )
+        }))
 
       setMensajes(prev => [...prev, {
         id: crypto.randomUUID(),
