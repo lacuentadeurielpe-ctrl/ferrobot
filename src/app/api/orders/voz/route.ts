@@ -88,7 +88,8 @@ function similaridad(a: string, b: string): number {
         bestTokenMatch = 1
         break
       }
-      if (tA.includes(tB) || tB.includes(tA)) {
+      // Evita falsos positivos como que "1/2" coincida con "2"
+      if (tB.startsWith(tA)) {
         bestTokenMatch = Math.max(bestTokenMatch, 0.8)
       }
       if (tA.length >= 4 && tB.length >= 4) {

@@ -204,8 +204,8 @@ export function matchesFuzzy(target: string, query: string): boolean {
     let tokenMatched = false
 
     for (const tToken of targetTokens) {
-      // Coincidencia exacta o contención
-      if (tToken.includes(qToken) || qToken.includes(tToken)) {
+      // Coincidencia de prefijo (evita falsos positivos como que "1/2" coincida con "2")
+      if (tToken.startsWith(qToken)) {
         tokenMatched = true
         break
       }
