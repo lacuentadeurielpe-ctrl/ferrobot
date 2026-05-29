@@ -68,3 +68,21 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
   return NextResponse.json(data)
 }
+
+// DELETE /api/cotizaciones/[id] — eliminar cotización
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionInfo()
+  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const supabase = await createClient()
+  const { id } = await params
+
+  const { error } = await supabase
+    .from('cotizaciones')
+    .delete()
+    .eq('id', id)
+    .eq('ferreteria_id', session.ferreteriaId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

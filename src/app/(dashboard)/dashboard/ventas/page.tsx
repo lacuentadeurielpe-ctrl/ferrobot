@@ -89,7 +89,11 @@ export default async function VentasPage({
   // ── Cotizaciones ─────────────────────────────────────────────────────────
   let cotizacionesContent: React.ReactNode = null
   if (tab === 'cotizaciones') {
-    const [{ data: cotizaciones }, { data: configBot }] = await Promise.all([
+    const [
+      { data: cotizaciones },
+      { data: configBot },
+      { data: productos }
+    ] = await Promise.all([
       supabase
         .from('cotizaciones')
         .select('*, clientes(nombre, telefono), items_cotizacion(*, productos(precio_compra))')
@@ -101,6 +105,12 @@ export default async function VentasPage({
         .select('margen_minimo_porcentaje')
         .eq('ferreteria_id', session.ferreteriaId)
         .single(),
+      supabase
+        .from('productos')
+        .select('id, nombre, unidad, precio_base, precio_compra, stock')
+        .eq('ferreteria_id', session.ferreteriaId)
+        .eq('activo', true)
+        .order('nombre'),
     ])
 
     const lista = (cotizaciones ?? []).map((c) => ({
@@ -111,6 +121,7 @@ export default async function VentasPage({
     cotizacionesContent = (
       <CotizacionesTable
         cotizaciones={lista}
+        productos={productos ?? []}
         margenMinimo={configBot?.margen_minimo_porcentaje ?? 10}
       />
     )

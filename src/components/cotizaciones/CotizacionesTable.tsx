@@ -2,8 +2,17 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn, formatPEN, formatFecha, truncar } from '@/lib/utils'
-import { ChevronDown, FileText, Check, X, Loader2, Pencil } from 'lucide-react'
+import { cn, formatPEN, formatFecha, truncar, matchesFuzzy } from '@/lib/utils'
+import { ChevronDown, FileText, Check, X, Loader2, Pencil, Plus, Trash2, Search } from 'lucide-react'
+import NuevaCotizacionModal from './NuevaCotizacionModal'
+interface Producto {
+  id: string
+  nombre: string
+  unidad: string
+  precio_base: number
+  precio_compra: number
+  stock: number
+}
 
 interface ItemCotizacion {
   id: string
@@ -25,7 +34,7 @@ interface Cotizacion {
   requiere_aprobacion: boolean
   notas_dueno: string | null
   created_at: string
-  clientes: { nombre: string | null; telefono: string } | null
+  clientes: { nombre: string | null; phone?: string; telefono: string } | null
   items_cotizacion: ItemCotizacion[]
 }
 
@@ -47,13 +56,36 @@ const ESTADO_COLOR: Record<string, string> = {
   rechazada: 'bg-red-100 text-red-800',
 }
 
-interface Props { cotizaciones: Cotizacion[]; margenMinimo?: number }
+function estaEnRango(fecha: string, rango: string): boolean {
+  if (!rango) return true
+  const d = new Date(fecha)
+  const ahora = new Date()
+  ahora.setHours(23, 59, 59, 999)
+  const inicio = new Date()
+  inicio.setHours(0, 0, 0, 0)
+  if (rango === 'hoy') return d >= inicio && d <= ahora
+  if (rango === 'semana') {
+    inicio.setDate(inicio.getDate() - inicio.getDay())
+    return d >= inicio && d <= ahora
+  }
+  if (rango === 'mes') {
+    inicio.setDate(1)
+    return d >= inicio && d <= ahora
+  }
+  return true
+}
 
-export default function CotizacionesTable({ cotizaciones: inicial, margenMinimo = 10 }: Props) {
+interface Props { cotizaciones: Cotizacion[]; productos?: Producto[]; margenMinimo?: number }
+
+export default function CotizacionesTable({ cotizaciones: inicial, productos = [], margenMinimo = 10 }: Props) {
   const router = useRouter()
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>(inicial)
   const [expandido, setExpandido] = useState<string | null>(null)
-  const [filtro, setFiltro] = useState('')
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('')
+  const [filtroFecha, setFiltroFecha] = useState('')
+  const [modalNueva, setModalNueva] = useState(false)
+  const [eliminando, setEliminando] = useState<string | null>(null)
 
   // Estado de edición de precios por item: { itemId: precio_editado }
   const [preciosEditados, setPreciosEditados] = useState<Record<string, string>>({})
@@ -62,7 +94,33 @@ export default function CotizacionesTable({ cotizaciones: inicial, margenMinimo 
   const [motivoRechazo, setMotivoRechazo] = useState<Record<string, string>>({})
   const [confirmandoRechazo, setConfirmandoRechazo] = useState<string | null>(null)
 
-  const filtradas = filtro ? cotizaciones.filter((c) => c.estado === filtro) : cotizaciones
+  const filtradas = cotizaciones.filter((c) => {
+    const nombreCliente = c.clientes?.nombre ?? ''
+    const telefono = c.clientes?.telefono ?? ''
+    const cotNum = `COT-${c.id.slice(0, 8).toUpperCase()}`
+    const matchBusqueda = matchesFuzzy(`${nombreCliente} ${telefono} ${c.id} ${cotNum}`, busqueda)
+    
+    const matchEstado = !filtroEstado || c.estado === filtroEstado
+    const matchFecha = estaEnRango(c.created_at, filtroFecha)
+
+    return matchBusqueda && matchEstado && matchFecha
+  })
+
+  async function eliminarCotizacion(id: string) {
+    if (!confirm('¿Seguro que quieres eliminar esta cotización?')) return
+    setEliminando(id)
+    try {
+      const res = await fetch(`/api/cotizaciones/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      setCotizaciones((prev) => prev.filter((c) => c.id !== id))
+      setExpandido(null)
+      router.refresh()
+    } catch {
+      alert('Error al eliminar la cotización')
+    } finally {
+      setEliminando(null)
+    }
+  }
 
   function calcularTotalEditado(cot: Cotizacion): number {
     return cot.items_cotizacion
@@ -134,37 +192,110 @@ export default function CotizacionesTable({ cotizaciones: inicial, margenMinimo 
 
   if (cotizaciones.length === 0) {
     return (
-      <div className="text-center py-16">
-        <FileText className="w-10 h-10 mx-auto mb-3 text-zinc-200" />
-        <p className="text-sm text-zinc-500">No hay cotizaciones aún</p>
-        <p className="text-xs text-zinc-400 mt-1">Aparecerán aquí cuando el bot genere cotizaciones</p>
+      <div className="space-y-4">
+        {/* Acciones superiores */}
+        <div className="flex justify-end gap-2 mb-4">
+          <button
+            onClick={() => setModalNueva(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-xl transition font-sans"
+          >
+            <Plus className="w-4 h-4" />
+            Nueva cotización
+          </button>
+        </div>
+        <div className="text-center py-16">
+          <FileText className="w-10 h-10 mx-auto mb-3 text-zinc-200" />
+          <p className="text-sm text-zinc-500 font-sans">No hay cotizaciones aún</p>
+          <p className="text-xs text-zinc-400 mt-1">Aparecerán aquí cuando el bot o tú registren cotizaciones</p>
+        </div>
+        {modalNueva && (
+          <NuevaCotizacionModal
+            productos={productos}
+            onClose={() => { setModalNueva(false); router.refresh() }}
+          />
+        )}
       </div>
     )
   }
 
   return (
-    <div>
+    <div className="space-y-4">
+      {/* Acciones superiores */}
+      <div className="flex justify-end gap-2 mb-4">
+        <button
+          onClick={() => setModalNueva(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-xl transition font-sans"
+        >
+          <Plus className="w-4 h-4" />
+          Nueva cotización
+        </button>
+      </div>
+
+      {/* Barra de búsqueda + filtro de fecha */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        {/* Búsqueda */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por cliente o teléfono…"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 transition"
+          />
+          {busqueda && (
+            <button onClick={() => setBusqueda('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Filtro fecha */}
+        <div className="flex gap-1">
+          {[
+            { label: 'Todos', value: '' },
+            { label: 'Hoy', value: 'hoy' },
+            { label: 'Esta semana', value: 'semana' },
+            { label: 'Este mes', value: 'mes' },
+          ].map(({ label, value }) => (
+            <button key={value} onClick={() => setFiltroFecha(value)}
+              className={cn('px-3 py-2 rounded-xl text-xs font-medium transition',
+                filtroFecha === value
+                  ? 'bg-zinc-950 text-white'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Filtros */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <button onClick={() => setFiltro('')}
+        <button onClick={() => setFiltroEstado('')}
           className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition',
-            !filtro ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
+            !filtroEstado ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
           Todas ({cotizaciones.length})
         </button>
         {Object.keys(ESTADO_LABEL).map((e) => {
           const count = cotizaciones.filter((c) => c.estado === e).length
           if (!count) return null
           return (
-            <button key={e} onClick={() => setFiltro(e)}
+            <button key={e} onClick={() => setFiltroEstado(e)}
               className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition',
-                filtro === e ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
+                filtroEstado === e ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
               {ESTADO_LABEL[e]} ({count})
             </button>
           )
         })}
       </div>
 
-      <div className="space-y-2">
+      {filtradas.length === 0 ? (
+        <div className="text-center py-16 text-zinc-300">
+          <FileText className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm text-zinc-400 font-sans">No hay cotizaciones con estos filtros</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
         {filtradas.map((cot) => {
           const isOpen = expandido === cot.id
           const isPending = cot.estado === 'pendiente_aprobacion'
@@ -369,12 +500,42 @@ export default function CotizacionesTable({ cotizaciones: inicial, margenMinimo 
                       )}
                     </div>
                   )}
+
+                  {/* Botones de acción general (Ver PDF / Eliminar) */}
+                  <div className="border-t border-zinc-200 pt-3 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex gap-2">
+                      <a
+                        href={`/api/cotizaciones/${cot.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 text-zinc-700 text-xs font-semibold rounded-lg border border-zinc-200 transition font-sans"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-zinc-500" />
+                        Ver PDF
+                      </a>
+                      <button
+                        onClick={() => eliminarCotizacion(cot.id)}
+                        disabled={eliminando === cot.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg border border-red-200 transition disabled:opacity-50 font-sans"
+                      >
+                        {eliminando === cot.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           )
         })}
-      </div>
+          </div>
+        )}
+      {modalNueva && (
+        <NuevaCotizacionModal
+          productos={productos}
+          onClose={() => { setModalNueva(false); router.refresh() }}
+        />
+      )}
     </div>
   )
 }

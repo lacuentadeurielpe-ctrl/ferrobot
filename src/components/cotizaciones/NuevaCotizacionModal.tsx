@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn, matchesFuzzy } from '@/lib/utils'
-import { X, Plus, Trash2, Search, Loader2, Package, Check, CalendarClock } from 'lucide-react'
+import { X, Plus, Trash2, Search, Loader2, Package, Check } from 'lucide-react'
 
 interface Producto {
   id: string
@@ -14,28 +14,20 @@ interface Producto {
   stock: number
 }
 
-interface Zona {
-  id: string
-  nombre: string
-  tiempo_estimado_min: number
-}
-
 interface ItemCarrito {
   producto_id: string | null
   nombre_producto: string
   unidad: string
   cantidad: number
   precio_unitario: number
-  costo_unitario: number
 }
 
-interface NuevoPedidoModalProps {
+interface NuevaCotizacionModalProps {
   productos: Producto[]
-  zonas: Zona[]
   onClose: () => void
 }
 
-export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPedidoModalProps) {
+export default function NuevaCotizacionModal({ productos, onClose }: NuevaCotizacionModalProps) {
   const router = useRouter()
   const [items, setItems] = useState<ItemCarrito[]>([])
   const [busqueda, setBusqueda] = useState('')
@@ -46,30 +38,15 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
 
   const [nombreCliente, setNombreCliente] = useState('')
   const [telefonoCliente, setTelefonoCliente] = useState('')
-  const [modalidad, setModalidad] = useState<'delivery' | 'recojo'>('recojo')
-  const [direccion, setDireccion] = useState('')
-  const [zonaId, setZonaId] = useState('')
   const [notas, setNotas] = useState('')
-
-  const [estadoInicial, setEstadoInicial] = useState<'pendiente' | 'confirmado'>('confirmado')
-
-  // Fase V: entrega programada
-  const [esProgramado, setEsProgramado] = useState(false)
-  const [fechaProgramada, setFechaProgramada] = useState('')   // "YYYY-MM-DDTHH:MM" local Lima
-  // Mínimo = ahora + 30 min (redondeado a los próximos 15 min) en Lima
-  const minFechaProgramada = (() => {
-    const d = new Date(Date.now() + 30 * 60_000)
-    d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  })()
 
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Sugiere productos del catálogo activos
   const sugerencias = busqueda.trim().length >= 1
     ? productos.filter((p) =>
-        matchesFuzzy(p.nombre, busqueda) && p.stock > 0
+        matchesFuzzy(p.nombre, busqueda)
       ).slice(0, 8)
     : []
 
@@ -86,7 +63,6 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
         unidad: p.unidad,
         cantidad: 1,
         precio_unitario: p.precio_base,
-        costo_unitario: p.precio_compra,
       }])
     }
     setBusqueda('')
@@ -102,7 +78,6 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
       unidad: itemManual.unidad.trim() || 'und',
       cantidad: itemManual.cantidad,
       precio_unitario: itemManual.precio,
-      costo_unitario: 0,
     }])
     setItemManual({ nombre: '', unidad: 'und', cantidad: 1, precio: 0 })
     setModoManual(false)
@@ -120,53 +95,25 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
     if (!items.length) { setError('Agrega al menos un producto'); return }
     if (!nombreCliente.trim()) { setError('El nombre del cliente es obligatorio'); return }
     if (!telefonoCliente.trim()) { setError('El teléfono del cliente es obligatorio'); return }
-    if (modalidad === 'delivery' && !direccion.trim()) { setError('La dirección es obligatoria para delivery'); return }
-    if (esProgramado && !fechaProgramada) { setError('Indica la fecha y hora de entrega programada'); return }
-
-    // Convertir fecha Lima → ISO UTC para almacenamiento
-    let fechaUtc: string | undefined
-    if (esProgramado && fechaProgramada) {
-      const d = new Date(`${fechaProgramada}:00-05:00`)   // Lima = UTC-5
-      if (isNaN(d.getTime())) {
-        setError('Fecha de entrega inválida')
-        return
-      }
-      fechaUtc = d.toISOString()
-    }
 
     setGuardando(true)
     setError(null)
 
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch('/api/cotizaciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre_cliente: nombreCliente.trim(),
           telefono_cliente: telefonoCliente.trim(),
-          modalidad,
-          direccion_entrega: modalidad === 'delivery' ? direccion.trim() : undefined,
-          zona_delivery_id: modalidad === 'delivery' && zonaId ? zonaId : undefined,
-          notas: notas.trim() || undefined,
+          notas_dueno: notas.trim() || undefined,
           items,
-          fecha_entrega_programada: fechaUtc,
         }),
       })
 
       if (!res.ok) {
         const body = await res.json()
-        throw new Error(body.error ?? 'Error al crear pedido')
-      }
-
-      const { id: pedidoId } = await res.json()
-
-      // Si el dueño lo crea como confirmado Y no es programado, disparar comprobante
-      if (estadoInicial === 'confirmado' && !esProgramado) {
-        await fetch(`/api/orders/${pedidoId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ estado: 'confirmado' }),
-        })
+        throw new Error(body.error ?? 'Error al crear la cotización')
       }
 
       router.refresh()
@@ -194,8 +141,8 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Nuevo pedido manual</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Sin conversación WhatsApp — pedido directo</p>
+            <h2 className="text-base font-bold text-gray-900 font-sans">Nueva cotización manual</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Genera una cotización rápida sin afectar stock en inventario</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
             <X className="w-5 h-5" />
@@ -335,7 +282,7 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
                           className="w-20 pl-6 pr-2 py-1 border border-gray-200 rounded text-sm text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-orange-400"
                         />
                       </div>
-                      <span className="text-sm font-medium text-gray-700 w-16 text-right">
+                      <span className="text-sm font-medium text-gray-700 w-16 text-right font-sans">
                         S/{(item.cantidad * item.precio_unitario).toFixed(2)}
                       </span>
                     </div>
@@ -345,7 +292,7 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
                   </div>
                 ))}
                 <div className="flex justify-end pt-1">
-                  <span className="text-sm font-bold text-gray-900">
+                  <span className="text-sm font-bold text-gray-900 font-sans">
                     Total: S/{total.toFixed(2)}
                   </span>
                 </div>
@@ -378,117 +325,23 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
             </div>
           </div>
 
-          {/* ── SECCIÓN: ENTREGA ── */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Modalidad de entrega</h3>
-            <div className="flex gap-2 mb-4">
-              {(['recojo', 'delivery'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setModalidad(m)}
-                  className={cn(
-                    'flex-1 py-2.5 rounded-lg text-sm font-medium transition border',
-                    modalidad === m
-                      ? 'bg-orange-500 text-white border-orange-500'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'
-                  )}
-                >
-                  {m === 'recojo' ? 'Recojo en tienda' : 'Delivery'}
-                </button>
-              ))}
-            </div>
-
-            {modalidad === 'delivery' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Dirección de entrega <span className="text-red-500">*</span></label>
-                  <input
-                    value={direccion}
-                    onChange={(e) => setDireccion(e.target.value)}
-                    placeholder="Jr. Los Ferreros 123, Miraflores"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition"
-                  />
-                </div>
-                {zonas.length > 0 && (
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Zona de delivery</label>
-                    <select
-                      value={zonaId}
-                      onChange={(e) => setZonaId(e.target.value)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition bg-white"
-                    >
-                      <option value="">Sin zona específica</option>
-                      {zonas.map((z) => (
-                        <option key={z.id} value={z.id}>{z.nombre} ({z.tiempo_estimado_min} min)</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* ── NOTAS ── */}
           <div>
             <label className="block text-xs text-gray-500 mb-1">Notas internas (opcional)</label>
             <textarea
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
-              rows={2}
-              placeholder="Observaciones, instrucciones especiales…"
+              rows={3}
+              placeholder="Escribe comentarios o notas especiales de esta cotización..."
               className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition resize-none"
             />
-          </div>
-
-          {/* ── ENTREGA PROGRAMADA ── */}
-          <div>
-            <button
-              type="button"
-              onClick={() => { setEsProgramado((v) => !v); if (esProgramado) setFechaProgramada('') }}
-              className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-medium transition',
-                esProgramado
-                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:border-indigo-200 hover:text-indigo-600'
-              )}
-            >
-              <CalendarClock className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left">
-                {esProgramado ? 'Entrega programada activada' : 'Programar para fecha futura'}
-              </span>
-              <span className={cn(
-                'text-xs px-2 py-0.5 rounded-full font-normal',
-                esProgramado ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-400'
-              )}>
-                {esProgramado ? 'activo' : 'opcional'}
-              </span>
-            </button>
-
-            {esProgramado && (
-              <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                <label className="block text-xs text-indigo-600 font-medium mb-1.5">
-                  Fecha y hora de entrega (hora Lima)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={fechaProgramada}
-                  min={minFechaProgramada}
-                  onChange={(e) => setFechaProgramada(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-indigo-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition text-gray-800"
-                />
-                <p className="text-xs text-indigo-400 mt-1.5">
-                  El pedido se activará automáticamente esa mañana y se notificará al cliente.
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
           {items.length > 0 && (
-            <span className="text-sm text-gray-500 mr-auto">
+            <span className="text-sm text-gray-500 mr-auto font-sans">
               {items.length} {items.length === 1 ? 'producto' : 'productos'} ·{' '}
               <span className="font-semibold text-gray-800">S/{total.toFixed(2)}</span>
             </span>
@@ -506,13 +359,13 @@ export default function NuevoPedidoModal({ productos, zonas, onClose }: NuevoPed
             type="button"
             onClick={guardar}
             disabled={guardando}
-            className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition"
+            className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition"
           >
             {guardando
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : <Check className="w-4 h-4" />
             }
-            {guardando ? 'Guardando…' : 'Crear pedido'}
+            {guardando ? 'Guardando…' : 'Crear cotización'}
           </button>
         </div>
 

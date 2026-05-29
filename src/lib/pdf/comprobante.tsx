@@ -426,13 +426,16 @@ export function ComprobantePDF({ datos }: { datos: DatosComprobante }) {
 
         {/* ── PIE ── */}
         <View style={S.pie}>
-          <Text style={S.pieGracias}>¡Gracias por su compra!</Text>
+          <Text style={S.pieGracias}>
+            {datos.esProforma ? '¡Gracias por su preferencia!' : '¡Gracias por su compra!'}
+          </Text>
           {datos.mensaje_pie && (
             <Text style={S.pieMensaje}>{datos.mensaje_pie}</Text>
           )}
           <Text style={S.pieDisclaimer}>
-            Este documento es un comprobante interno de pago emitido por {datos.nombre_ferreteria}.
-            No tiene validez tributaria ante la SUNAT ni reemplaza una boleta o factura electrónica.
+            {datos.esProforma
+              ? `Este documento es una proforma/cotización emitida por ${datos.nombre_ferreteria}. Tiene carácter puramente informativo y no constituye un comprobante de pago ni tiene validez tributaria ante la SUNAT.`
+              : `Este documento es un comprobante interno de pago emitido por ${datos.nombre_ferreteria}. No tiene validez tributaria ante la SUNAT ni reemplaza una boleta o factura electrónica.`}
           </Text>
         </View>
 

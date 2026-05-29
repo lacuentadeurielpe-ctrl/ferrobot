@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FerroBot 🤖🇵🇪
 
-## Getting Started
+FerroBot is a modern, multi-tenant SaaS platform built for Peruvian hardware stores (*ferreterías*). It automates customer support, product quotes, order processing, and delivery notifications using AI-driven WhatsApp integration, while providing a web dashboard for business owners and team members.
 
-First, run the development server:
+---
 
+## 🌟 Key Features
+
+* **AI WhatsApp Conversational Bot**:
+  * Automatically handles quotes (`cotizaciones`), orders (`pedidos`), and delivery status.
+  * Pauses automatically (`bot_pausado = true`) when a staff member intervenes.
+  * Handles audio messages (transcribed with OpenAI Whisper) and image messages (analyzed with GPT-4o Vision).
+* **Multi-tenant SaaS Dashboard**:
+  * Secure role-based dashboard (`dueno` and `vendedor` permissions) mapped via `miembros_ferreteria`.
+  * Visual metrics/KPIs for business owners.
+  * Real-time WhatsApp conversation viewer with manual reply interface.
+  * Catalog management (with spreadsheet/image import assistance).
+* **Delivery & Repartidor Portal**:
+  * Unauthenticated URL-token authentication for delivery agents.
+  * Delivery dispatching, route updates, and incidence reports from a mobile-friendly view.
+* **SUNAT-compliant Billing Foundations**:
+  * Generates PDF invoices and boletas using `@react-pdf/renderer` stored in Supabase storage.
+  * Integration helpers for Peruvian e-invoicing.
+
+---
+
+## 💻 Tech Stack
+
+* **Frontend Framework**: Next.js 16 (App Router, Turbopack)
+* **UI & Rendering**: React 19, Tailwind CSS v4, Lucide React icons, Recharts
+* **Database & Auth**: Supabase (PostgreSQL, Row Level Security, SSR cookies session auth)
+* **WhatsApp Provider**: YCloud WhatsApp Cloud API integration
+* **AI Processing**: DeepSeek API (for intent recognition) and OpenAI API (Whisper & Vision)
+* **Libraries**: `@react-pdf/renderer` (PDF compilation), `exceljs` & `papaparse` (catalog processing), `leaflet` (GPS tracking/maps)
+
+---
+
+## 🚀 Getting Started
+
+### 1. Install Dependencies
+Make sure you have Node.js 18+ and npm installed. Run:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure Environment Variables
+Create a `.env.local` file in the root directory:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+YCLOUD_API_KEY=your-ycloud-api-key
+YCLOUD_WEBHOOK_SECRET=your-ycloud-webhook-secret
+DEEPSEEK_API_KEY=your-deepseek-api-key
+OPENAI_API_KEY=your-openai-api-key # Optional: Whisper + Vision
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+CRON_SECRET=your-cron-secret
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) with your browser to view the application dashboard.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 📁 Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```text
+├── .github/              # GitHub Actions
+├── public/               # Static assets
+├── supabase/             # Supabase settings & local DB migrations
+└── src/
+    ├── app/              # Next.js 16 App Router (pages & API endpoints)
+    │   ├── (dashboard)   # Main Dashboard layouts and routes
+    │   ├── api           # API endpoints (YCloud webhooks, delivery APIs, crons)
+    │   └── ...           # Public pages (Auth, Tracking, Invite links)
+    ├── components/       # Shared UI and feature-specific React components
+    ├── lib/              # Core business logic and integrations
+    │   ├── ai            # Orchestrator, DeepSeek, and OpenAI wrapper tools
+    │   ├── auth          # Roles, permissions, and session helpers
+    │   ├── bot           # Message handler and session manager
+    │   ├── whatsapp      # YCloud webhook handling and communication API
+    │   └── ...           # Billing, delivery, contabilidad, and encryption utils
+    ├── types/            # TypeScript type definitions
+    └── proxy.ts          # Authentication proxy middleware
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ Code Standards
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Please review [CLAUDE.md](file:///C:/Users/LENOVO/.gemini/antigravity/scratch/ferrobot/CLAUDE.md) for detailed guidelines about:
+* Next.js 16 Search Params and Suspense requirements.
+* Supabase client instantiation guidelines (Client vs. Server vs. Admin client).
+* Database Schema structure and RLS conventions.
+* Phone number format policies.

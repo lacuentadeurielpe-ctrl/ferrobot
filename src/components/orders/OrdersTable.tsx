@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { cn, formatPEN, formatFecha, formatFechaHoraLima, labelEstadoPedido, colorEstadoPedido, labelEstadoPago, colorEstadoPago } from '@/lib/utils'
+import { cn, formatPEN, formatFecha, formatFechaHoraLima, labelEstadoPedido, colorEstadoPedido, labelEstadoPago, colorEstadoPago, matchesFuzzy } from '@/lib/utils'
 import { ChevronDown, Package, Loader2, Search, X, FileText, Send, ExternalLink, Plus, Bell, Download, CreditCard, CheckCircle2, Mic, Clock } from 'lucide-react'
 import NuevoPedidoModal from './NuevoPedidoModal'
 import PedidoVozModal from './PedidoVozModal'
@@ -268,15 +268,11 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   const [filtroFecha, setFiltroFecha] = useState('')
 
   const filtrados = useMemo(() => {
-    const q = busqueda.toLowerCase().trim()
     return pedidos.filter((p) => {
       const nombreCliente = p.clientes?.nombre ?? p.nombre_cliente ?? ''
       const telefono = p.clientes?.telefono ?? p.telefono_cliente ?? ''
 
-      const matchBusqueda = !q ||
-        nombreCliente.toLowerCase().includes(q) ||
-        telefono.includes(q) ||
-        p.numero_pedido.toLowerCase().includes(q)
+      const matchBusqueda = matchesFuzzy(`${nombreCliente} ${telefono} ${p.numero_pedido}`, busqueda)
 
       const matchEstado = !filtroEstado || p.estado === filtroEstado
       const matchFecha = estaEnRango(p.created_at, filtroFecha)

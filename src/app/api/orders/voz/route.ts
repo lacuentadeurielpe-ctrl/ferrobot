@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionInfo } from '@/lib/auth/roles'
+import { normalizeSearchText } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,27 +38,72 @@ export interface PedidoParseado {
   advertencias: string[]
 }
 
-// ── Helpers de normalización ──────────────────────────────────────────────────
+// ── Helpers de normalización y búsqueda difusa ────────────────────────────────
 
-function normalizar(s: string): string {
-  return s.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+function getLevenshteinDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 999
+  const tmp: number[][] = []
+  for (let i = 0; i <= a.length; i++) {
+    tmp[i] = [i]
+  }
+  for (let j = 0; j <= b.length; j++) {
+    tmp[0][j] = j
+  }
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      tmp[i][j] = Math.min(
+        tmp[i - 1][j] + 1,
+        tmp[i][j - 1] + 1,
+        tmp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
+    }
+  }
+  return tmp[a.length][b.length]
 }
 
+const STOP_WORDS = new Set(['de', 'con', 'en', 'para', 'un', 'la', 'el', 'los', 'las', 'y', 'x'])
+
 function similaridad(a: string, b: string): number {
-  const na = normalizar(a)
-  const nb = normalizar(b)
-  if (!na || !nb) return 0
-  if (na === nb) return 1
-  if (na.includes(nb) || nb.includes(na)) return 0.85
-  const ta = na.split(' ').filter(w => w.length >= 2)
-  const tb = nb.split(' ').filter(w => w.length >= 2)
-  if (!ta.length || !tb.length) return 0
-  const comunes = ta.filter(t => tb.some(b2 => b2.includes(t) || t.includes(b2))).length
-  return comunes / Math.max(ta.length, tb.length)
+  const normA = normalizeSearchText(a)
+  const normB = normalizeSearchText(b)
+
+  if (!normA || !normB) return 0
+  if (normA === normB) return 1
+
+  const tokensA = normA.split(/\s+/).filter(t => t.length > 0)
+  const tokensB = normB.split(/\s+/).filter(t => t.length > 0)
+
+  if (tokensA.length === 0 || tokensB.length === 0) return 0
+
+  const filteredA = tokensA.length > 1 ? tokensA.filter(t => !STOP_WORDS.has(t)) : tokensA
+  const filteredB = tokensB.length > 1 ? tokensB.filter(t => !STOP_WORDS.has(t)) : tokensB
+
+  let matchCount = 0
+
+  for (const tA of filteredA) {
+    let bestTokenMatch = 0
+
+    for (const tB of filteredB) {
+      if (tA === tB) {
+        bestTokenMatch = 1
+        break
+      }
+      if (tA.includes(tB) || tB.includes(tA)) {
+        bestTokenMatch = Math.max(bestTokenMatch, 0.8)
+      }
+      if (tA.length >= 4 && tB.length >= 4) {
+        const dist = getLevenshteinDistance(tA, tB)
+        if (dist <= 1) {
+          bestTokenMatch = Math.max(bestTokenMatch, 0.75)
+        } else if (dist <= 2 && tA.length >= 6) {
+          bestTokenMatch = Math.max(bestTokenMatch, 0.6)
+        }
+      }
+    }
+    matchCount += bestTokenMatch
+  }
+
+  return matchCount / filteredA.length
 }
 
 function matchearProducto(
@@ -76,7 +122,7 @@ function matchearProducto(
   }
 
   if (mejorScore >= 0.95) return { producto: mejorProducto, confianza: 'exacto' }
-  if (mejorScore >= 0.45) return { producto: mejorProducto, confianza: 'aproximado' }
+  if (mejorScore >= 0.70) return { producto: mejorProducto, confianza: 'aproximado' }
   return { producto: null, confianza: 'manual' }
 }
 

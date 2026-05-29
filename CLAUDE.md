@@ -1,94 +1,144 @@
-# CLAUDE.md
+# FerroBot Developer Context Sheet (`CLAUDE.md`)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This document serves as the single source of truth for developer guidelines, architecture, database schemas, and conventions when working on **FerroBot**.
 
-@AGENTS.md
+---
 
-## Commands
+## 🛠️ Commands & Development Lifecycle
+
+Use the following commands for development, building, and validation:
+
+| Task | Command | Description |
+|---|---|---|
+| **Development** | `npm run dev` | Starts the Next.js 16 development server with Turbopack. |
+| **Production Build** | `npm run build` | Builds the production bundle. Run this locally to catch TypeScript and pre-rendering issues. |
+| **Linting** | `npm run lint` | Runs ESLint configuration. |
+| **Start Production** | `npm run start` | Starts the built server in production mode. |
+
+> [!IMPORTANT]
+> **No Automated Tests**: The codebase currently relies on build validation. Always run `npm run build` to catch compile-time, TypeScript, and pre-rendering exceptions before pushing code or deploying.
+
+---
+
+## 🏗️ Architecture Overview
+
+**FerroBot** is a multi-tenant SaaS application specifically built for Peruvian hardware stores (*ferreterías*). It bridges a conversational WhatsApp AI interface with a web dashboard for store owners and staff to manage catalog, orders, deliveries, and billing.
+
+```mermaid
+graph TD
+    Client[WhatsApp Client] <-->|WhatsApp Messages| YCloud[YCloud API]
+    YCloud <-->|Webhook POST| Webhook[POST /api/webhook/ycloud]
+    Webhook -->|Verify Signature & Prep Media| Handler[bot/message-handler.ts]
+    Handler <-->|Intents / Catalog| Deepseek[ai/deepseek.ts]
+    Handler <-->|DB Transactions| Supabase[Supabase DB / RLS]
+    Dashboard[Web Dashboard] <-->|Next.js 16 AppRouter| Supabase
+    Repartidor[Repartidor Portal] <-->|Unauthenticated Delivery URL| SupabaseAdmin[Supabase Admin Bypass]
+```
+
+### 1. Multi-tenancy & Auth
+
+Every database table is scoped to a tenant (`ferreteria_id`). Data segregation is strictly enforced via Supabase Row Level Security (RLS) policies and session scoping.
+
+* **Central Auth Utility**: `src/lib/auth/roles.ts → getSessionInfo()`
+  * Returns: `{ userId, ferreteriaId, rol: 'dueno'|'vendedor', nombreFerreteria, onboardingCompleto, permisos }`
+  * Strategy: It checks if the user is the owner (`ferreterias.owner_id`). If not, it checks the `miembros_ferreteria` table for employee assignments.
+  * **Use this in all server components and API routes** instead of querying `ferreterias` directly.
+* **Routing & Middleware**: Controlled by `src/proxy.ts` (mapped from Next.js middleware hooks).
+  * Excludes standard assets.
+  * Public routes (auth, webhooks, delivery tracking) are registered in `RUTAS_PUBLICAS` to bypass redirect logic.
+
+### 2. Supabase Client Tiers
+
+To interact with Supabase, choose the appropriate client creation method:
+
+```typescript
+// 1. Server Client (scoped to user session, enforces RLS)
+import { createClient } from '@/lib/supabase/server'
+const supabase = await createClient()
+
+// 2. Admin Client (bypasses RLS, server-only, secure environments)
+import { createAdminClient } from '@/lib/supabase/admin'
+const supabaseAdmin = createAdminClient()
+
+// 3. Client-side Client (for browser interactive client components)
+import { createClient } from '@/lib/supabase/client'
+const supabase = createClient()
+```
+
+---
+
+## 🛢️ Database Schema Summary
+
+Key database tables configured in the `supabase/migrations/` directory:
+
+| Table | Multi-tenant Key | Description | RLS Policy |
+|---|---|---|---|
+| **`ferreterias`** | `owner_id` | Master tenant record for each store. | `owner_id = auth.uid()` |
+| **`miembros_ferreteria`** | `ferreteria_id` | Associates employees with roles and JSONB permissions. | Scoped to `mi_ferreteria_id()` |
+| **`productos`** | `ferreteria_id` | Catalog of items with prices, stock, and negotiation parameters. | Scoped to `mi_ferreteria_id()` |
+| **`conversaciones`** | `ferreteria_id` | Sessions of chat history between clients and the store. | Scoped to `mi_ferreteria_id()` |
+| **`mensajes`** | - | Message history. References `conversaciones(id)`. | Scoped via conversation RLS |
+| **`cotizaciones`** | `ferreteria_id` | Quotes containing lines of item data, prices, and status. | Scoped to `mi_ferreteria_id()` |
+| **`pedidos`** | `ferreteria_id` | Confirmed purchases mapped for delivery or pickup. | Scoped to `mi_ferreteria_id()` |
+| **`suscripciones`** | `ferreteria_id` | Track credit quotas (AI calls) and SaaS subscription levels. | Scoped via owner auth |
+
+> [!TIP]
+> **RLS Helper**: The SQL helper function `mi_ferreteria_id()` returns the `ferreteria_id` associated with the currently authenticated `auth.uid()`. It is heavily used in policies.
+
+---
+
+## 💬 WhatsApp AI Webhook & Flow
+
+Incoming WhatsApp events hit `POST /api/webhook/ycloud`:
+1. **HMAC Signature Check**: Validated against `YCLOUD_WEBHOOK_SECRET`.
+2. **Media Pre-processing**:
+   * Audio messages (.ogg / .mp3) -> Transcribed using OpenAI Whisper API.
+   * Image messages -> Analyzed via GPT-4o Vision to extract item details or lists.
+   * Both steps require `OPENAI_API_KEY` and degrade gracefully if omitted.
+3. **Core Message Processing**:
+   * Message sent to `src/lib/bot/message-handler.ts → handleIncomingMessage()`.
+   * Intent parsing via DeepSeek (`src/lib/ai/deepseek.ts`) returns a structured JSON.
+   * Handler updates Supabase and dispatches outgoing messages through YCloud API.
+
+### Pausing the Bot
+When `bot_pausado = true` (either through owner dashboard manual takeover or AI `pedir_humano` intent detection), the bot ceases automatic replies to let a human manage the conversation.
+
+---
+
+## 🚚 Delivery & Repartidores System
+
+* **No Credentials Auth**: Repartidores (delivery agents) do not have Supabase accounts.
+* **Token Authentication**: They authenticate via a cryptographically secure URL token: `/delivery/[token]`.
+* **API Access**: APIs serving these routes (`/api/delivery/[token]/*`) use `createAdminClient()` and bypass normal RLS checks, verifying the token validity explicitly.
+
+---
+
+## 📋 Coding Conventions & Guidelines
+
+* **Next.js 16 Search Params**: Next.js 16 enforces that **any component reading `useSearchParams()` must be wrapped in a `<Suspense>` boundary**. Failing to do so will cause pre-rendering failures during `npm run build`.
+* **Phone Formats**: Always store phone numbers as raw numeric E.164 strings without the leading `+` (e.g., `51987654321` for Peru). The webhook handler and YCloud adapter handle appending `+` prefix where needed.
+* **Timezone Rules**: All business hours, scheduling, and billing timestamps use the Lima timezone (`America/Lima`, UTC-5).
+* **Billing & SUNAT**: Invoices (boletas/facturas) are generated, saved, and processed under `src/lib/comprobantes` and `src/lib/sunat/` utilizing `@react-pdf/renderer` for template exports.
+
+---
+
+## 🔑 Environment Variables
 
 ```bash
-npm run dev        # start dev server (Next.js 16 with Turbopack)
-npm run build      # production build — must pass before deploying
-npm run lint       # ESLint
-```
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=            # URL of Supabase project
+NEXT_PUBLIC_SUPABASE_ANON_KEY=       # Anonymous client key
+SUPABASE_SERVICE_ROLE_KEY=           # Secret admin key (server-only)
 
-There are no automated tests. Validate changes by running `npm run build` locally — TypeScript errors and prerender failures surface here before Vercel does.
+# WhatsApp & Integrations
+YCLOUD_API_KEY=                      # YCloud API communication key
+YCLOUD_WEBHOOK_SECRET=               # HMAC verification key for webhooks
 
-## Architecture Overview
+# AI Engine Credentials
+DEEPSEEK_API_KEY=                    # Used for core intent and processing
+OPENAI_API_KEY=                      # Optional: enables Whisper and Vision support
 
-**FerroBot** is a multi-tenant SaaS for Peruvian hardware stores (*ferreterías*). Each ferretería gets a WhatsApp bot that handles customer quoting, ordering, and delivery. The dashboard lets owners and staff manage everything.
-
-### Multi-tenancy & Auth
-
-Every DB query is scoped to `ferreteria_id`. The central auth utility is `src/lib/auth/roles.ts → getSessionInfo()`:
-
-- Returns `{ userId, ferreteriaId, rol: 'dueno'|'vendedor', nombreFerreteria, onboardingCompleto }`
-- Checks `ferreterias.owner_id` first (dueño), then `miembros_ferreteria` (vendedor)
-- **Use this in every server component and API route** — never query `ferreterias.owner_id` directly
-
-The middleware lives in `src/proxy.ts` (not `middleware.ts`). Public routes (webhook, delivery token pages, invite pages) must be added to `RUTAS_PUBLICAS` there.
-
-### Supabase Client Tiers
-
-| Import | When to use |
-|--------|-------------|
-| `@/lib/supabase/server` → `createClient()` | Server components, API routes with user session |
-| `@/lib/supabase/admin` → `createAdminClient()` | Webhook handler, delivery token API, cron jobs — bypasses RLS |
-| `@/lib/supabase/client` → `createClient()` | Client components only |
-
-RLS policies use `mi_ferreteria_id()` (a `SECURITY DEFINER` function) to scope rows to the authenticated user's ferretería.
-
-### WhatsApp Bot Flow
-
-Inbound messages arrive at `POST /api/webhook/ycloud`:
-1. HMAC signature verified against `YCLOUD_WEBHOOK_SECRET`
-2. Media messages (audio/image/document) pre-processed: audio → Whisper transcription, images → GPT-4o Vision analysis. Both require `OPENAI_API_KEY`; gracefully degrade if absent.
-3. The processed text is passed to `src/lib/bot/message-handler.ts → handleIncomingMessage()`
-4. Message handler calls DeepSeek (`src/lib/ai/deepseek.ts`) which returns a structured JSON intent
-5. Based on intent, the handler creates cotizaciones/pedidos in Supabase and sends replies via `src/lib/whatsapp/ycloud.ts → enviarMensaje()`
-
-Key intents defined in `deepseek.ts`: `cotizacion`, `confirmar_pedido`, `orden_completa`, `rechazar_cotizacion`, `estado_pedido`, `pedir_humano`, etc.
-
-When `pedir_humano` is detected or the dueño manually intervenes, `bot_pausado = true` is set on the conversación — the bot goes silent until the owner resumes it.
-
-### Dashboard Pages
-
-All under `src/app/(dashboard)/dashboard/`. The layout (`src/app/(dashboard)/layout.tsx`) calls `getSessionInfo()` and redirects accordingly. Role-gated UI: financial data and Configuración tab are hidden for `vendedor` role.
-
-- `page.tsx` — KPI dashboard with period selector
-- `orders/` — pedidos management, repartidor assignment
-- `cotizaciones/` — quote management with PDF generation
-- `conversations/` — WhatsApp thread viewer with manual reply
-- `clientes/` — customer list + detail (pedidos/cotizaciones history)
-- `catalog/` — product catalog with AI CSV/image extraction
-- `settings/` — ferretería config, team members, repartidores
-
-### Delivery System
-
-Repartidores have no Supabase accounts. They're authenticated by URL token: `/delivery/[token]`. The corresponding API routes (`/api/delivery/[token]/*`) use `createAdminClient()` and bypass RLS. The `DeliveryView` client component handles entrega confirmation and incidencia reporting.
-
-### Cron Jobs
-
-`vercel.json` schedules `GET /api/cron/resumen-diario` at `0 1 * * *` (UTC) = 8pm Lima time. The route is protected by `Authorization: Bearer CRON_SECRET`. It sends a WhatsApp summary to `ferreterias.telefono_dueno` for stores with `resumen_diario_activo = true`.
-
-### Key Conventions
-
-- **`useSearchParams()` must always be inside a `<Suspense>` boundary** — Next.js 16 enforces this at build time and will fail the Vercel deploy otherwise.
-- Phone numbers are stored without `+` (e.g. `51987654321`). `ycloud.ts → e164()` adds the `+` before sending.
-- All times and business-hours logic use Lima timezone (`America/Lima`, UTC-5).
-- `src/lib/utils.ts` exports shared formatters: `formatPEN`, `formatFecha`, `labelEstadoPedido`, `colorEstadoPedido`, `cn`.
-- PDF comprobantes are generated with `@react-pdf/renderer` in `src/lib/pdf/generar-comprobante.ts` and stored in Supabase Storage.
-
-### Environment Variables
-
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-YCLOUD_API_KEY
-YCLOUD_WEBHOOK_SECRET
-DEEPSEEK_API_KEY
-OPENAI_API_KEY          # optional — enables Whisper + Vision
-CRON_SECRET             # optional — protects /api/cron/* routes
-NEXT_PUBLIC_APP_URL     # base URL used for invite links
+# Dashboard Context
+NEXT_PUBLIC_APP_URL=                 # Base URL for invitation/delivery links
+CRON_SECRET=                         # Bearer token protecting cron endpoints
 ```

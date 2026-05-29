@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Pencil, Trash2, ToggleLeft, ToggleRight, Tag, Loader2, TrendingUp, AlertTriangle, Copy, Receipt } from 'lucide-react'
 import { type Producto, type Categoria } from '@/types/database'
-import { formatPEN } from '@/lib/utils'
+import { formatPEN, matchesFuzzy } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Modal from '@/components/ui/Modal'
@@ -54,7 +54,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
 
   // Filtrado local (rápido, sin ir al servidor)
   const productosFiltrados = productos.filter((p) => {
-    const matchBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const matchBusqueda = matchesFuzzy(`${p.nombre} ${p.descripcion ?? ''}`, busqueda)
     const matchCategoria = categoriaFiltro === 'todas' || p.categoria_id === categoriaFiltro
     const matchActivo = !soloActivos || p.activo
     return matchBusqueda && matchCategoria && matchActivo
@@ -243,7 +243,10 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                       const precioNeto = conIgv
                         ? producto.precio_base / 1.18
                         : producto.precio_base
-                      const utilidad = precioNeto - producto.precio_compra
+                      const costoNeto = conIgv
+                        ? producto.precio_compra / 1.18
+                        : producto.precio_compra
+                      const utilidad = precioNeto - costoNeto
                       const margen = precioNeto > 0 ? (utilidad / precioNeto) * 100 : 0
                       const bajo = margen < margenMinimo
                       return (

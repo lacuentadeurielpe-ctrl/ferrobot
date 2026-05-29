@@ -139,3 +139,90 @@ export function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
     ),
   ])
 }
+
+// ── Búsqueda difusa inteligente ──────────────────────────────────────────────
+
+function getLevenshteinDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 999
+  const tmp: number[][] = []
+  for (let i = 0; i <= a.length; i++) {
+    tmp[i] = [i]
+  }
+  for (let j = 0; j <= b.length; j++) {
+    tmp[0][j] = j
+  }
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      tmp[i][j] = Math.min(
+        tmp[i - 1][j] + 1,
+        tmp[i][j - 1] + 1,
+        tmp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
+    }
+  }
+  return tmp[a.length][b.length]
+}
+
+export function normalizeSearchText(text: string): string {
+  if (!text) return ''
+  let normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Quitar tildes
+  
+  // Reemplazar pulgadas y medidas comunes por representaciones canónicas
+  normalized = normalized
+    .replace(/["”“]/g, ' " ')
+    .replace(/\bpulgadas?\b/g, ' " ')
+    .replace(/\bmedia\b/g, ' 1/2 ')
+    .replace(/\bun cuarto\b/g, ' 1/4 ')
+    .replace(/\btres cuartos\b/g, ' 3/4 ')
+    // Quitar signos de puntuación extraños manteniendo / " ' para medidas
+    .replace(/[-_.,;:()*+º°]/g, ' ')
+
+  return normalized.trim()
+}
+
+const STOP_WORDS = new Set(['de', 'con', 'en', 'para', 'un', 'la', 'el', 'los', 'las', 'y', 'x'])
+
+export function matchesFuzzy(target: string, query: string): boolean {
+  if (!query) return true
+  const normQuery = normalizeSearchText(query)
+  const normTarget = normalizeSearchText(target)
+
+  const queryTokens = normQuery.split(/\s+/).filter(t => t.length > 0)
+  const targetTokens = normTarget.split(/\s+/).filter(t => t.length > 0)
+
+  if (queryTokens.length === 0) return true
+
+  // Ignorar stop words si la búsqueda tiene múltiples palabras
+  const filteredQueryTokens = queryTokens.length > 1
+    ? queryTokens.filter(t => !STOP_WORDS.has(t))
+    : queryTokens
+
+  for (const qToken of filteredQueryTokens) {
+    let tokenMatched = false
+
+    for (const tToken of targetTokens) {
+      // Coincidencia exacta o contención
+      if (tToken.includes(qToken) || qToken.includes(tToken)) {
+        tokenMatched = true
+        break
+      }
+
+      // Coincidencia difusa por distancia Levenshtein
+      if (qToken.length >= 4 && tToken.length >= 4) {
+        const maxDist = qToken.length >= 6 ? 2 : 1
+        if (getLevenshteinDistance(qToken, tToken) <= maxDist) {
+          tokenMatched = true
+          break
+        }
+      }
+    }
+
+    if (!tokenMatched) return false
+  }
+
+  return true
+}
+

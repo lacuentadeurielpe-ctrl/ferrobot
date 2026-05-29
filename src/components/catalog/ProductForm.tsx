@@ -132,8 +132,9 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, i
   // Y este producto específico está afecto a IGV (no es exonerado)
   const precioConIgvIncluido = igvGlobal && form.afecto_igv && precioVenta > 0
   const precioSinIgv = precioConIgvIncluido ? precioVenta / (1 + IGV_RATE) : precioVenta
+  const costoSinIgv = precioConIgvIncluido ? precioCompra / (1 + IGV_RATE) : precioCompra
   const igvMonto = precioVenta - precioSinIgv
-  const utilidad = precioSinIgv - precioCompra
+  const utilidad = precioSinIgv - costoSinIgv
   const margen = precioSinIgv > 0 ? (utilidad / precioSinIgv) * 100 : 0
   const tieneCosto = precioCompra > 0
   const margenBajo = tieneCosto && margen < margenMinimo
@@ -559,6 +560,7 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, i
           unidad={form.unidad}
           precioCompra={precioCompra}
           margenMinimo={margenMinimo}
+          conIgv={precioConIgvIncluido}
         />
       )}
 

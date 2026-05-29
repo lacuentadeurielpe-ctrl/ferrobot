@@ -17,6 +17,7 @@ interface DiscountRulesEditorProps {
   unidad: string
   precioCompra?: number   // para calcular margen por rango
   margenMinimo?: number   // umbral de alerta (%)
+  conIgv?: boolean
 }
 
 export default function DiscountRulesEditor({
@@ -25,6 +26,7 @@ export default function DiscountRulesEditor({
   unidad,
   precioCompra = 0,
   margenMinimo = 10,
+  conIgv = false,
 }: DiscountRulesEditorProps) {
   function agregar() {
     const ultima = reglas[reglas.length - 1]
@@ -56,10 +58,11 @@ export default function DiscountRulesEditor({
       )}
 
       {reglas.map((regla, idx) => {
-        const precioVenta = regla.precio_unitario
-        const utilidad = precioVenta - precioCompra
-        const margen = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0
-        const tieneCosto = precioCompra > 0 && precioVenta > 0
+        const precioVentaNeto = conIgv ? regla.precio_unitario / 1.18 : regla.precio_unitario
+        const precioCompraNeto = conIgv ? precioCompra / 1.18 : precioCompra
+        const utilidad = precioVentaNeto - precioCompraNeto
+        const margen = precioVentaNeto > 0 ? (utilidad / precioVentaNeto) * 100 : 0
+        const tieneCosto = precioCompra > 0 && regla.precio_unitario > 0
         const margenBajo = tieneCosto && margen < margenMinimo
 
         return (
