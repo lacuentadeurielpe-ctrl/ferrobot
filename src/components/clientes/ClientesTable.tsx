@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { formatPEN, formatFecha } from '@/lib/utils'
+import { formatPEN, formatFecha, matchesFuzzy } from '@/lib/utils'
 import { Search, X, Users, ChevronRight } from 'lucide-react'
 
 interface ClienteResumen {
@@ -26,11 +26,8 @@ export default function ClientesTable({
   const [busqueda, setBusqueda] = useState('')
 
   const filtrados = useMemo(() => {
-    const q = busqueda.toLowerCase().trim()
-    if (!q) return clientes
     return clientes.filter((c) =>
-      (c.nombre ?? '').toLowerCase().includes(q) ||
-      c.telefono.includes(q)
+      matchesFuzzy(`${c.nombre ?? ''} ${c.telefono}`, busqueda)
     )
   }, [clientes, busqueda])
 

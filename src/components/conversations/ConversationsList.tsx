@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { cn, truncar } from '@/lib/utils'
+import { cn, truncar, matchesFuzzy } from '@/lib/utils'
 import { MessageSquare, Search, X } from 'lucide-react'
 
 interface ConversacionItem {
@@ -52,11 +52,11 @@ export default function ConversationsList({ inicial, ferreteriaId }: Conversatio
     let lista = conversaciones
     const q   = busqueda.toLowerCase().trim()
 
-    if (q) {
+    if (busqueda) {
       lista = lista.filter((conv) => {
-        const nombre = conv.clientes?.nombre?.toLowerCase() ?? ''
+        const nombre = conv.clientes?.nombre ?? ''
         const tel    = conv.clientes?.telefono ?? ''
-        return nombre.includes(q) || tel.includes(q)
+        return matchesFuzzy(`${nombre} ${tel}`, busqueda)
       })
     }
 
