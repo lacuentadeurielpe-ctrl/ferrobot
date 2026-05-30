@@ -19,6 +19,7 @@ import {
   BarChart2,
   Activity,
   Truck,
+  ScanLine,
 } from 'lucide-react'
 import NotificationBadge from '@/components/layout/NotificationBadge'
 import type { Rol } from '@/lib/auth/roles'
@@ -41,6 +42,7 @@ const navGroups: NavGroup[] = [
   {
     items: [
       { label: 'Dashboard', href: '/dashboard',       icon: LayoutDashboard, permiso: 'ver_dashboard' },
+      { label: 'Caja POS',  href: '/pos',             icon: ScanLine,        permiso: 'ver_pedidos' },
       { label: 'Ventas',    href: '/dashboard/ventas', icon: TrendingUp,      badge: 'pedidos',        permiso: 'ver_pedidos' },
       { label: 'Chat',      href: '/dashboard/conversations', icon: MessageSquare, badge: 'conversaciones', permiso: 'ver_pedidos' },
     ],
