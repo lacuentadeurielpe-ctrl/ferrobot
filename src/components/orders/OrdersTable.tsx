@@ -9,6 +9,7 @@ import PedidoVozModal from './PedidoVozModal'
 import EditarPedidoModal from './EditarPedidoModal'
 import ModalEmitirBoleta from '@/components/comprobantes/ModalEmitirBoleta'
 import ModalEmitirFactura from '@/components/comprobantes/ModalEmitirFactura'
+import ModalNotaCredito from '@/components/comprobantes/ModalNotaCredito'
 import { createClient } from '@/lib/supabase/client'
 import type { Rol } from '@/lib/auth/roles'
 import { checkPermiso, type PermisoMap } from '@/lib/auth/permisos'
@@ -173,10 +174,13 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   // Facturas ya emitidas en esta sesión: pedidoId → { numeroCompleto, pdfUrl }
   const [facturasEmitidas, setFacturasEmitidas] = useState<Record<string, { numeroCompleto: string; pdfUrl?: string }>>({})
 
-  function handleFacturaEmitida(pedidoId: string, resultado: { numeroCompleto: string; pdfUrl?: string }) {
+  function handleFacturaEmitida(pedidoId: string, resultado: { comprobanteId: string; numeroCompleto: string; pdfUrl?: string }) {
     setFacturasEmitidas((prev) => ({ ...prev, [pedidoId]: resultado }))
     setModalFactura(null)
   }
+
+  // Modal Nota Crédito
+  const [modalNC, setModalNC] = useState<{ pedido: PedidoDB, comprobanteOriginal: { id: string, numeroCompleto: string, tipo: string } } | null>(null)
 
   // Modal editar pedido
   const [modalEditar, setModalEditar] = useState<typeof pedidos[0] | null>(null)
@@ -196,8 +200,11 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
     return () => { supabase.removeChannel(channel) }
   }, [ferreteriaId])
 
-  // Estado de comprobantes por pedido: { pedidoId: { url, cargando, reenviando, error } }
+  // Estado de comprobantes por pedido
   const [comprobantes, setComprobantes] = useState<Record<string, {
+    id?: string
+    numero_completo?: string
+    tipo?: string
     url: string | null
     cargando: boolean
     reenviando: boolean
@@ -231,14 +238,25 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       const res = await fetch(`/api/orders/${pedidoId}/comprobante`)
       if (res.ok) {
         const data = await res.json()
-        patchComprobante(pedidoId, { url: data.pdf_url, cargando: false })
+        patchComprobante(pedidoId, { 
+          id: data.id, 
+          numero_completo: data.numero_completo || data.numero_comprobante, 
+          tipo: data.tipo, 
+          url: data.pdf_url || `/api/comprobantes/${data.id}/pdf`, 
+          cargando: false 
+        })
         window.open(viewerUrl(pedidoId), '_blank')
       } else if (res.status === 404) {
         // No existe — generarlo ahora
         const gen = await fetch(`/api/orders/${pedidoId}/comprobante`, { method: 'POST' })
         if (gen.ok) {
           const data = await gen.json()
-          patchComprobante(pedidoId, { url: data.pdf_url, cargando: false })
+          patchComprobante(pedidoId, { 
+            id: data.comprobanteId, 
+            numero_completo: data.numeroCompleto, 
+            url: data.pdfUrl, 
+            cargando: false 
+          })
           window.open(viewerUrl(pedidoId), '_blank')
         } else {
           throw new Error((await gen.json()).error ?? 'Error al generar')
@@ -967,6 +985,22 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                             {cp.cargando ? 'Generando…' : 'Ver comprobante'}
                             {!cp.cargando && <ExternalLink className="w-3 h-3 opacity-60" />}
                           </button>
+
+                          {(cp.id || boletaEmitida?.comprobanteId) && (
+                            <button
+                              onClick={() => setModalNC({
+                                pedido: pedido as PedidoDB,
+                                comprobanteOriginal: {
+                                  id: (cp.id || boletaEmitida?.comprobanteId) as string,
+                                  numeroCompleto: (cp.numero_completo || boletaEmitida?.numeroCompleto) as string,
+                                  tipo: cp.tipo || 'boleta'
+                                }
+                              })}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg transition"
+                            >
+                              Devolución (NC)
+                            </button>
+                          )}
 
                           <button
                             onClick={() => reenviarComprobante(pedido.id)}

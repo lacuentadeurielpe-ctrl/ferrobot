@@ -9,7 +9,7 @@ interface Props {
   clienteRuc?:          string | null   // pre-llenado desde ficha del cliente
   clienteRazonSocial?:  string | null   // pre-llenado desde ficha del cliente
   onClose:              () => void
-  onEmitida:            (resultado: { numeroCompleto: string; pdfUrl?: string }) => void
+  onEmitida:            (resultado: { comprobanteId: string; numeroCompleto: string; pdfUrl?: string }) => void
 }
 
 export default function ModalEmitirFactura({ pedido, clienteRuc, clienteRazonSocial, onClose, onEmitida }: Props) {
@@ -94,8 +94,10 @@ export default function ModalEmitirFactura({ pedido, clienteRuc, clienteRazonSoc
         } else {
           setError(d.error ?? 'Error al emitir la factura')
         }
+      } else if (d.numeroCompleto && d.comprobanteId) {
+        onEmitida({ comprobanteId: d.comprobanteId, numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl })
       } else {
-        onEmitida({ numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl })
+        setError('Error al recibir la respuesta del servidor')
       }
     } catch {
       setError('Error de red al emitir la factura')

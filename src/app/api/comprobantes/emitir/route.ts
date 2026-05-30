@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       ok:             true,
       comprobanteId:  resultado.comprobanteId,
       numeroCompleto: resultado.numeroCompleto,
-      pdfUrl:         resultado.pdfUrl,
+      pdfUrl:         `/api/comprobantes/${resultado.comprobanteId}/pdf`,
       xmlUrl:         resultado.xmlUrl,
     })
   }
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     ok:             true,
     comprobanteId:  resultado.comprobanteId,
     numeroCompleto: resultado.numeroCompleto,
-    pdfUrl:         resultado.pdfUrl,
+    pdfUrl:         `/api/comprobantes/${resultado.comprobanteId}/pdf`,
     xmlUrl:         resultado.xmlUrl,
   })
 }
