@@ -67,6 +67,8 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, i
     afecto_igv: producto?.afecto_igv ?? true,
     venta_sin_stock: producto?.venta_sin_stock ?? false,
     activo: producto?.activo ?? true,
+    proveedor: producto?.proveedor ?? '',
+    marca: producto?.marca ?? '',
   })
 
   const [reglas, setReglas] = useState<ReglaForm[]>(
@@ -184,6 +186,8 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, i
       afecto_igv: form.afecto_igv,
       venta_sin_stock: form.venta_sin_stock,
       activo: form.activo,
+      proveedor: form.proveedor.trim() || null,
+      marca: form.marca.trim() || null,
       reglas_descuento: reglas.map(({ id: _, ...r }) => r),
       unidades_producto: unidades.map(({ id, ...u }) => ({
         ...(id ? { id } : {}),
@@ -314,6 +318,32 @@ export default function ProductForm({ producto, categorias, margenMinimo = 10, i
                   <option key={u.code} value={u.code}>{u.label}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Proveedor <span className="text-xs text-zinc-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                name="proveedor"
+                value={form.proveedor}
+                onChange={handleChange}
+                placeholder="Ej: Distribuidora Fénix"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                Marca <span className="text-xs text-zinc-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                name="marca"
+                value={form.marca}
+                onChange={handleChange}
+                placeholder="Ej: Stanley, Tramontina"
+                className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-300 transition"
+              />
             </div>
 
             {/* Precios: compra y venta lado a lado */}

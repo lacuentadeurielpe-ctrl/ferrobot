@@ -181,6 +181,8 @@ export interface Producto {
   afecto_igv: boolean            // F1: si aplica IGV al producto
   venta_sin_stock: boolean       // permite vender aunque stock = 0
   activo: boolean
+  proveedor?: string | null
+  marca?: string | null
   created_at: string
   updated_at: string
   // joins

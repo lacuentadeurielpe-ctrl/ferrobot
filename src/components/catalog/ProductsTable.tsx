@@ -27,6 +27,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
   const [busqueda, setBusqueda] = useState('')
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('todas')
   const [soloActivos, setSoloActivos] = useState(false)
+  const [soloStockBajo, setSoloStockBajo] = useState(false)
   const [modalCategorias, setModalCategorias] = useState(false)
   const [confirmEliminar, setConfirmEliminar] = useState<string | null>(null)
   const [loadingToggle, setLoadingToggle] = useState<string | null>(null)
@@ -54,10 +55,16 @@ export default function ProductsTable({ productos: initialProductos, categorias:
 
   // Filtrado local (rápido, sin ir al servidor)
   const productosFiltrados = productos.filter((p) => {
-    const matchBusqueda = matchesFuzzy(`${p.nombre} ${p.descripcion ?? ''}`, busqueda)
+    const matchBusqueda = matchesFuzzy(`${p.nombre} ${p.descripcion ?? ''} ${p.marca ?? ''} ${p.proveedor ?? ''}`, busqueda)
     const matchCategoria = categoriaFiltro === 'todas' || p.categoria_id === categoriaFiltro
     const matchActivo = !soloActivos || p.activo
-    return matchBusqueda && matchCategoria && matchActivo
+    
+    // Alerta de stock bajo si stock_minimo !== null y stock <= stock_minimo.
+    // También se considera stock bajo si stock es 0 (independiente de si tiene stock_minimo configurado).
+    const esBajoStock = p.stock_minimo !== null ? p.stock <= p.stock_minimo : p.stock === 0
+    const matchStockBajo = !soloStockBajo || esBajoStock
+
+    return matchBusqueda && matchCategoria && matchActivo && matchStockBajo
   })
 
   async function toggleActivo(producto: Producto) {
@@ -137,6 +144,16 @@ export default function ProductsTable({ productos: initialProductos, categorias:
           Solo activos
         </label>
 
+        <label className="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={soloStockBajo}
+            onChange={(e) => setSoloStockBajo(e.target.checked)}
+            className="rounded border-zinc-300 text-zinc-950 focus:ring-zinc-900"
+          />
+          <span className={soloStockBajo ? 'font-medium text-zinc-900' : ''}>Stock bajo</span>
+        </label>
+
         <button
           onClick={() => setModalCategorias(true)}
           className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-zinc-200 text-sm text-zinc-600 hover:bg-zinc-50 transition font-medium"
@@ -205,7 +222,19 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                 <tr key={producto.id} className="hover:bg-zinc-50/60 transition">
                   <td className="px-4 py-3">
                     <div>
-                      <p className="text-sm font-semibold text-zinc-900">{producto.nombre}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold text-zinc-900">{producto.nombre}</p>
+                        {producto.marca && (
+                          <span className="text-[9px] font-medium bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded-full" title="Marca">
+                            {producto.marca}
+                          </span>
+                        )}
+                        {producto.proveedor && (
+                          <span className="text-[9px] font-medium bg-zinc-50 border border-zinc-200 text-zinc-500 px-1.5 py-0.5 rounded-full" title="Proveedor">
+                            Prov: {producto.proveedor}
+                          </span>
+                        )}
+                      </div>
                       {producto.descripcion && (
                         <p className="text-xs text-zinc-400 mt-0.5 truncate max-w-xs">{producto.descripcion}</p>
                       )}
@@ -266,12 +295,37 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`text-sm font-semibold tabular-nums ${producto.stock === 0 && !producto.venta_sin_stock ? 'text-red-500' : producto.stock < 10 ? 'text-amber-600' : 'text-zinc-700'}`}>
-                      {producto.stock}
-                    </span>
-                    {producto.venta_sin_stock && (
-                      <p className="text-[10px] text-blue-500 font-medium mt-0.5">bajo pedido</p>
-                    )}
+                    {(() => {
+                      const isOutOfStock = producto.stock === 0 && !producto.venta_sin_stock
+                      const isLowStock = producto.stock_minimo !== null && producto.stock <= producto.stock_minimo
+                      const colorClass = isOutOfStock
+                        ? 'text-red-500'
+                        : isLowStock
+                        ? 'text-amber-600'
+                        : 'text-zinc-700'
+                      return (
+                        <div className="flex flex-col items-end">
+                          <span className={`text-sm font-semibold tabular-nums ${colorClass}`}>
+                            {producto.stock}
+                          </span>
+                          {producto.stock_minimo !== null && (
+                            <span className="text-[9px] text-zinc-400 font-normal">
+                              mín. {producto.stock_minimo}
+                            </span>
+                          )}
+                          {isOutOfStock && (
+                            <span className="text-[9px] font-semibold text-red-500 flex items-center gap-0.5 mt-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> Agotado
+                            </span>
+                          )}
+                          {!isOutOfStock && isLowStock && (
+                            <span className="text-[9px] font-semibold text-amber-600 flex items-center gap-0.5 mt-0.5">
+                              <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> Stock bajo
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActivo(producto)} disabled={loadingToggle === producto.id}
