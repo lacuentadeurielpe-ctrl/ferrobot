@@ -13,11 +13,14 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const { id: pedidoId } = await params
 
   const admin = createAdminClient()
-  const { data: comprobante } = await admin
+  const { data: comprobantesList } = await admin
     .from('comprobantes')
     .select('numero_comprobante, pdf_url')
     .eq('pedido_id', pedidoId)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    
+  const comprobante = comprobantesList?.[0]
 
   if (!comprobante) {
     return new Response(`
