@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { renderToStream } from '@react-pdf/renderer'
 import QRCode from 'qrcode'
 import PlantillaTicket from '@/components/pdf/PlantillaTicket'
+import PlantillaBoletaFactura from '@/components/pdf/PlantillaBoletaFactura'
 import React from 'react'
 
 export async function GET(
@@ -65,14 +66,15 @@ export async function GET(
 
   const data = {
     ferreteria: {
-      razon_social: ferreteria.razon_social || 'MI FERRETERÍA E.I.R.L',
+      razon_social: ferreteria.razon_social || ferreteria.nombre || 'MI FERRETERIA E.I.R.L',
       nombre_comercial: ferreteria.nombre_comercial || ferreteria.nombre,
       ruc: ferreteria.ruc || '00000000000',
-      direccion: ferreteria.direccion || 'Lima, Perú',
+      direccion: ferreteria.direccion || 'Lima, Peru',
+      logo_url: ferreteria.logo_url || null,
     },
     comprobante: {
-      numero_completo: comprobante.numero_completo || '',
-      tipo: comprobante.tipo as any,
+      numero_completo: comprobante.numero_completo || comprobante.numero_comprobante || '',
+      tipo: (comprobante.tipo || 'boleta') as any,
       fecha: comprobante.created_at,
       cliente_nombre: comprobante.cliente_nombre || 'CLIENTES VARIOS',
       cliente_doc: comprobante.cliente_ruc_dni || '',
@@ -85,9 +87,19 @@ export async function GET(
     items,
   }
 
-  // 5. Renderizar PDF
+  // 5. Elegir plantilla según tipo de comprobante
+  // Boletas y Facturas usan la plantilla A4 profesional
+  // Notas de venta internas usan la plantilla de ticket 80mm
+  const tipo = comprobante.tipo || ''
+  const usarTicket = !tipo || tipo === 'nota_venta' || tipo === 'proforma'
+  
+  const component = usarTicket
+    ? React.createElement(PlantillaTicket, { data })
+    : React.createElement(PlantillaBoletaFactura, { data })
+
+  // 6. Renderizar PDF
   try {
-    const stream = await renderToStream(React.createElement(PlantillaTicket, { data }) as any)
+    const stream = await renderToStream(component as any)
     
     // Convert Node.js stream to Web ReadableStream
     const readableStream = new ReadableStream({
@@ -107,7 +119,7 @@ export async function GET(
     return new NextResponse(readableStream, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${comprobante.numero_completo}.pdf"`
+        'Content-Disposition': `inline; filename="${data.comprobante.numero_completo}.pdf"`
       }
     })
   } catch (err) {
