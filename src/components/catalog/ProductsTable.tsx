@@ -60,7 +60,7 @@ function EditableCell({
       onClick={() => { setEditing(true); setLocalValue(value) }}
       className={`cursor-pointer hover:bg-zinc-100 px-1.5 py-0.5 -mx-1.5 rounded transition relative group flex items-center min-w-8 ${className}`}
     >
-      <span className="truncate">{type === 'number' ? value : value || 'Sin nombre'}</span>
+      <span className="whitespace-normal break-words leading-tight">{type === 'number' ? value : value || 'Sin nombre'}</span>
       {isSaving ? (
         <Loader2 className="w-3 h-3 animate-spin ml-1 text-indigo-500 shrink-0" />
       ) : (
@@ -317,7 +317,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                           type="text"
                           onSave={(val) => handleInlineEdit(producto.id, 'nombre', val)}
                           isSaving={savingField?.id === producto.id && savingField?.field === 'nombre'}
-                          className="font-semibold text-zinc-900 min-w-[120px] max-w-[300px]"
+                          className="font-semibold text-zinc-900 min-w-[120px] max-w-sm"
                         />
                         {producto.marca && (
                           <span className="text-[9px] font-medium bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded-full" title="Marca">
@@ -331,7 +331,7 @@ export default function ProductsTable({ productos: initialProductos, categorias:
                         )}
                       </div>
                       {producto.descripcion && (
-                        <p className="text-xs text-zinc-400 mt-0.5 truncate max-w-xs">{producto.descripcion}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5 whitespace-normal break-words max-w-sm">{producto.descripcion}</p>
                       )}
                       <p className="text-xs text-zinc-400 mt-0.5">por {producto.unidad}</p>
                     </div>
