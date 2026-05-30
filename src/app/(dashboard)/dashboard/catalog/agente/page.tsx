@@ -11,7 +11,7 @@ import { cn, formatPEN } from '@/lib/utils'
 import { UNIDADES_SUNAT } from '@/lib/constantes/unidades'
 import CatalogNav from '@/components/catalog/CatalogNav'
 import type {
-  AccionAgente, TipoAccion,
+  AccionAgente, TipoAccion, OpcionCandidato,
   DatosActualizarPrecio, DatosActualizarStock, DatosActualizarCosto,
   DatosNuevoProducto, DatosBulkPrecio,
 } from '@/app/api/catalog/agente/route'
@@ -37,6 +37,7 @@ interface AccionLocal extends AccionAgente {
   _stock?: string
   _bulkSeleccionados?: Set<string>
   _expandidoBulk?: boolean
+  _opcionSeleccionadaId?: string
 }
 
 interface MensajeChat {
@@ -202,7 +203,25 @@ function AccionCard({
             <Eye className="w-2.5 h-2.5" /> Imagen
           </span>
         )}
-        <span className="font-semibold text-zinc-800 truncate flex-1 min-w-0">{accion.producto_nombre}</span>
+        
+        {accion.opciones && accion.opciones.length > 0 && !isDone ? (
+          <select 
+            value={accion._opcionSeleccionadaId ?? accion.producto_id ?? ''} 
+            onChange={e => {
+              const op = accion.opciones?.find(o => o.id === e.target.value)
+              onUpdate({ _opcionSeleccionadaId: e.target.value, producto_id: e.target.value, producto_nombre: op?.nombre ?? accion.producto_nombre })
+            }}
+            className="flex-1 min-w-0 bg-transparent border-b border-zinc-300 focus:border-zinc-700 outline-none font-semibold text-zinc-800 text-sm py-0.5 truncate"
+          >
+            <option value="" disabled>Selecciona el producto...</option>
+            {accion.opciones.map(o => (
+              <option key={o.id} value={o.id}>{o.nombre} (S/{o.precio_base})</option>
+            ))}
+          </select>
+        ) : (
+          <span className="font-semibold text-zinc-800 truncate flex-1 min-w-0">{accion.producto_nombre || 'Producto no identificado'}</span>
+        )}
+
         {accion.estado === 'ok'    && <Check className="w-4 h-4 text-emerald-500 shrink-0" />}
         {accion.estado === 'error' && <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />}
         {accion.estado === 'ejecutando' && <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400 shrink-0" />}
@@ -383,7 +402,7 @@ function AccionCard({
 
       {!isDone && (
         <div className="flex gap-2 mt-3">
-          <button onClick={onConfirm} disabled={accion.estado === 'ejecutando'}
+          <button onClick={onConfirm} disabled={accion.estado === 'ejecutando' || (!accion.producto_id && accion.tipo !== 'nuevo_producto')}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50">
             {accion.estado === 'ejecutando'
               ? <Loader2 className="w-3 h-3 animate-spin" />
