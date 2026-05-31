@@ -339,7 +339,7 @@ export function ComprobantePDF({ datos }: { datos: DatosComprobante }) {
           <View style={S.cajaRuc}>
             <Text style={S.cajaRucTexto}>R.U.C. N° {rucFerreteria}</Text>
             <Text style={S.cajaRucTitulo}>
-              {datos.esProforma ? 'COTIZACIÓN' : 'COMPROBANTE DE PAGO'}
+              {datos.esProforma ? 'COTIZACIÓN' : 'NOTA DE VENTA'}
             </Text>
             <Text style={S.cajaRucNumero}>N° {datos.numero_comprobante}</Text>
           </View>
