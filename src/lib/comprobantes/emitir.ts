@@ -586,60 +586,109 @@ export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmi
     .upsert({
       ferreteria_id:    opts.ferreteriaId,          // AISLADO
       pedido_id:        opts.pedidoId,
-export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmision> {
+      tipo:             'factura',
+      serie,
+      numero,
+      numero_completo:  numeroCompleto,
+      numero_comprobante: numeroCompleto,
+      estado:           estadoComprobante,
+      subtotal:         totalGravada,
+      igv:              totalIgv,
+      total:            totalFinal,
+      cliente_nombre:   opts.clienteNombre,
+      cliente_ruc_dni:  rucLimpio,
+      nubefact_id:      resultado.data?.nubefact_id   ?? null,
+      nubefact_hash:    resultado.data?.hash_cpe       ?? null,
+      nubefact_qr_cadena: resultado.data?.cadena_para_codigo_qr ?? null,
+      xml_url:          resultado.data?.enlace_del_xml ?? null,
+      pdf_url:          resultado.data?.enlace_del_pdf ?? null,
+      emitido_por:      opts.emitidoPor,
+      error_envio:      resultado.ok ? null : (resultado.error ?? 'Error desconocido'),
+    }, {
+      onConflict: 'pedido_id,tipo',
+    })
+    .select('id')
+    .single()
+
+  if (errInsert || !comprobante) {
+    console.error('[emitirFactura] Error guardando comprobante en BD:', errInsert)
+    if (resultado.ok) {
+      return {
+        ok:             true,
+        numeroCompleto,
+        pdfUrl:         resultado.data!.enlace_del_pdf,
+        xmlUrl:         resultado.data!.enlace_del_xml,
+        error:          '⚠ Factura emitida en SUNAT pero hubo un error al guardarla. Anota el número: ' + numeroCompleto,
+      }
+    }
+  }
+
+  if (!resultado.ok) {
+    return {
+      ok:             false,
+      comprobanteId:  comprobante?.id,
+      error:          resultado.error,
+      tokenInvalido:  resultado.tokenInvalido,
+    }
+  }
+
+  return {
+    ok:             true,
+    comprobanteId:  comprobante?.id,
+    numeroCompleto,
+    pdfUrl:         resultado.data!.enlace_del_pdf,
+    xmlUrl:         resultado.data!.enlace_del_xml,
+  }
+}
+
+// ── Nota de Crédito (F3 - Devoluciones) ──────────────────────────────────────
+
+export interface OpcionesNotaCredito {
+  comprobanteReferenciaId: string
+  ferreteriaId:            string
+  motivoCodigo:            string   // Ej. '01' = Anulación, '07' = Devolución
+  motivoDescripcion:       string
+  emitidoPor:              'dashboard' | 'bot'
+  itemsDevueltos?:         { producto_id: string | null; cantidad: number }[]
+}
+
+export async function emitirNotaCredito(opts: OpcionesNotaCredito): Promise<ResultadoEmision> {
   const supabase = createAdminClient()
 
-  // ── 1. Cargar ferretería — FERRETERÍA AISLADA ────────────────────────────
+  // 1. Cargar ferretería
   const { data: ferreteria, error: errFerr } = await supabase
     .from('ferreterias')
     .select(`
       id, ruc, razon_social, nombre_comercial,
-      serie_facturas, igv_incluido_en_precios,
+      serie_boletas, serie_facturas, igv_incluido_en_precios,
       nubefact_token_enc, nubefact_ruta, nubefact_modo
     `)
     .eq('id', opts.ferreteriaId)
     .single()
 
-  if (errFerr || !ferreteria) {
-    return { ok: false, error: 'Ferretería no encontrada' }
-  }
-
+  if (errFerr || !ferreteria) return { ok: false, error: 'Ferretería no encontrada' }
   if (!ferreteria.nubefact_token_enc || !ferreteria.nubefact_ruta) {
-    return { ok: false, error: 'Nubefact no configurado. Ve a Settings → Facturación y guarda la Ruta y el Token.' }
+    return { ok: false, error: 'Nubefact no configurado' }
   }
 
-  // ── 2. Cargar pedido con items — FERRETERÍA AISLADA ──────────────────────
-  const { data: pedido, error: errPedido } = await supabase
-    .from('pedidos')
-    .select('id, total, nombre_cliente, items_pedido(*)')
-    .eq('id', opts.pedidoId)
-    .eq('ferreteria_id', opts.ferreteriaId)   // AISLADO
+  // 2. Cargar comprobante original
+  const { data: ref, error: errRef } = await supabase
+    .from('comprobantes')
+    .select('*, pedidos(id, items_pedido(*))')
+    .eq('id', opts.comprobanteReferenciaId)
+    .eq('ferreteria_id', opts.ferreteriaId)
     .single()
 
-  if (errPedido || !pedido) {
-    return { ok: false, error: 'Pedido no encontrado o no pertenece a esta ferretería' }
-  }
+  if (errRef || !ref) return { ok: false, error: 'Comprobante original no encontrado' }
+  if (ref.estado !== 'emitido') return { ok: false, error: 'Solo se puede emitir NC a un comprobante emitido' }
 
-  const items = (pedido.items_pedido ?? []) as {
-    nombre_producto: string
-    cantidad: number
-    precio_unitario: number
-    subtotal: number
-    unidad: string
-    producto_id: string | null
-  }[]
-
-  if (items.length === 0) {
-    return { ok: false, error: 'El pedido no tiene items' }
-  }
-
-  // ── 3. Verificar si ya existe factura emitida — si es así, la devolvemos ──
+  // 2.5 Verificar si ya existe nota de crédito emitida
   const { data: yaEmitida } = await supabase
     .from('comprobantes')
     .select('id, numero_completo, estado, pdf_url, xml_url')
-    .eq('pedido_id', opts.pedidoId)
-    .eq('ferreteria_id', opts.ferreteriaId)   // AISLADO
-    .eq('tipo', 'factura')
+    .eq('pedido_id', ref.pedido_id)
+    .eq('ferreteria_id', opts.ferreteriaId)
+    .eq('tipo', 'nota_credito')
     .eq('estado', 'emitido')
     .maybeSingle()
 
@@ -653,6 +702,129 @@ export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmi
     }
   }
 
+  // 3. Generar correlativo
+  // Si modifica boleta usa serie que empiece con B (ej. BC01), si factura con F (ej. FC01)
+  const isBoleta = ref.tipo === 'boleta'
+  const serieBase = isBoleta ? (ferreteria.serie_boletas || 'B001') : (ferreteria.serie_facturas || 'F001')
+  // BC01 y FC01 son el estandar de Nubefact
+  const serie = isBoleta ? 'BC01' : 'FC01'
+
+  const { data: corrData, error: errCorr } = await supabase
+    .rpc('generar_numero_comprobante', {
+      p_ferreteria_id: opts.ferreteriaId,
+      p_tipo:          'nota_credito',
+      p_serie:         serie,
+    })
+
+  if (errCorr || corrData == null) return { ok: false, error: 'Error generando correlativo NC' }
+
+  const numero = corrData as number
+  const numeroCompleto = `${serie}-${String(numero).padStart(8, '0')}`
+
+  let tokenPlano: string
+  try { tokenPlano = await desencriptar(ferreteria.nubefact_token_enc) } 
+  catch { return { ok: false, error: 'Error al descifrar token Nubefact' } }
+
+  // 4. Copiar y filtrar items del original
+  const igvIncluido = ferreteria.igv_incluido_en_precios ?? false
+  const IGV_RATE    = 0.18
+  let originalItems = (ref.pedidos?.items_pedido ?? []) as any[]
+
+  if (opts.itemsDevueltos && opts.itemsDevueltos.length > 0) {
+    originalItems = originalItems.map(oi => {
+      const devuelto = opts.itemsDevueltos!.find(idv => idv.producto_id === oi.producto_id)
+      if (devuelto) {
+        return { ...oi, cantidad: devuelto.cantidad }
+      }
+      return null
+    }).filter(Boolean)
+  }
+
+  if (originalItems.length === 0) {
+    return { ok: false, error: 'No hay items válidos para devolver' }
+  }
+
+  const nubefactItems: NubefactItem[] = originalItems.map((item, i) => {
+    const precioConIgv = igvIncluido ? item.precio_unitario : item.precio_unitario * (1 + IGV_RATE)
+    const valorUnitario = igvIncluido ? redondear2(item.precio_unitario / (1 + IGV_RATE)) : item.precio_unitario
+    const subtotalSinIgv = redondear2(valorUnitario * item.cantidad)
+    const totalItem      = redondear2(precioConIgv * item.cantidad)
+    const igvItem        = redondear2(totalItem - subtotalSinIgv)
+
+    return {
+      unidad_de_medida:  mapearUnidadSunat(item.unidad),
+      codigo:            String(i + 1).padStart(3, '0'),
+      descripcion:       item.nombre_producto,
+      cantidad:          item.cantidad,
+      valor_unitario:    valorUnitario,
+      precio_unitario:   redondear2(precioConIgv),
+      descuento:         '',
+      subtotal:          subtotalSinIgv,
+      tipo_de_igv:       NUBEFACT_TIPO_IGV.GRAVADO_OP_ONEROSA,
+      igv:               igvItem,
+      total:             totalItem,
+      anticipo_regularizacion:  false,
+      anticipo_documento_serie:  '',
+      anticipo_documento_numero: '',
+    }
+  })
+
+  const totalGravada = redondear2(nubefactItems.reduce((s, i) => s + i.subtotal, 0))
+  const totalIgv     = redondear2(nubefactItems.reduce((s, i) => s + i.igv, 0))
+  const totalFinal   = redondear2(nubefactItems.reduce((s, i) => s + i.total, 0))
+
+  const tipoDocCliente = isBoleta ? (ref.cliente_ruc_dni?.length === 8 ? NUBEFACT_TIPO_DOC_CLIENTE.DNI : NUBEFACT_TIPO_DOC_CLIENTE.SIN_DOC) : NUBEFACT_TIPO_DOC_CLIENTE.RUC
+  
+  const payload: NubefactPayload = {
+    operacion:                   'generar_comprobante',
+    tipo_de_comprobante:         NUBEFACT_TIPO.NOTA_DE_CREDITO,
+    serie,
+    numero,
+    sunat_transaction:           1,
+    cliente_tipo_de_documento:   tipoDocCliente,
+    cliente_numero_de_documento: ref.cliente_ruc_dni || '00000000',
+    cliente_denominacion:        ref.cliente_nombre || 'CLIENTES VARIOS',
+    cliente_direccion:           '',
+    cliente_email:               '',
+    cliente_email_1:             '',
+    cliente_email_2:             '',
+    fecha_de_emision:            fechaPeruana(),
+    fecha_de_vencimiento:        '',
+    moneda:                      1,
+    tipo_de_cambio:              '',
+    porcentaje_de_igv:           18,
+    descuento_global:            '',
+    total_descuento:             '',
+    total_anticipo:              '',
+    total_gravada:               totalGravada,
+    total_inafecta:              '',
+    total_exonerada:             '',
+    total_igv:                   totalIgv,
+    total_gratuita:              '',
+    total_otros_cargos:          '',
+    total:                       totalFinal,
+    percepcion_tipo:             '',
+    percepcion_base_imponible:   '',
+    total_percepcion:            '',
+    total_incluido_percepcion:   '',
+    detraccion:                  false,
+    observaciones:               opts.motivoDescripcion,
+    documento_que_se_modifica_tipo:   isBoleta ? NUBEFACT_TIPO.BOLETA : NUBEFACT_TIPO.FACTURA,
+    documento_que_se_modifica_serie:  ref.serie || '',
+    documento_que_se_modifica_numero: String(ref.numero) || '',
+    tipo_de_nota_de_credito:     opts.motivoCodigo,
+    tipo_de_nota_de_debito:      '',
+    enviar_automaticamente_a_la_sunat:  true,
+    enviar_automaticamente_al_cliente:  false,
+    codigo_unico:                `${opts.ferreteriaId.slice(0, 8)}-${serie}-${String(numero).padStart(8, '0')}`,
+    condiciones_de_pago:         '',
+    medio_de_pago:               '',
+    placa_vehiculo:              '',
+    orden_compra_servicio:       '',
+    tabla_personalizada_codigo:  '',
+    formato_de_pdf:              '',
+    items:                       nubefactItems,
+  }
 
   const resultado = await enviarANubefact(ferreteria.nubefact_ruta!, tokenPlano, payload)
   const estadoComprobante = resultado.ok ? 'emitido' : 'error'
@@ -668,9 +840,9 @@ export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmi
       numero_completo:  numeroCompleto,
       numero_comprobante: numeroCompleto,
       estado:           estadoComprobante,
-      subtotal:         ref.subtotal,
-      igv:              ref.igv,
-      total:            ref.total,
+      subtotal:         totalGravada,
+      igv:              totalIgv,
+      total:            totalFinal,
       cliente_nombre:   ref.cliente_nombre,
       cliente_ruc_dni:  ref.cliente_ruc_dni,
       nubefact_id:      resultado.data?.nubefact_id   ?? null,
@@ -686,6 +858,20 @@ export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmi
     .single()
 
   if (!resultado.ok) return { ok: false, error: resultado.error, tokenInvalido: resultado.tokenInvalido }
+
+  // 5. Ajustar stock si es devolución parcial o total
+  if (resultado.ok) {
+    for (const item of originalItems) {
+      if (item.producto_id) {
+        // Devolvemos el stock inmediatamente
+        const { error: rpcErr } = await supabase.rpc('restaurar_stock_parcial', { 
+          p_producto_id: item.producto_id, 
+          p_cantidad: item.cantidad 
+        })
+        if (rpcErr) console.error('[NotaCredito] Error ajustando stock:', rpcErr)
+      }
+    }
+  }
 
   return {
     ok:             true,
