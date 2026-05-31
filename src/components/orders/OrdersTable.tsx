@@ -1068,20 +1068,18 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
                       return (
                         <div className="border-t border-zinc-200 pt-3 flex items-center gap-2 flex-wrap">
-                          {!comprobantePrincipal && (
-                            <button
-                              onClick={() => verComprobante(pedido.id)}
-                              disabled={cp.cargando}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition disabled:opacity-50"
-                            >
-                              {cp.cargando
-                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                : <FileText className="w-3.5 h-3.5" />
-                              }
-                              {cp.cargando ? 'Generando…' : (cp.id ? 'Ver Nota de Venta' : 'Emitir Nota de Venta')}
-                              {!cp.cargando && <ExternalLink className="w-3 h-3 opacity-60" />}
-                            </button>
-                          )}
+                          <button
+                            onClick={() => verComprobante(pedido.id)}
+                            disabled={cp.cargando}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition disabled:opacity-50"
+                          >
+                            {cp.cargando
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <FileText className="w-3.5 h-3.5" />
+                            }
+                            {cp.cargando ? 'Generando…' : (cp.id ? 'Nota de Venta (Completa)' : 'Emitir Nota de Venta')}
+                            {!cp.cargando && <ExternalLink className="w-3 h-3 opacity-60" />}
+                          </button>
 
                           {(cp.id || comprobantePrincipal?.comprobanteId) && (
                             <>
@@ -1147,15 +1145,13 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                             </>
                           )}
 
-                          {!comprobantePrincipal && (
-                            <button
-                              onClick={() => window.open(`/orders/print/${pedido.id}${cp.id ? `?comprobanteId=${cp.id}` : ''}`, '_blank', 'width=400,height=600')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-medium rounded-lg transition shadow-sm"
-                              title="Imprimir ticket interno 80mm"
-                            >
-                              🖨️ Ticket 80mm
-                            </button>
-                          )}
+                          <button
+                            onClick={() => window.open(`/orders/print/${pedido.id}${cp.id ? `?comprobanteId=${cp.id}` : ''}`, '_blank', 'width=400,height=600')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-medium rounded-lg transition shadow-sm"
+                            title="Imprimir ticket interno 80mm"
+                          >
+                            🖨️ Ticket 80mm
+                          </button>
 
                           <button
                             onClick={() => reenviarComprobante(pedido.id)}
