@@ -7,7 +7,7 @@ interface Props {
   pedido:         Pedido
   clienteDniRuc?: string | null   // pre-llenado desde ficha del cliente
   onClose:        () => void
-  onEmitida:      (resultado: { comprobanteId: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string }) => void
+  onEmitida:      (resultado: { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string; comprobanteSecundarioId?: string }) => void
 }
 
 export default function ModalEmitirBoleta({ pedido, clienteDniRuc, onClose, onEmitida }: Props) {
@@ -51,7 +51,7 @@ export default function ModalEmitirBoleta({ pedido, clienteDniRuc, onClose, onEm
         }
       } else {
         // ok=true tanto para boleta recién emitida como para boleta ya guardada en BD
-        onEmitida({ comprobanteId: d.comprobanteId, numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl, pdfUrlSecundario: d.pdfUrlSecundario })
+        onEmitida({ comprobanteId: d.comprobanteId, numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl, pdfUrlSecundario: d.pdfUrlSecundario, comprobanteSecundarioId: d.comprobanteSecundarioId })
       }
     } catch {
       setError('Error de red al emitir la boleta')

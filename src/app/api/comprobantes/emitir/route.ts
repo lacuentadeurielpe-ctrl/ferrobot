@@ -103,11 +103,12 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    ok:             true,
-    comprobanteId:  resultado.comprobanteId,
+    ok: true,
+    comprobanteId: resultado.comprobanteId,
     numeroCompleto: resultado.numeroCompleto,
-    pdfUrl:         `/api/comprobantes/${resultado.comprobanteId}/pdf`,
-    xmlUrl:         resultado.xmlUrl,
+    pdfUrl: `/api/comprobantes/${resultado.comprobanteId}/pdf`,
     pdfUrlSecundario: resultado.comprobanteSecundarioId ? `/api/comprobantes/${resultado.comprobanteSecundarioId}/pdf` : undefined,
+    comprobanteSecundarioId: resultado.comprobanteSecundarioId,
+    xmlUrl: resultado.xmlUrl || null
   })
 }

@@ -4,8 +4,15 @@ import { notFound } from 'next/navigation'
 import { Printer } from 'lucide-react'
 
 // Renderiza un ticket de 80mm
-export default async function PrintTicketPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PrintTicketPage({ 
+  params,
+  searchParams
+}: { 
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ comprobanteId?: string }>
+}) {
   const { id } = await params
+  const { comprobanteId } = await searchParams
   const supabase = await createClient()
 
   // Obtener pedido con items y ferreteria
@@ -13,7 +20,7 @@ export default async function PrintTicketPage({ params }: { params: Promise<{ id
     .from('pedidos')
     .select(`
       *,
-      items_pedido ( * ),
+      items_pedido ( *, productos (facturable) ),
       ferreterias ( nombre, telefono_whatsapp, direccion, ruc )
     `)
     .eq('id', id)
@@ -24,6 +31,37 @@ export default async function PrintTicketPage({ params }: { params: Promise<{ id
   }
 
   const ferreteria = pedido.ferreterias as any
+
+  let itemsAImprimir = pedido.items_pedido || []
+  let tituloComprobante = 'TICKET DE PEDIDO'
+  let numeroComprobante = pedido.numero_pedido
+  let esSunat = false
+  let hashSunat = ''
+  let montoTotal = pedido.total
+
+  if (comprobanteId) {
+    const { data: comp } = await supabase
+      .from('comprobantes')
+      .select('*')
+      .eq('id', comprobanteId)
+      .single()
+
+    if (comp) {
+      numeroComprobante = comp.numero_completo || numeroComprobante
+      montoTotal = comp.total
+
+      if (comp.tipo === 'nota_venta') {
+        tituloComprobante = 'NOTA DE VENTA - INTERNO'
+        itemsAImprimir = comp.datos_json?.items || itemsAImprimir.filter((i: any) => i.productos?.facturable === false)
+      } else {
+        tituloComprobante = comp.tipo === 'factura' ? 'FACTURA ELECTRÓNICA' : 'BOLETA ELECTRÓNICA'
+        esSunat = true
+        // Nubefact guarda el hash y enlace en datos_json a veces, o en campos específicos si los hay
+        // Asumimos que los items enviados a SUNAT son los formales
+        itemsAImprimir = itemsAImprimir.filter((i: any) => i.productos?.facturable !== false)
+      }
+    }
+  }
 
   return (
     <div className="font-mono bg-white min-h-screen text-black print:bg-white" style={{ maxWidth: '80mm', margin: '0 auto', padding: '10px' }}>
@@ -51,8 +89,8 @@ export default async function PrintTicketPage({ params }: { params: Promise<{ id
           
           <div className="border-t border-dashed border-black my-2"></div>
           
-          <h2 className="text-sm font-bold mt-1">TICKET DE PEDIDO</h2>
-          <h3 className="text-lg font-bold">{pedido.numero_pedido}</h3>
+          <h2 className="text-sm font-bold mt-1">{tituloComprobante}</h2>
+          <h3 className="text-lg font-bold">{numeroComprobante}</h3>
           <p className="mt-1">{formatFechaHoraLima(pedido.created_at)}</p>
         </div>
 
@@ -83,8 +121,8 @@ export default async function PrintTicketPage({ params }: { params: Promise<{ id
             </tr>
           </thead>
           <tbody>
-            {pedido.items_pedido?.map((item: any) => (
-              <tr key={item.id}>
+            {itemsAImprimir.map((item: any) => (
+              <tr key={item.id || item.nombre_producto}>
                 <td className="align-top pt-1 w-8">{item.cantidad}</td>
                 <td className="align-top pt-1 pr-1">{item.nombre_producto}</td>
                 <td className="align-top pt-1 text-right">{formatPEN(item.subtotal)}</td>
@@ -97,20 +135,30 @@ export default async function PrintTicketPage({ params }: { params: Promise<{ id
 
         {/* Totales */}
         <div className="text-right font-bold text-sm">
-          TOTAL: {formatPEN(pedido.total)}
+          TOTAL: {formatPEN(montoTotal)}
         </div>
 
         <div className="border-t border-dashed border-black my-4"></div>
 
-        {/* QR Inyectado (Opcional, decorativo para simular tecnología) */}
+        {/* QR Inyectado (Legal / Interno) */}
         <div className="flex flex-col items-center justify-center">
           <img 
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(pedido.numero_pedido)}`} 
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(ferreteria?.ruc + '|' + numeroComprobante + '|' + montoTotal)}`} 
             alt="QR Code" 
             className="w-24 h-24 mb-2"
           />
-          <p className="text-center font-bold">¡GRACIAS POR SU COMPRA!</p>
-          <p className="text-center text-[10px] mt-1">Conserve este ticket para cualquier reclamo</p>
+          {esSunat ? (
+            <>
+              <p className="text-center font-bold text-[10px]">Representación impresa de la</p>
+              <p className="text-center font-bold text-[10px]">{tituloComprobante}</p>
+              <p className="text-center text-[9px] mt-1">Autorizado mediante resolución de SUNAT</p>
+            </>
+          ) : (
+            <>
+              <p className="text-center font-bold">¡GRACIAS POR SU COMPRA!</p>
+              <p className="text-center text-[10px] mt-1">Documento de control interno sin validez tributaria</p>
+            </>
+          )}
         </div>
         
         {/* Margen final para el corte de papel */}

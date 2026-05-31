@@ -9,7 +9,7 @@ interface Props {
   clienteRuc?:          string | null   // pre-llenado desde ficha del cliente
   clienteRazonSocial?:  string | null   // pre-llenado desde ficha del cliente
   onClose:              () => void
-  onEmitida:            (resultado: { comprobanteId: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string }) => void
+  onEmitida:            (resultado: { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string; comprobanteSecundarioId?: string }) => void
 }
 
 export default function ModalEmitirFactura({ pedido, clienteRuc, clienteRazonSocial, onClose, onEmitida }: Props) {
@@ -95,7 +95,7 @@ export default function ModalEmitirFactura({ pedido, clienteRuc, clienteRazonSoc
           setError(d.error ?? 'Error al emitir la factura')
         }
       } else if (d.numeroCompleto && d.comprobanteId) {
-        onEmitida({ comprobanteId: d.comprobanteId, numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl, pdfUrlSecundario: d.pdfUrlSecundario })
+        onEmitida({ comprobanteId: d.comprobanteId, numeroCompleto: d.numeroCompleto, pdfUrl: d.pdfUrl, pdfUrlSecundario: d.pdfUrlSecundario, comprobanteSecundarioId: d.comprobanteSecundarioId })
       } else {
         setError('Error al recibir la respuesta del servidor')
       }

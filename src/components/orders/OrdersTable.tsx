@@ -164,17 +164,25 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
   // Modal emitir boleta electrónica (F3)
   const [modalBoleta, setModalBoleta] = useState<PedidoDB | null>(null)
-  // Boletas ya emitidas en esta sesión: pedidoId → { numeroCompleto, pdfUrl }
-  const [boletasEmitidas, setBoletasEmitidas] = useState<Record<string, { numeroCompleto: string; pdfUrl?: string }>>(() => {
-    const init: Record<string, { numeroCompleto: string; pdfUrl?: string }> = {}
+  // Boletas ya emitidas en esta sesión: pedidoId → { comprobanteId, numeroCompleto, pdfUrl, comprobanteSecundarioId }
+  const [boletasEmitidas, setBoletasEmitidas] = useState<Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }>>(() => {
+    const init: Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }> = {}
     for (const p of pedidos) {
       const b = p.comprobantes?.find(c => c.tipo === 'boleta' && c.estado === 'emitido')
-      if (b) init[p.id] = { numeroCompleto: b.numero_completo, pdfUrl: b.pdf_url ?? undefined }
+      if (b) {
+        const nv = p.comprobantes?.find(c => c.tipo === 'nota_venta')
+        init[p.id] = { 
+          comprobanteId: b.id,
+          numeroCompleto: b.numero_completo, 
+          pdfUrl: b.pdf_url ?? undefined,
+          comprobanteSecundarioId: nv?.id 
+        }
+      }
     }
     return init
   })
 
-  function handleBoletaEmitida(pedidoId: string, resultado: { numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string }) {
+  function handleBoletaEmitida(pedidoId: string, resultado: { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string; comprobanteSecundarioId?: string }) {
     setBoletasEmitidas((prev) => ({ ...prev, [pedidoId]: resultado }))
     if (resultado.pdfUrlSecundario) {
       setTimeout(() => window.open(resultado.pdfUrlSecundario, '_blank'), 100)
@@ -184,17 +192,25 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
 
   // Modal emitir factura electrónica (F4)
   const [modalFactura, setModalFactura] = useState<PedidoDB | null>(null)
-  // Facturas ya emitidas en esta sesión: pedidoId → { numeroCompleto, pdfUrl }
-  const [facturasEmitidas, setFacturasEmitidas] = useState<Record<string, { numeroCompleto: string; pdfUrl?: string }>>(() => {
-    const init: Record<string, { numeroCompleto: string; pdfUrl?: string }> = {}
+  // Facturas ya emitidas en esta sesión: pedidoId → { comprobanteId, numeroCompleto, pdfUrl, comprobanteSecundarioId }
+  const [facturasEmitidas, setFacturasEmitidas] = useState<Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }>>(() => {
+    const init: Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }> = {}
     for (const p of pedidos) {
       const f = p.comprobantes?.find(c => c.tipo === 'factura' && c.estado === 'emitido')
-      if (f) init[p.id] = { numeroCompleto: f.numero_completo, pdfUrl: f.pdf_url ?? undefined }
+      if (f) {
+        const nv = p.comprobantes?.find(c => c.tipo === 'nota_venta')
+        init[p.id] = { 
+          comprobanteId: f.id,
+          numeroCompleto: f.numero_completo, 
+          pdfUrl: f.pdf_url ?? undefined,
+          comprobanteSecundarioId: nv?.id
+        }
+      }
     }
     return init
   })
 
-  function handleFacturaEmitida(pedidoId: string, resultado: { comprobanteId: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string }) {
+  function handleFacturaEmitida(pedidoId: string, resultado: { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string; comprobanteSecundarioId?: string }) {
     setFacturasEmitidas((prev) => ({ ...prev, [pedidoId]: resultado }))
     if (resultado.pdfUrlSecundario) {
       setTimeout(() => window.open(resultado.pdfUrlSecundario, '_blank'), 100)
@@ -1047,30 +1063,35 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     {ESTADOS_CON_COMPROBANTE.has(pedido.estado) && (() => {
                       const cp = estadoComprobante(pedido.id)
                       const boletaEmitida = boletasEmitidas[pedido.id]
+                      const facturaEmitida = facturasEmitidas[pedido.id]
+                      const comprobantePrincipal = boletaEmitida || facturaEmitida
+
                       return (
                         <div className="border-t border-zinc-200 pt-3 flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => verComprobante(pedido.id)}
-                            disabled={cp.cargando}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition disabled:opacity-50"
-                          >
-                            {cp.cargando
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <FileText className="w-3.5 h-3.5" />
-                            }
-                            {cp.cargando ? 'Generando…' : 'PDF (A4)'}
-                            {!cp.cargando && <ExternalLink className="w-3 h-3 opacity-60" />}
-                          </button>
+                          {!comprobantePrincipal && (
+                            <button
+                              onClick={() => verComprobante(pedido.id)}
+                              disabled={cp.cargando}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition disabled:opacity-50"
+                            >
+                              {cp.cargando
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <FileText className="w-3.5 h-3.5" />
+                              }
+                              {cp.cargando ? 'Generando…' : (cp.id ? 'Ver Nota de Venta' : 'Emitir Nota de Venta')}
+                              {!cp.cargando && <ExternalLink className="w-3 h-3 opacity-60" />}
+                            </button>
+                          )}
 
-                          {(cp.id || (boletaEmitida as any)?.comprobanteId) && (
+                          {(cp.id || comprobantePrincipal?.comprobanteId) && (
                             <>
                               <button
                                 onClick={() => setModalNC({
                                   pedido: pedido as unknown as PedidoDB,
                                   comprobanteOriginal: {
-                                    id: (cp.id || (boletaEmitida as any)?.comprobanteId) as string,
-                                    numeroCompleto: (cp.numero_completo || boletaEmitida?.numeroCompleto) as string,
-                                    tipo: cp.tipo || 'boleta'
+                                    id: (cp.id || comprobantePrincipal?.comprobanteId) as string,
+                                    numeroCompleto: (cp.numero_completo || comprobantePrincipal?.numeroCompleto) as string,
+                                    tipo: cp.tipo || (boletaEmitida ? 'boleta' : 'factura')
                                   }
                                 })}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg transition"
@@ -1126,12 +1147,15 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                             </>
                           )}
 
-                          <button
-                            onClick={() => window.open(`/orders/print/${pedido.id}`, '_blank', 'width=400,height=600')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-medium rounded-lg transition shadow-sm"
-                          >
-                            🖨️ Ticket 80mm
-                          </button>
+                          {!comprobantePrincipal && (
+                            <button
+                              onClick={() => window.open(`/orders/print/${pedido.id}${cp.id ? `?comprobanteId=${cp.id}` : ''}`, '_blank', 'width=400,height=600')}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-medium rounded-lg transition shadow-sm"
+                              title="Imprimir ticket interno 80mm"
+                            >
+                              🖨️ Ticket 80mm
+                            </button>
+                          )}
 
                           <button
                             onClick={() => reenviarComprobante(pedido.id)}
@@ -1149,59 +1173,113 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                           {/* Botón boleta electrónica — solo si Nubefact está configurado */}
                           {nubefactConfigurado && (
                             boletaEmitida ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg font-medium">
+                              <div className="flex items-center gap-1.5 border border-green-200 bg-green-50 px-2 py-1.5 rounded-lg">
+                                <span className="text-xs text-green-700 font-medium">
                                   ✓ {boletaEmitida.numeroCompleto}
                                 </span>
                                 {boletaEmitida.pdfUrl && (
-                                  <a
-                                    href={boletaEmitida.pdfUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
-                                  >
-                                    PDF <ExternalLink className="w-3 h-3" />
-                                  </a>
+                                  <>
+                                    <a
+                                      href={boletaEmitida.pdfUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
+                                      title="Ver PDF Boleta (A4)"
+                                    >
+                                      PDF <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                    <a
+                                      href={`/orders/print/${pedido.id}?comprobanteId=${boletaEmitida.comprobanteId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-zinc-700 hover:underline flex items-center gap-0.5 ml-1"
+                                      title="Imprimir Ticket Boleta 80mm"
+                                    >
+                                      🖨️
+                                    </a>
+                                  </>
                                 )}
                               </div>
                             ) : (
-                              <button
-                                onClick={() => setModalBoleta(pedido as unknown as PedidoDB)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition"
-                              >
-                                🧾 Emitir boleta
-                              </button>
+                              !facturaEmitida && (
+                                <button
+                                  onClick={() => setModalBoleta(pedido as unknown as PedidoDB)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition"
+                                >
+                                  🧾 Emitir boleta
+                                </button>
+                              )
                             )
                           )}
 
                           {/* Botón factura electrónica — solo si Nubefact configurado y ferretería tiene RUC */}
-                          {nubefactConfigurado && tieneRuc && (() => {
-                            const facturaEmitida = facturasEmitidas[pedido.id]
-                            return facturaEmitida ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-lg font-medium">
+                          {nubefactConfigurado && tieneRuc && (
+                            facturaEmitida ? (
+                              <div className="flex items-center gap-1.5 border border-indigo-200 bg-indigo-50 px-2 py-1.5 rounded-lg">
+                                <span className="text-xs text-indigo-700 font-medium">
                                   F ✓ {facturaEmitida.numeroCompleto}
                                 </span>
                                 {facturaEmitida.pdfUrl && (
-                                  <a
-                                    href={facturaEmitida.pdfUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-indigo-600 hover:underline flex items-center gap-0.5"
-                                  >
-                                    PDF <ExternalLink className="w-3 h-3" />
-                                  </a>
+                                  <>
+                                    <a
+                                      href={facturaEmitida.pdfUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
+                                      title="Ver PDF Factura (A4)"
+                                    >
+                                      PDF <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                    <a
+                                      href={`/orders/print/${pedido.id}?comprobanteId=${facturaEmitida.comprobanteId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-zinc-700 hover:underline flex items-center gap-0.5 ml-1"
+                                      title="Imprimir Ticket Factura 80mm"
+                                    >
+                                      🖨️
+                                    </a>
+                                  </>
                                 )}
                               </div>
                             ) : (
-                              <button
-                                onClick={() => setModalFactura(pedido as unknown as PedidoDB)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-200 transition"
-                              >
-                                🧾 Emitir factura
-                              </button>
+                              !boletaEmitida && (
+                                <button
+                                  onClick={() => setModalFactura(pedido as unknown as PedidoDB)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-200 transition"
+                                >
+                                  🧾 Emitir factura
+                                </button>
+                              )
                             )
-                          })()}
+                          )}
+
+                          {/* Nota de Venta Secundaria (Split Billing) */}
+                          {(comprobantePrincipal as any)?.comprobanteSecundarioId && (
+                            <div className="flex items-center gap-1.5 border border-zinc-200 bg-zinc-50 px-2 py-1.5 rounded-lg">
+                              <span className="text-xs text-zinc-600 font-medium">
+                                Nota Anexa
+                              </span>
+                              <a
+                                href={`/api/orders/${pedido.id}/comprobante/view?id=${(comprobantePrincipal as any).comprobanteSecundarioId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
+                                title="Ver PDF Nota Venta (A4)"
+                              >
+                                PDF <ExternalLink className="w-3 h-3" />
+                              </a>
+                              <a
+                                href={`/orders/print/${pedido.id}?comprobanteId=${(comprobantePrincipal as any).comprobanteSecundarioId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-zinc-700 hover:underline flex items-center gap-0.5 ml-1"
+                                title="Imprimir Ticket Nota Venta 80mm"
+                              >
+                                🖨️
+                              </a>
+                            </div>
+                          )}
 
                           {cp.error && (
                             <span className="text-xs text-red-500">{cp.error}</span>
