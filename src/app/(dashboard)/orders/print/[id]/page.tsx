@@ -50,9 +50,9 @@ export default async function PrintTicketPage({
       numeroComprobante = comp.numero_completo || numeroComprobante
       montoTotal = comp.total
 
-      if (comp.tipo === 'nota_venta') {
-        tituloComprobante = 'NOTA DE VENTA - INTERNO'
-        itemsAImprimir = comp.datos_json?.items || itemsAImprimir.filter((i: any) => i.productos?.facturable === false)
+      if (comp.tipo === 'nota_venta' || comp.tipo === 'nota_venta_interna') {
+        tituloComprobante = comp.tipo === 'nota_venta_interna' ? 'NOTA DE VENTA' : 'NOTA DE VENTA - INTERNO'
+        itemsAImprimir = comp.datos_json?.items || (comp.tipo === 'nota_venta_interna' ? itemsAImprimir : itemsAImprimir.filter((i: any) => i.productos?.facturable === false))
       } else {
         tituloComprobante = comp.tipo === 'factura' ? 'FACTURA ELECTRÓNICA' : 'BOLETA ELECTRÓNICA'
         esSunat = true
