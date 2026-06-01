@@ -70,6 +70,14 @@ CREATE TABLE productos (
   -- A partir de esta cantidad se activa la negociación para este producto
   umbral_negociacion_cantidad INTEGER,
   activo                      BOOLEAN DEFAULT TRUE,
+  precio_compra               NUMERIC(10,2),
+  stock_minimo                INTEGER,
+  afecto_igv                  BOOLEAN DEFAULT TRUE,
+  venta_sin_stock             BOOLEAN DEFAULT FALSE,
+  proveedor                   TEXT,
+  marca                       TEXT,
+  codigo_barras               TEXT,
+  facturable                  BOOLEAN DEFAULT TRUE,
   created_at                  TIMESTAMPTZ DEFAULT NOW(),
   updated_at                  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -410,3 +418,61 @@ CREATE POLICY "acceso_items_pedido" ON items_pedido
       SELECT id FROM pedidos WHERE ferreteria_id = mi_ferreteria_id()
     )
   );
+-- ==========================================================
+-- TABLA: comprobantes
+-- ==========================================================
+CREATE TABLE comprobantes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ferreteria_id UUID REFERENCES ferreterias(id) ON DELETE CASCADE NOT NULL,
+  pedido_id UUID REFERENCES pedidos(id) ON DELETE SET NULL,
+  numero_comprobante TEXT,
+  pdf_url TEXT,
+  enviado_whatsapp BOOLEAN DEFAULT false,
+  enviado_at TIMESTAMPTZ,
+  error_envio TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+-- ==========================================================
+-- FUNCION: update_updated_at_column
+-- ==========================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = NOW();
+   RETURN NEW;
+END;
+$$ language 'plpgsql';
+-- ==========================================================
+-- TABLA: miembros_ferreteria
+-- ==========================================================
+CREATE TABLE miembros_ferreteria (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ferreteria_id UUID REFERENCES ferreterias(id) ON DELETE CASCADE,
+  user_id UUID,
+  rol TEXT,
+  nombre TEXT,
+  email TEXT,
+  activo BOOLEAN DEFAULT true,
+  permisos JSONB,
+  contrasena_temporal TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==========================================================
+-- TABLA: repartidores
+-- ==========================================================
+CREATE TABLE repartidores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ferreteria_id UUID REFERENCES ferreterias(id) ON DELETE CASCADE,
+  nombre TEXT,
+  telefono TEXT,
+  token TEXT,
+  activo BOOLEAN DEFAULT true,
+  puede_registrar_deuda BOOLEAN DEFAULT false,
+  vehiculo_actual_id UUID,
+  esta_en_ruta BOOLEAN DEFAULT false,
+  gps_ultima_lat DOUBLE PRECISION,
+  gps_ultima_lng DOUBLE PRECISION,
+  gps_actualizado_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);

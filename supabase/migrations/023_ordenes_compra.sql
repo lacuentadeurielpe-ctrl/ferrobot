@@ -1,7 +1,7 @@
 -- Migration: 023_ordenes_compra
 -- Descripción: Agrega tablas para almacenar las órdenes de compra a proveedores (proformas).
 
-CREATE TABLE public.ordenes_compra (
+CREATE TABLE IF NOT EXISTS public.ordenes_compra (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     ferreteria_id UUID NOT NULL REFERENCES public.ferreterias(id) ON DELETE CASCADE,
     proveedor TEXT NOT NULL,
@@ -21,7 +21,7 @@ CREATE POLICY "Ordenes de compra actualizables por ferreteria" ON public.ordenes
 CREATE POLICY "Ordenes de compra eliminables por ferreteria" ON public.ordenes_compra FOR DELETE USING (ferreteria_id = mi_ferreteria_id());
 
 
-CREATE TABLE public.items_orden_compra (
+CREATE TABLE IF NOT EXISTS public.items_orden_compra (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     orden_compra_id UUID NOT NULL REFERENCES public.ordenes_compra(id) ON DELETE CASCADE,
     producto_id UUID REFERENCES public.productos(id) ON DELETE SET NULL,
@@ -61,7 +61,7 @@ USING (orden_compra_id IN (
 CREATE TRIGGER set_timestamp_ordenes_compra
 BEFORE UPDATE ON public.ordenes_compra
 FOR EACH ROW
-EXECUTE FUNCTION public.trigger_set_timestamp();
+EXECUTE FUNCTION update_updated_at_column();
 
 -- Sequence for order number (similar to cotizaciones)
 CREATE SEQUENCE IF NOT EXISTS public.seq_ordenes_compra START 1;

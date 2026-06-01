@@ -15,6 +15,12 @@ import { createClient } from '@/lib/supabase/client'
 import type { Rol } from '@/lib/auth/roles'
 import { checkPermiso, type PermisoMap } from '@/lib/auth/permisos'
 import type { Pedido as PedidoDB } from '@/types/database'
+import { useOrderActions } from './hooks/useOrderActions'
+import { useOrderComprobantes } from './hooks/useOrderComprobantes'
+import { useOrderFilters } from './hooks/useOrderFilters'
+import OrderFilters from './components/OrderFilters'
+import ModalCancelarPedido from './components/ModalCancelarPedido'
+import ModalAprobarCredito from './components/ModalAprobarCredito'
 
 interface Repartidor {
   id: string
@@ -142,12 +148,8 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
   const esDueno = rol === 'dueno'
   const sessionData = { rol, permisos: permisos ?? {} }
   const puedeConfirmarPagos = checkPermiso(sessionData, 'registrar_pagos')
+  const puedeAprobarCreditos = checkPermiso(sessionData, 'aprobar_creditos')
   const [pedidos, setPedidos] = useState(inicial)
-  const [expandido, setExpandido] = useState<string | null>(null)
-  const [asignando, setAsignando] = useState<string | null>(null)
-  const [actualizando, setActualizando] = useState<string | null>(null)
-  const [eliminando, setEliminando] = useState<string | null>(null)
-  const [pagando, setPagando] = useState<string | null>(null)
   const [modalNuevo, setModalNuevo] = useState(false)
   const [modalVoz, setModalVoz]     = useState(false)
   const [nuevoPedidoAlert, setNuevoPedidoAlert] = useState(false)
@@ -159,70 +161,36 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
     fechaLimite: string
     notas: string
   } | null>(null)
-  const [aprobandoCredito, setAprobandoCredito] = useState(false)
-  const puedeAprobarCreditos = checkPermiso(sessionData, 'aprobar_creditos')
 
-  // Modal emitir boleta electrónica (F3)
-  const [modalBoleta, setModalBoleta] = useState<PedidoDB | null>(null)
-  // Boletas ya emitidas en esta sesión: pedidoId → { comprobanteId, numeroCompleto, pdfUrl, comprobanteSecundarioId }
-  const [boletasEmitidas, setBoletasEmitidas] = useState<Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }>>(() => {
-    const init: Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }> = {}
-    for (const p of pedidos) {
-      const b = p.comprobantes?.find(c => c.tipo === 'boleta' && c.estado === 'emitido')
-      if (b) {
-        const nv = p.comprobantes?.find(c => c.tipo === 'nota_venta')
-        init[p.id] = { 
-          comprobanteId: b.id,
-          numeroCompleto: b.numero_completo, 
-          pdfUrl: b.pdf_url ?? undefined,
-          comprobanteSecundarioId: nv?.id 
-        }
-      }
-    }
-    return init
-  })
+  const {
+    actualizando,
+    pagando,
+    asignando,
+    eliminando,
+    aprobandoCredito,
+    cambiarEstado,
+    actualizarPago,
+    aprobarCredito,
+    asignarRepartidor,
+    eliminarPedido,
+  } = useOrderActions(setPedidos, setCancelDialog, setCreditoDialog)
 
-  function handleBoletaEmitida(pedidoId: string, resultado: { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string; comprobanteSecundarioId?: string }) {
-    setBoletasEmitidas((prev) => ({ ...prev, [pedidoId]: resultado }))
-    if (resultado.pdfUrlSecundario) {
-      setTimeout(() => window.open(resultado.pdfUrlSecundario, '_blank'), 100)
-    }
-    setModalBoleta(null)
-  }
-
-  // Modal emitir factura electrónica (F4)
-  const [modalFactura, setModalFactura] = useState<PedidoDB | null>(null)
-  // Facturas ya emitidas en esta sesión: pedidoId → { comprobanteId, numeroCompleto, pdfUrl, comprobanteSecundarioId }
-  const [facturasEmitidas, setFacturasEmitidas] = useState<Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }>>(() => {
-    const init: Record<string, { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; comprobanteSecundarioId?: string }> = {}
-    for (const p of pedidos) {
-      const f = p.comprobantes?.find(c => c.tipo === 'factura' && c.estado === 'emitido')
-      if (f) {
-        const nv = p.comprobantes?.find(c => c.tipo === 'nota_venta')
-        init[p.id] = { 
-          comprobanteId: f.id,
-          numeroCompleto: f.numero_completo, 
-          pdfUrl: f.pdf_url ?? undefined,
-          comprobanteSecundarioId: nv?.id
-        }
-      }
-    }
-    return init
-  })
-
-  function handleFacturaEmitida(pedidoId: string, resultado: { comprobanteId?: string; numeroCompleto: string; pdfUrl?: string; pdfUrlSecundario?: string; comprobanteSecundarioId?: string }) {
-    setFacturasEmitidas((prev) => ({ ...prev, [pedidoId]: resultado }))
-    if (resultado.pdfUrlSecundario) {
-      setTimeout(() => window.open(resultado.pdfUrlSecundario, '_blank'), 100)
-    }
-    setModalFactura(null)
-  }
-
-  // Modal Nota Crédito
-  const [modalNC, setModalNC] = useState<{ pedido: PedidoDB, comprobanteOriginal: { id: string, numeroCompleto: string, tipo: string } } | null>(null)
+  const {
+    modalBoleta, setModalBoleta,
+    modalFactura, setModalFactura,
+    modalNC, setModalNC,
+    boletasEmitidas,
+    facturasEmitidas,
+    estadoComprobante,
+    verComprobante,
+    reenviarComprobante,
+    handleBoletaEmitida,
+    handleFacturaEmitida
+  } = useOrderComprobantes(pedidos)
 
   // Modal editar pedido
   const [modalEditar, setModalEditar] = useState<typeof pedidos[0] | null>(null)
+  const [expandido, setExpandido] = useState<string | null>(null)
 
   // Realtime: notificar cuando llega un pedido nuevo
   useEffect(() => {
@@ -239,260 +207,11 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
     return () => { supabase.removeChannel(channel) }
   }, [ferreteriaId])
 
-  // Estado de comprobantes por pedido
-  const [comprobantes, setComprobantes] = useState<Record<string, {
-    id?: string
-    numero_completo?: string
-    tipo?: string
-    url: string | null
-    cargando: boolean
-    reenviando: boolean
-    enviado: boolean
-    error: string | null
-  }>>({})
-
-  function estadoComprobante(pedidoId: string) {
-    return comprobantes[pedidoId] ?? { url: null, cargando: false, reenviando: false, enviado: false, error: null }
-  }
-
-  function patchComprobante(pedidoId: string, patch: Partial<typeof comprobantes[string]>) {
-    setComprobantes((prev) => ({
-      ...prev,
-      [pedidoId]: { ...estadoComprobante(pedidoId), ...patch },
-    }))
-  }
-
-  // Viewer local — página HTML que embebe el PDF, funciona en cualquier browser
-  function viewerUrl(pedidoId: string) {
-    return `/api/orders/${pedidoId}/comprobante/view`
-  }
-
-  async function verComprobante(pedidoId: string) {
-    const estado = estadoComprobante(pedidoId)
-    // Si ya confirmamos que existe, abrir proxy directamente
-    if (estado.url) { window.open(viewerUrl(pedidoId), '_blank'); return }
-
-    patchComprobante(pedidoId, { cargando: true, error: null })
-    try {
-      const res = await fetch(`/api/orders/${pedidoId}/comprobante`)
-      if (res.ok) {
-        const data = await res.json()
-        patchComprobante(pedidoId, { 
-          id: data.id, 
-          numero_completo: data.numero_completo || data.numero_comprobante, 
-          tipo: data.tipo, 
-          url: data.pdf_url || `/api/comprobantes/${data.id}/pdf`, 
-          cargando: false 
-        })
-        window.open(viewerUrl(pedidoId), '_blank')
-      } else if (res.status === 404) {
-        // No existe — generarlo ahora
-        const gen = await fetch(`/api/orders/${pedidoId}/comprobante`, { method: 'POST' })
-        if (gen.ok) {
-          const data = await gen.json()
-          patchComprobante(pedidoId, { 
-            id: data.comprobanteId, 
-            numero_completo: data.numeroCompleto, 
-            url: data.pdfUrl, 
-            cargando: false 
-          })
-          window.open(viewerUrl(pedidoId), '_blank')
-        } else {
-          throw new Error((await gen.json()).error ?? 'Error al generar')
-        }
-      } else {
-        throw new Error((await res.json()).error ?? 'Error')
-      }
-    } catch (e) {
-      patchComprobante(pedidoId, { cargando: false, error: e instanceof Error ? e.message : 'Error' })
-    }
-  }
-
-  async function reenviarComprobante(pedidoId: string) {
-    patchComprobante(pedidoId, { reenviando: true, enviado: false, error: null })
-    try {
-      const res = await fetch(`/api/orders/${pedidoId}/comprobante/reenviar`, { method: 'POST' })
-      if (!res.ok) throw new Error((await res.json()).error ?? 'Error al reenviar')
-      const data = await res.json()
-      patchComprobante(pedidoId, { url: data.pdf_url, reenviando: false, enviado: true })
-      setTimeout(() => patchComprobante(pedidoId, { enviado: false }), 3000)
-    } catch (e) {
-      patchComprobante(pedidoId, { reenviando: false, error: e instanceof Error ? e.message : 'Error' })
-    }
-  }
-
-  async function eliminarPedido(pedidoId: string) {
-    if (!confirm('¿Estás seguro de que quieres eliminar este pedido? Se restaurará el stock si corresponde.')) return
-    setEliminando(pedidoId)
-    try {
-      const res = await fetch(`/api/orders/${pedidoId}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? 'Error al eliminar el pedido')
-      }
-      setPedidos((prev) => prev.filter((p) => p.id !== pedidoId))
-      setExpandido(null)
-      router.refresh()
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error al eliminar el pedido')
-    } finally {
-      setEliminando(null)
-    }
-  }
 
   const ESTADOS_CON_COMPROBANTE = new Set(['confirmado', 'en_preparacion', 'enviado', 'entregado'])
 
   // Filtros
-  const [busqueda, setBusqueda] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState('')
-  const [filtroFecha, setFiltroFecha] = useState('')
-
-  const filtrados = useMemo(() => {
-    return pedidos.filter((p) => {
-      const nombreCliente = p.clientes?.nombre ?? p.nombre_cliente ?? ''
-      const telefono = p.clientes?.telefono ?? p.telefono_cliente ?? ''
-
-      const matchBusqueda = matchesFuzzy(`${nombreCliente} ${telefono} ${p.numero_pedido}`, busqueda)
-
-      const matchEstado = !filtroEstado || p.estado === filtroEstado
-      const matchFecha = estaEnRango(p.created_at, filtroFecha)
-
-      return matchBusqueda && matchEstado && matchFecha
-    })
-  }, [pedidos, busqueda, filtroEstado, filtroFecha])
-
-  const hayFiltros = busqueda || filtroEstado || filtroFecha
-
-  async function cambiarEstado(pedidoId: string, nuevoEstado: string, motivoCancelacion?: string) {
-    // Si va a cancelar, mostrar dialog primero (a menos que ya venga con motivo)
-    if (nuevoEstado === 'cancelado' && motivoCancelacion === undefined) {
-      setCancelDialog({ pedidoId, motivo: '' })
-      return
-    }
-
-    setActualizando(pedidoId)
-    try {
-      const res = await fetch(`/api/orders/${pedidoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estado: nuevoEstado,
-          ...(motivoCancelacion ? { motivo_cancelacion: motivoCancelacion } : {}),
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? 'Error al actualizar el estado')
-      }
-      const actualizado = await res.json()
-      setPedidos((prev) =>
-        prev.map((p) => (p.id === pedidoId
-          ? { ...p, estado: actualizado.estado, motivo_cancelacion: motivoCancelacion ?? p.motivo_cancelacion }
-          : p))
-      )
-      router.refresh()
-      toast.success('Estado actualizado correctamente')
-    } catch {
-      toast.error('Error al actualizar el estado')
-    } finally {
-      setActualizando(null)
-      setCancelDialog(null)
-    }
-  }
-
-  async function actualizarPago(pedidoId: string, body: { metodo_pago?: string; estado_pago?: string }) {
-    setPagando(pedidoId)
-    try {
-      const res = await fetch(`/api/pedidos/${pedidoId}/pago`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? 'Error al actualizar el pago')
-      }
-      const data = await res.json()
-      setPedidos((prev) =>
-        prev.map((p) =>
-          p.id === pedidoId
-            ? {
-                ...p,
-                metodo_pago: data.metodo_pago ?? p.metodo_pago,
-                estado_pago: data.estado_pago ?? p.estado_pago,
-                pago_confirmado_por: data.pago_confirmado_por ?? p.pago_confirmado_por,
-                pago_confirmado_at: data.pago_confirmado_at ?? p.pago_confirmado_at,
-              }
-            : p
-        )
-      )
-      toast.success('Pago actualizado')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al actualizar el pago')
-    } finally {
-      setPagando(null)
-    }
-  }
-
-  async function aprobarCredito() {
-    if (!creditoDialog) return
-    if (!creditoDialog.fechaLimite) {
-      toast.error('Selecciona la fecha límite del crédito')
-      return
-    }
-
-    setAprobandoCredito(true)
-    try {
-      const res = await fetch('/api/creditos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pedido_id: creditoDialog.pedidoId,
-          fecha_limite: creditoDialog.fechaLimite,
-          notas: creditoDialog.notas || null,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? 'Error al aprobar crédito')
-      }
-      // Actualizar estado_pago en el pedido local
-      setPedidos((prev) =>
-        prev.map((p) =>
-          p.id === creditoDialog.pedidoId
-            ? { ...p, estado_pago: 'credito_activo' }
-            : p
-        )
-      )
-      setCreditoDialog(null)
-      toast.success('Crédito aprobado')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error al aprobar crédito')
-    } finally {
-      setAprobandoCredito(false)
-    }
-  }
-
-  async function asignarRepartidor(pedidoId: string, repartidorId: string) {
-    setAsignando(pedidoId)
-    try {
-      const res = await fetch(`/api/repartidores/${repartidorId}/asignar`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedidoId }),
-      })
-      if (!res.ok) throw new Error()
-      const data = await res.json()
-      setPedidos((prev) => prev.map((p) => p.id === pedidoId
-        ? { ...p, repartidor_id: repartidorId === 'ninguno' ? null : repartidorId }
-        : p))
-      toast.success('Repartidor asignado')
-    } catch {
-      toast.error('Error al asignar repartidor')
-    } finally {
-      setAsignando(null)
-    }
-  }
+  const { busqueda, setBusqueda, filtroEstado, setFiltroEstado, filtroFecha, setFiltroFecha, filtrados, hayFiltros } = useOrderFilters(pedidos)
 
   // Exportar pedidos filtrados como CSV
   function exportarCSV() {
@@ -548,90 +267,19 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
       )}
 
       {/* Dialog de motivo de cancelación */}
-      {cancelDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="font-semibold text-zinc-900 mb-1">Cancelar pedido</h3>
-            <p className="text-sm text-zinc-500 mb-4">¿Por qué se cancela este pedido? (opcional)</p>
-            <div className="flex gap-2 mb-4 flex-wrap">
-              {['Cliente desistió', 'Sin stock', 'Error en el pedido', 'Otro'].map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setCancelDialog((d) => d ? { ...d, motivo: m } : d)}
-                  className={cn(
-                    'px-2.5 py-1 rounded-full text-xs font-medium border transition',
-                    cancelDialog.motivo === m
-                      ? 'bg-red-100 border-red-300 text-red-700'
-                      : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
-                  )}
-                >{m}</button>
-              ))}
-            </div>
-            <textarea
-              value={cancelDialog.motivo}
-              onChange={(e) => setCancelDialog((d) => d ? { ...d, motivo: e.target.value } : d)}
-              placeholder="O escribe el motivo aquí…"
-              rows={2}
-              className="w-full text-sm border border-zinc-200 rounded-xl px-3 py-2 mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-zinc-300"
-            />
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setCancelDialog(null)}
-                className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-800 transition"
-              >Volver</button>
-              <button
-                onClick={() => cambiarEstado(cancelDialog.pedidoId, 'cancelado', cancelDialog.motivo || undefined)}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition"
-              >Confirmar cancelación</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalCancelarPedido
+        cancelDialog={cancelDialog}
+        setCancelDialog={setCancelDialog}
+        cambiarEstado={cambiarEstado}
+      />
 
       {/* Dialog de aprobación de crédito */}
-      {creditoDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="font-semibold text-zinc-900 mb-1">Aprobar crédito</h3>
-            <p className="text-sm text-zinc-500 mb-4">El cliente pagará en un plazo acordado. Define la fecha límite.</p>
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="text-xs font-medium text-zinc-500 mb-1 block">Fecha límite de pago *</label>
-                <input
-                  type="date"
-                  value={creditoDialog.fechaLimite}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={(e) => setCreditoDialog((d) => d ? { ...d, fechaLimite: e.target.value } : d)}
-                  className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-zinc-500 mb-1 block">Notas (opcional)</label>
-                <input
-                  type="text"
-                  value={creditoDialog.notas}
-                  onChange={(e) => setCreditoDialog((d) => d ? { ...d, notas: e.target.value } : d)}
-                  placeholder="Condiciones del crédito…"
-                  className="w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setCreditoDialog(null)} className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-800 transition">
-                Cancelar
-              </button>
-              <button
-                onClick={aprobarCredito}
-                disabled={aprobandoCredito}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition"
-              >
-                {aprobandoCredito ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                Aprobar crédito
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ModalAprobarCredito
+        creditoDialog={creditoDialog}
+        setCreditoDialog={setCreditoDialog}
+        aprobarCredito={aprobarCredito}
+        aprobandoCredito={aprobandoCredito}
+      />
 
       {/* Acciones superiores */}
       <div className="flex justify-end gap-2 mb-4">
@@ -659,64 +307,16 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
         </button>
       </div>
 
-      {/* Barra de búsqueda + filtro de fecha */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        {/* Búsqueda */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-          <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por cliente, teléfono o N° pedido…"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 transition"
-          />
-          {busqueda && (
-            <button onClick={() => setBusqueda('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Filtro fecha */}
-        <div className="flex gap-1">
-          {RANGOS_FECHA.map(({ label, value }) => (
-            <button key={value} onClick={() => setFiltroFecha(value)}
-              className={cn('px-3 py-2 rounded-xl text-xs font-medium transition',
-                filtroFecha === value
-                  ? 'bg-zinc-950 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Filtros por estado */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <button onClick={() => setFiltroEstado('')}
-          className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition',
-            !filtroEstado ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
-          Todos ({pedidos.length})
-        </button>
-        {ESTADOS.map((e) => {
-          const count = pedidos.filter((p) => p.estado === e).length
-          if (!count) return null
-          return (
-            <button key={e} onClick={() => setFiltroEstado(e)}
-              className={cn('px-3 py-1.5 rounded-full text-xs font-medium transition',
-                filtroEstado === e ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200')}>
-              {labelEstadoPedido(e)} ({count})
-            </button>
-          )
-        })}
-        {hayFiltros && (
-          <button onClick={() => { setBusqueda(''); setFiltroEstado(''); setFiltroFecha('') }}
-            className="ml-auto text-xs text-zinc-400 hover:text-zinc-700 flex items-center gap-1 transition">
-            <X className="w-3 h-3" /> Limpiar filtros
-          </button>
-        )}
-      </div>
+      <OrderFilters
+        busqueda={busqueda}
+        setBusqueda={setBusqueda}
+        filtroEstado={filtroEstado}
+        setFiltroEstado={setFiltroEstado}
+        filtroFecha={filtroFecha}
+        setFiltroFecha={setFiltroFecha}
+        pedidosCount={pedidos.length}
+        pedidos={pedidos}
+      />
 
       {/* Resultados */}
       {filtrados.length === 0 ? (
@@ -861,7 +461,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-100">
-                        {pedido.items_pedido.map((item) => (
+                        {pedido.items_pedido.map((item: any) => (
                           <tr key={item.id}>
                             <td className="py-1.5 text-zinc-800">{item.nombre_producto}</td>
                             <td className="py-1.5 text-right text-zinc-500">{item.cantidad}</td>
@@ -1027,7 +627,7 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                     {pedido.incidencia_tipo && (
                       <div className="mb-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">
                         <span className="font-medium">Incidencia:</span> {
-                          { pedido_incorrecto: 'Pedido incorrecto', cliente_ausente: 'Cliente no estaba', pago_rechazado: 'No pudo pagar', otro: 'Otro' }[pedido.incidencia_tipo] ?? pedido.incidencia_tipo
+                          ({ pedido_incorrecto: 'Pedido incorrecto', cliente_ausente: 'Cliente no estaba', pago_rechazado: 'No pudo pagar', otro: 'Otro' } as Record<string, string>)[pedido.incidencia_tipo] ?? pedido.incidencia_tipo
                         }
                         {pedido.incidencia_desc && ` — ${pedido.incidencia_desc}`}
                       </div>
@@ -1064,217 +664,68 @@ export default function OrdersTable({ pedidos: inicial, productos = [], zonas = 
                       const cp = estadoComprobante(pedido.id)
                       const boletaEmitida = boletasEmitidas[pedido.id]
                       const facturaEmitida = facturasEmitidas[pedido.id]
-                      const comprobantePrincipal = boletaEmitida || facturaEmitida
 
                       return (
                         <div className="border-t border-zinc-200 pt-3 flex items-center gap-2 flex-wrap">
+                          {/* 1. Ver Nota de Venta */}
                           <button
                             onClick={() => verComprobante(pedido.id)}
                             disabled={cp.cargando}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition disabled:opacity-50"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg border border-blue-200 transition disabled:opacity-50"
                           >
-                            {cp.cargando
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <FileText className="w-3.5 h-3.5" />
-                            }
-                            {cp.cargando ? 'Generando…' : (cp.id ? 'Nota de Venta (Completa)' : 'Emitir Nota de Venta')}
+                            {cp.cargando ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <FileText className="w-3.5 h-3.5" />
+                            )}
+                            {cp.cargando ? 'Generando…' : 'Ver Nota de Venta'}
                             {!cp.cargando && <ExternalLink className="w-3 h-3 opacity-60" />}
                           </button>
 
-                          {(cp.id || comprobantePrincipal?.comprobanteId) && (
-                            <>
-                              <button
-                                onClick={() => setModalNC({
-                                  pedido: pedido as unknown as PedidoDB,
-                                  comprobanteOriginal: {
-                                    id: (cp.id || comprobantePrincipal?.comprobanteId) as string,
-                                    numeroCompleto: (cp.numero_completo || comprobantePrincipal?.numeroCompleto) as string,
-                                    tipo: cp.tipo || (boletaEmitida ? 'boleta' : 'factura')
-                                  }
-                                })}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium rounded-lg transition"
-                              >
-                                Devolución (NC)
-                              </button>
-
-                              <button
-                                onClick={async () => {
-                                  const motivo = prompt('Motivo de la anulación (Requerido por SUNAT):')
-                                  if (!motivo) return
-                                  try {
-                                    const req = await fetch(`/api/orders/${pedido.id}/comprobante/anular`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ motivo })
-                                    })
-                                    const res = await req.json()
-                                    if (res.ok) {
-                                      toast.success('Comprobante anulado correctamente.')
-                                      setTimeout(() => window.location.reload(), 1000)
-                                    } else {
-                                      toast.error('Error: ' + res.error)
-                                    }
-                                  } catch (e) {
-                                    toast.error('Error de conexión al anular')
-                                  }
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-medium rounded-lg transition"
-                              >
-                                Anular
-                              </button>
-
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const req = await fetch(`/api/orders/${pedido.id}/comprobante/consultar`, { method: 'POST' })
-                                    const res = await req.json()
-                                    if (res.ok) {
-                                      toast.info(res.mensaje + (res.datos?.aceptada_por_sunat ? ' (ACEPTADA)' : ' (RECHAZADA/PENDIENTE)'))
-                                      setTimeout(() => window.location.reload(), 2000)
-                                    } else {
-                                      toast.error('Error: ' + res.error)
-                                    }
-                                  } catch (e) {
-                                    toast.error('Error de conexión al consultar')
-                                  }
-                                }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition"
-                              >
-                                Consultar SUNAT
-                              </button>
-                            </>
-                          )}
-
-                          <button
-                            onClick={() => window.open(`/orders/print/${pedido.id}${cp.id ? `?comprobanteId=${cp.id}` : ''}`, '_blank', 'width=400,height=600')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-900 text-white text-xs font-medium rounded-lg transition shadow-sm"
-                            title="Imprimir ticket interno 80mm"
-                          >
-                            🖨️ Ticket 80mm
-                          </button>
-
-                          <button
-                            onClick={() => reenviarComprobante(pedido.id)}
-                            disabled={cp.reenviando}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-medium rounded-lg transition disabled:opacity-50"
-                          >
-                            {cp.reenviando
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : cp.enviado
-                              ? <span className="text-green-600 flex items-center gap-1">✓ Enviado</span>
-                              : <><Send className="w-3.5 h-3.5" /> Reenviar al cliente</>
-                            }
-                          </button>
-
-                          {/* Botón boleta electrónica — solo si Nubefact está configurado */}
+                          {/* 2. Ver Boleta */}
                           {nubefactConfigurado && (
                             boletaEmitida ? (
-                              <div className="flex items-center gap-1.5 border border-green-200 bg-green-50 px-2 py-1.5 rounded-lg">
-                                <span className="text-xs text-green-700 font-medium">
-                                  ✓ {boletaEmitida.numeroCompleto}
-                                </span>
-                                {boletaEmitida.pdfUrl && (
-                                  <>
-                                    <a
-                                      href={boletaEmitida.pdfUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
-                                      title="Ver PDF Boleta (A4)"
-                                    >
-                                      PDF <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                    <a
-                                      href={`/orders/print/${pedido.id}?comprobanteId=${boletaEmitida.comprobanteId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-zinc-700 hover:underline flex items-center gap-0.5 ml-1"
-                                      title="Imprimir Ticket Boleta 80mm"
-                                    >
-                                      🖨️
-                                    </a>
-                                  </>
-                                )}
-                              </div>
+                              <button
+                                onClick={() => window.open(boletaEmitida.pdfUrl || `/orders/print/${pedido.id}?comprobanteId=${boletaEmitida.comprobanteId}`, '_blank')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                Ver Boleta ({boletaEmitida.numeroCompleto})
+                                <ExternalLink className="w-3 h-3 opacity-60" />
+                              </button>
                             ) : (
-                              !facturaEmitida && (
-                                <button
-                                  onClick={() => setModalBoleta(pedido as unknown as PedidoDB)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition"
-                                >
-                                  🧾 Emitir boleta
-                                </button>
-                              )
+                              <button
+                                onClick={() => setModalBoleta(pedido as unknown as PedidoDB)}
+                                disabled={!!facturaEmitida}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition disabled:opacity-40 disabled:hover:bg-green-50 disabled:cursor-not-allowed"
+                                title={facturaEmitida ? "Bloqueado porque ya se emitió Factura" : "Emitir boleta ante SUNAT"}
+                              >
+                                🧾 Ver Boleta
+                              </button>
                             )
                           )}
 
-                          {/* Botón factura electrónica — solo si Nubefact configurado y ferretería tiene RUC */}
+                          {/* 3. Ver Factura */}
                           {nubefactConfigurado && tieneRuc && (
                             facturaEmitida ? (
-                              <div className="flex items-center gap-1.5 border border-indigo-200 bg-indigo-50 px-2 py-1.5 rounded-lg">
-                                <span className="text-xs text-indigo-700 font-medium">
-                                  F ✓ {facturaEmitida.numeroCompleto}
-                                </span>
-                                {facturaEmitida.pdfUrl && (
-                                  <>
-                                    <a
-                                      href={facturaEmitida.pdfUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
-                                      title="Ver PDF Factura (A4)"
-                                    >
-                                      PDF <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                    <a
-                                      href={`/orders/print/${pedido.id}?comprobanteId=${facturaEmitida.comprobanteId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-zinc-700 hover:underline flex items-center gap-0.5 ml-1"
-                                      title="Imprimir Ticket Factura 80mm"
-                                    >
-                                      🖨️
-                                    </a>
-                                  </>
-                                )}
-                              </div>
+                              <button
+                                onClick={() => window.open(facturaEmitida.pdfUrl || `/orders/print/${pedido.id}?comprobanteId=${facturaEmitida.comprobanteId}`, '_blank')}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-200 transition"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                Ver Factura ({facturaEmitida.numeroCompleto})
+                                <ExternalLink className="w-3 h-3 opacity-60" />
+                              </button>
                             ) : (
-                              !boletaEmitida && (
-                                <button
-                                  onClick={() => setModalFactura(pedido as unknown as PedidoDB)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-200 transition"
-                                >
-                                  🧾 Emitir factura
-                                </button>
-                              )
+                              <button
+                                onClick={() => setModalFactura(pedido as unknown as PedidoDB)}
+                                disabled={!!boletaEmitida}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg border border-indigo-200 transition disabled:opacity-40 disabled:hover:bg-indigo-50 disabled:cursor-not-allowed"
+                                title={boletaEmitida ? "Bloqueado porque ya se emitió Boleta" : "Emitir factura ante SUNAT"}
+                              >
+                                🧾 Ver Factura
+                              </button>
                             )
-                          )}
-
-                          {/* Nota de Venta Secundaria (Split Billing) */}
-                          {(comprobantePrincipal as any)?.comprobanteSecundarioId && (
-                            <div className="flex items-center gap-1.5 border border-zinc-200 bg-zinc-50 px-2 py-1.5 rounded-lg">
-                              <span className="text-xs text-zinc-600 font-medium">
-                                Nota Anexa
-                              </span>
-                              <a
-                                href={`/api/orders/${pedido.id}/comprobante/view?id=${(comprobantePrincipal as any).comprobanteSecundarioId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
-                                title="Ver PDF Nota Venta (A4)"
-                              >
-                                PDF <ExternalLink className="w-3 h-3" />
-                              </a>
-                              <a
-                                href={`/orders/print/${pedido.id}?comprobanteId=${(comprobantePrincipal as any).comprobanteSecundarioId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-zinc-700 hover:underline flex items-center gap-0.5 ml-1"
-                                title="Imprimir Ticket Nota Venta 80mm"
-                              >
-                                🖨️
-                              </a>
-                            </div>
                           )}
 
                           {cp.error && (

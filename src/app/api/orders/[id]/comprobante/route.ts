@@ -20,7 +20,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     .eq('pedido_id', pedidoId)
     .order('created_at', { ascending: false })
 
-  const comprobante = comprobantesList?.find(c => c.tipo === 'nota_venta_interna') 
+  const comprobante = comprobantesList?.find(c => c.tipo === 'nota_venta') 
 
   if (error || !comprobante) {
     return NextResponse.json({ error: 'Sin comprobante' }, { status: 404 })

@@ -2,7 +2,7 @@
 -- Todos los productos existentes se consideran facturables por defecto
 
 ALTER TABLE productos 
-ADD COLUMN facturable BOOLEAN DEFAULT true;
+ADD COLUMN IF NOT EXISTS facturable BOOLEAN DEFAULT true;
 
 -- Asegurar que los productos existentes tengan true
 UPDATE productos SET facturable = true WHERE facturable IS NULL;

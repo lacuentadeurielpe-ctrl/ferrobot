@@ -44,12 +44,10 @@ ALTER TABLE configuracion_bot
     CHECK (ventana_gracia_minutos BETWEEN 0 AND 120);
 
 COMMENT ON COLUMN configuracion_bot.debounce_segundos IS
-  'Segundos que el bot espera antes de responder tras un mensaje del cliente. ' ||
-  'Si llega otro mensaje del mismo cliente, el timer se resetea. 0 = desactivado.';
+  'Segundos que el bot espera antes de responder tras un mensaje del cliente. Si llega otro mensaje del mismo cliente, el timer se resetea. 0 = desactivado.';
 
 COMMENT ON COLUMN configuracion_bot.ventana_gracia_minutos IS
-  'Ventana en minutos tras confirmación en la que el cliente puede agregar items ' ||
-  'al pedido sin crear uno nuevo. Se respetan criterios estrictos (estado, pago).';
+  'Ventana en minutos tras confirmación en la que el cliente puede agregar items al pedido sin crear uno nuevo. Se respetan criterios estrictos (estado, pago).';
 
 -- ════════════════════════════════════════════════════════════════════
 -- Flag de modificación post-confirmación

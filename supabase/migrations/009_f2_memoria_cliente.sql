@@ -11,15 +11,11 @@ ALTER TABLE clientes
   ADD COLUMN IF NOT EXISTS perfil JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 COMMENT ON COLUMN clientes.perfil IS
-  'Perfil del cliente construido desde su historial real y datos explícitos. ' ||
-  'Claves esperadas: compras_frecuentes (array), modalidad_preferida (string), ' ||
-  'zona_habitual (string), tipo_cliente (string), obra_actual (string). ' ||
-  'FERRETERÍA AISLADA: hereda del cliente, nunca se cruza entre tenants.';
+  'Perfil del cliente construido desde su historial real y datos explícitos. Claves esperadas: compras_frecuentes (array), modalidad_preferida (string), marcas_evitadas (array), contexto_abierto (string), nivel_confianza (number).';
 
 ALTER TABLE conversaciones
   ADD COLUMN IF NOT EXISTS resumen_contexto TEXT NULL,
   ADD COLUMN IF NOT EXISTS resumen_actualizado_hasta TIMESTAMPTZ NULL;
 
 COMMENT ON COLUMN conversaciones.resumen_contexto IS
-  'Resumen de los mensajes viejos de la conversación (compaction). ' ||
-  'Se regenera cuando el historial supera un umbral.';
+  'Resumen de los mensajes viejos de la conversación (compaction). Se regenera cuando el historial supera un umbral.';

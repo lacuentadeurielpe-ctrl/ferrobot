@@ -59,7 +59,7 @@ export async function generarYEnviarComprobante({
     .from('comprobantes')
     .select('id, numero_comprobante, pdf_url, enviado_whatsapp')
     .eq('pedido_id', pedidoId)
-    .eq('tipo', 'nota_venta_interna')
+    .eq('tipo', 'nota_venta')
     .maybeSingle()
 
   if (existente) {
@@ -99,13 +99,18 @@ export async function generarYEnviarComprobante({
 
   // ── 4. Generar número correlativo (atómico en DB) ────────────────────────
   const { data: numData, error: errNum } = await supabase
-    .rpc('generar_numero_comprobante', { p_ferreteria_id: ferreteriaId })
+    .rpc('generar_numero_comprobante', {
+      p_ferreteria_id: ferreteriaId,
+      p_tipo:          'nota_venta',
+      p_serie:         'NV02',
+    })
 
   if (errNum || !numData) {
     return { ok: false, error: `Error generando número: ${errNum?.message}` }
   }
 
-  const numeroComprobante = numData as string
+  const numero = numData as number
+  const numeroComprobante = `NV02-${String(numero).padStart(8, '0')}`
 
   // ── 5. Construir datos para el PDF ───────────────────────────────────────
   const items = ((pedido as any).items_pedido ?? []).map((i: any) => ({
@@ -171,9 +176,9 @@ export async function generarYEnviarComprobante({
     .insert({
       ferreteria_id:      ferreteriaId,
       pedido_id:          pedidoId,
-      tipo:               'nota_venta_interna',
+      tipo:               'nota_venta',
       serie:              'NV02', // Serie diferente para los generales
-      numero:             Number(numeroComprobante.replace(/\D/g, '')) || 0,
+      numero:             numero,
       numero_completo:    numeroComprobante,
       numero_comprobante: numeroComprobante,
       estado:             'emitido',

@@ -1,6 +1,6 @@
 -- Agregar soporte para códigos de barras en productos
 ALTER TABLE productos
-ADD COLUMN codigo_barras TEXT;
+ADD COLUMN IF NOT EXISTS codigo_barras TEXT;
 
 -- Crear un índice para búsquedas ultra-rápidas con el escáner (o pistola láser)
 CREATE INDEX idx_productos_codigo_barras ON productos(codigo_barras);

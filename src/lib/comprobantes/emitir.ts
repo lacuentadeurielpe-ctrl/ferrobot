@@ -198,24 +198,8 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
     return { ok: false, error: 'El pedido no tiene items' }
   }
 
-  const itemsFormales = todosLosItems.filter(i => i.productos?.facturable !== false)
-  const itemsInformales = todosLosItems.filter(i => i.productos?.facturable === false)
-
-  const comprobanteSecundarioId = await procesarItemsInformales(
-    supabase, opts.ferreteriaId, opts.pedidoId, itemsInformales, todosLosItems,
-    opts.clienteNombre || '', opts.clienteDni || '', opts.emitidoPor
-  )
-
-  if (itemsFormales.length === 0) {
-    return {
-      ok: true,
-      comprobanteId: comprobanteSecundarioId, // Es el principal en este caso
-      numeroCompleto: 'Nota de Venta',
-      comprobanteSecundarioId: undefined, // No hay secundario
-    }
-  }
-
-  const items = itemsFormales
+  const items = todosLosItems
+  const comprobanteSecundarioId = undefined
   // ── 3. Verificar si ya existe boleta emitida — si es así, la devolvemos ────
   //    Nunca llamamos a Nubefact dos veces para el mismo pedido.
   const { data: yaEmitida } = await supabase
@@ -404,7 +388,7 @@ export async function emitirBoleta(opts: OpcionesEmision): Promise<ResultadoEmis
       pdf_url:          resultado.data?.enlace_del_pdf ?? null,
       emitido_por:      opts.emitidoPor,
       error_envio:      resultado.ok ? null : (resultado.error ?? 'Error desconocido'),
-      datos_json:       { items: itemsFormales },
+      datos_json:       { items },
     }, {
       onConflict: 'pedido_id,tipo',   // si ya existe → actualiza
     })
@@ -493,24 +477,8 @@ export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmi
     return { ok: false, error: 'El pedido no tiene items' }
   }
 
-  const itemsFormales = todosLosItems.filter(i => i.productos?.facturable !== false)
-  const itemsInformales = todosLosItems.filter(i => i.productos?.facturable === false)
-
-  const comprobanteSecundarioId = await procesarItemsInformales(
-    supabase, opts.ferreteriaId, opts.pedidoId, itemsInformales, todosLosItems,
-    opts.clienteNombre || '', opts.clienteRuc || '', opts.emitidoPor
-  )
-
-  if (itemsFormales.length === 0) {
-    return {
-      ok: true,
-      comprobanteId: comprobanteSecundarioId, // Es el principal en este caso
-      numeroCompleto: 'Nota de Venta',
-      comprobanteSecundarioId: undefined, // No hay secundario
-    }
-  }
-
-  const items = itemsFormales
+  const items = todosLosItems
+  const comprobanteSecundarioId = undefined
   // ── 3. Verificar si ya existe factura emitida — si es así, la devolvemos ──
   const { data: yaEmitida } = await supabase
     .from('comprobantes')
@@ -677,7 +645,7 @@ export async function emitirFactura(opts: OpcionesFactura): Promise<ResultadoEmi
       pdf_url:          resultado.data?.enlace_del_pdf ?? null,
       emitido_por:      opts.emitidoPor,
       error_envio:      resultado.ok ? null : (resultado.error ?? 'Error desconocido'),
-      datos_json:       { items: itemsFormales },
+      datos_json:       { items },
     }, {
       onConflict: 'pedido_id,tipo',
     })

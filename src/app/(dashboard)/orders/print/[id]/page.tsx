@@ -51,14 +51,12 @@ export default async function PrintTicketPage({
       montoTotal = comp.total
 
       if (comp.tipo === 'nota_venta' || comp.tipo === 'nota_venta_interna') {
-        tituloComprobante = comp.tipo === 'nota_venta_interna' ? 'NOTA DE VENTA' : 'NOTA DE VENTA - INTERNO'
-        itemsAImprimir = comp.datos_json?.items || (comp.tipo === 'nota_venta_interna' ? itemsAImprimir : itemsAImprimir.filter((i: any) => i.productos?.facturable === false))
+        tituloComprobante = 'NOTA DE VENTA'
+        itemsAImprimir = comp.datos_json?.items || itemsAImprimir
       } else {
         tituloComprobante = comp.tipo === 'factura' ? 'FACTURA ELECTRÓNICA' : 'BOLETA ELECTRÓNICA'
         esSunat = true
-        // Nubefact guarda el hash y enlace en datos_json a veces, o en campos específicos si los hay
-        // Asumimos que los items enviados a SUNAT son los formales
-        itemsAImprimir = itemsAImprimir.filter((i: any) => i.productos?.facturable !== false)
+        itemsAImprimir = comp.datos_json?.items || itemsAImprimir
       }
     }
   }
