@@ -10,20 +10,39 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!session) return new Response('No autorizado', { status: 401 })
 
   const { id: pedidoId } = await params
+  const url = new URL(request.url)
+  const queryId = url.searchParams.get('id')
 
   const admin = createAdminClient()
-  const { data: comprobantesList } = await admin
-    .from('comprobantes')
-    .select('id, pdf_url')
-    .eq('pedido_id', pedidoId)
-    .order('created_at', { ascending: false })
-    .limit(1)
+  let comprobanteIdToRedirect = ''
 
-  const comprobante = comprobantesList?.[0]
+  if (queryId) {
+    const { data: comprobantesList } = await admin
+      .from('comprobantes')
+      .select('id')
+      .eq('pedido_id', pedidoId)
+      .eq('id', queryId)
+      .limit(1)
+    
+    if (comprobantesList?.[0]) {
+      comprobanteIdToRedirect = comprobantesList[0].id
+    }
+  } else {
+    const { data: list } = await admin
+      .from('comprobantes')
+      .select('id, tipo')
+      .eq('pedido_id', pedidoId)
+      .order('created_at', { ascending: false })
+    
+    if (list && list.length > 0) {
+      const nv = list.find(c => c.tipo === 'nota_venta' || c.tipo === 'nota_venta_interna')
+      comprobanteIdToRedirect = nv ? nv.id : list[0].id
+    }
+  }
 
-  if (!comprobante) return new Response('Comprobante no encontrado', { status: 404 })
+  if (!comprobanteIdToRedirect) {
+    return new Response('Comprobante no encontrado', { status: 404 })
+  }
 
-  // Siempre usar nuestra plantilla personalizada (React-PDF)
-  // para que boletas y facturas se vean con branding de la ferretería
-  return NextResponse.redirect(new URL(`/api/comprobantes/${comprobante.id}/pdf`, request.url))
+  return NextResponse.redirect(new URL(`/api/comprobantes/${comprobanteIdToRedirect}/pdf`, request.url))
 }
