@@ -33,29 +33,39 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // 3. Calcular costos si los productos existen en el catálogo
   let costo_total = 0
-  const itemsParaPedido = await Promise.all(cotizacion.items_cotizacion.map(async (item: any) => {
-    let costo_unitario = 0
-    if (item.producto_id) {
-      const { data: prod } = await supabase
-        .from('productos')
-        .select('precio_compra')
-        .eq('id', item.producto_id)
-        .single()
-      if (prod) costo_unitario = prod.precio_compra
-    }
-    
-    costo_total += costo_unitario * item.cantidad
+  let itemsParaPedido: any[] = []
+  try {
+    itemsParaPedido = await Promise.all(cotizacion.items_cotizacion.map(async (item: any) => {
+      let costo_unitario = 0
+      if (item.producto_id) {
+        const { data: prod } = await supabase
+          .from('productos')
+          .select('precio_compra, stock, venta_sin_stock, nombre')
+          .eq('id', item.producto_id)
+          .single()
+        if (prod) {
+          if (!prod.venta_sin_stock && prod.stock < item.cantidad) {
+            throw new Error(`El producto "${prod.nombre}" no tiene stock suficiente (Stock: ${prod.stock}, Solicitado: ${item.cantidad}). Activa la opción de "Venta sin stock" en el catálogo si deseas forzar la venta.`)
+          }
+          costo_unitario = prod.precio_compra
+        }
+      }
+      
+      costo_total += costo_unitario * item.cantidad
 
-    return {
-      producto_id: item.producto_id,
-      nombre_producto: item.nombre_producto,
-      unidad: item.unidad,
-      cantidad: item.cantidad,
-      precio_unitario: item.precio_unitario,
-      costo_unitario: costo_unitario,
-      subtotal: item.subtotal,
-    }
-  }))
+      return {
+        producto_id: item.producto_id,
+        nombre_producto: item.nombre_producto,
+        unidad: item.unidad,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio_unitario,
+        costo_unitario: costo_unitario,
+        subtotal: item.subtotal,
+      }
+    }))
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
 
   // 4. Crear el pedido
   const { data: pedido, error: errPedido } = await supabase
