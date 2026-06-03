@@ -142,9 +142,10 @@ async function procesarItemsInformales(
       p_serie:         'NV01'
     })
   
-  if (!corrDataNV) return undefined
+  if (corrDataNV == null) return undefined
 
-  const { numero, numero_completo } = corrDataNV
+  const numero = corrDataNV as number
+  const numero_completo = `NV01-${String(numero).padStart(8, '0')}`
   
   // La nota de venta (ticket interno) mostrará TODOS los productos del pedido
   // para que el cajero/almacén sepa todo lo que el cliente lleva,
